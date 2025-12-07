@@ -1,0 +1,79 @@
+services:
+  # Main API Service
+  - type: web
+    name: shambit-api
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm run deploy:build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: API_VERSION
+        value: v1
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: API_RATE_LIMIT_WINDOW
+        value: 60000
+      - key: API_RATE_LIMIT_MAX
+        value: 100
+      - key: SKIP_TEST_DATA
+        value: true
+      - key: SKIP_INVENTORY_SEEDING
+        value: true
+      # Database connection (from Render PostgreSQL)
+      - key: DB_HOST
+        fromDatabase:
+          name: shambit-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: shambit-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: shambit-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: shambit-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: shambit-db
+          property: password
+      - key: DB_POOL_MIN
+        value: 2
+      - key: DB_POOL_MAX
+        value: 10
+      # Secrets (set these in Render dashboard)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: JWT_ACCESS_EXPIRY
+        value: 15m
+      - key: JWT_REFRESH_EXPIRY
+        value: 30d
+      # Firebase (set these in Render dashboard)
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+
+databases:
+  # PostgreSQL Database
+  - name: shambit-db
+    databaseName: shambit
+    plan: starter
+    region: oregon

@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">ShamBit</string>
+    
+    <!-- Common -->
+    <string name="loading">Loading…</string>
+    <string name="error_occurred">An error occurred</string>
+    <string name="no_internet">No internet connection</string>
+    <string name="retry">Retry</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    
+    <!-- Auth -->
+    <string name="login">Login</string>
+    <string name="logout">Logout</string>
+    <string name="enter_mobile">Enter mobile number</string>
+    <string name="send_otp">Send OTP</string>
+    <string name="verify_otp">Verify OTP</string>
+    <string name="enter_otp">Enter OTP</string>
+    
+    <!-- Products -->
+    <string name="products">Products</string>
+    <string name="search_products">Search products</string>
+    <string name="add_to_cart">Add to Cart</string>
+    <string name="buy_now">Buy Now</string>
+    
+    <!-- Cart -->
+    <string name="cart">Cart</string>
+    <string name="checkout">Checkout</string>
+    <string name="empty_cart">Your cart is empty</string>
+    
+    <!-- Orders -->
+    <string name="orders">Orders</string>
+    <string name="order_details">Order Details</string>
+    <string name="track_order">Track Order</string>
+    <string name="cancel_order">Cancel Order</string>
+    
+    <!-- Profile -->
+    <string name="profile">Profile</string>
+    <string name="addresses">Addresses</string>
+    <string name="notifications">Notifications</string>
+    <string name="settings">Settings</string>
+</resources>

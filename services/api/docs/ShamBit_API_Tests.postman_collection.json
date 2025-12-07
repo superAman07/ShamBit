@@ -1,0 +1,769 @@
+{
+  "info": {
+    "name": "ShamBit API - Simplified Platform",
+    "description": "API tests for the simplified ShamBit quick commerce platform.\n\nINCLUDED: Authentication, Products, Orders, Promotions, Delivery Management (integrated in admin), Notifications.\n\nREMOVED ENDPOINTS (no longer available):\n- Batch/Lot Inventory endpoints (/batches/*)\n- Analytics endpoints (/analytics/*)\n- Warehouse endpoints (/warehouses/*)\n- Separate Delivery App endpoints (delivery now managed via admin portal)\n\nSee services/api/README.md for complete API documentation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "promotionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryPersonnelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Task 7 - Promotions",
+      "item": [
+        {
+          "name": "Create Promotion (Percentage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has promotion ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "    pm.collectionVariables.set(\"promotionId\", jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"description\": \"10% off for new users\",\n  \"discountType\": \"percentage\",\n  \"discountValue\": 10,\n  \"minOrderValue\": 50000,\n  \"maxDiscountAmount\": 10000,\n  \"usageLimit\": 100,\n  \"perUserLimit\": 1,\n  \"startDate\": \"2025-10-25T00:00:00Z\",\n  \"endDate\": \"2025-12-31T23:59:59Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions"]
+            }
+          }
+        },
+        {
+          "name": "Create Promotion (Fixed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FLAT50\",\n  \"description\": \"Flat ₹50 off\",\n  \"discountType\": \"fixed\",\n  \"discountValue\": 5000,\n  \"minOrderValue\": 20000,\n  \"usageLimit\": 500,\n  \"perUserLimit\": 3,\n  \"startDate\": \"2025-10-25T00:00:00Z\",\n  \"endDate\": \"2025-11-30T23:59:59Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions"]
+            }
+          }
+        },
+        {
+          "name": "Get All Promotions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/promotions?page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Validate Promotion Code (Valid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"orderAmount\": 100000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions", "validate"]
+            }
+          }
+        },
+        {
+          "name": "Validate Promotion Code (Below Minimum)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"orderAmount\": 30000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions", "validate"]
+            }
+          }
+        },
+        {
+          "name": "Update Promotion",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usageLimit\": 200,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions/{{promotionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions", "{{promotionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Deactivate Promotion",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/promotions/{{promotionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["promotions", "{{promotionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 8 - Delivery Management",
+      "item": [
+        {
+          "name": "Create Delivery Personnel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has personnel ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "    pm.collectionVariables.set(\"deliveryPersonnelId\", jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rajesh Kumar\",\n  \"mobileNumber\": \"+919876543210\",\n  \"email\": \"rajesh@example.com\",\n  \"vehicleType\": \"bike\",\n  \"vehicleNumber\": \"DL01AB1234\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/personnel",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "personnel"]
+            }
+          }
+        },
+        {
+          "name": "Get All Delivery Personnel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/personnel?available=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "personnel"],
+              "query": [
+                {
+                  "key": "available",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Personnel Location",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/personnel/{{deliveryPersonnelId}}/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "personnel", "{{deliveryPersonnelId}}", "location"]
+            }
+          }
+        },
+        {
+          "name": "Update Personnel Availability",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isAvailable\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/personnel/{{deliveryPersonnelId}}/availability",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "personnel", "{{deliveryPersonnelId}}", "availability"]
+            }
+          }
+        },
+        {
+          "name": "Get Assignment Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/suggestions/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "suggestions", "{{orderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Delivery",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has delivery ID\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.id).to.exist;",
+                  "    pm.collectionVariables.set(\"deliveryId\", jsonData.data.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"deliveryPersonnelId\": \"{{deliveryPersonnelId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Update Delivery Status - Picked Up",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"picked_up\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/{{deliveryId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "{{deliveryId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Update Delivery Status - In Transit",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_transit\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/{{deliveryId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "{{deliveryId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Update Delivery Status - Delivered",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"delivered\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/delivery/{{deliveryId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "{{deliveryId}}", "status"]
+            }
+          }
+        },
+        {
+          "name": "Get Delivery by Order ID (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/order/{{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "order", "{{orderId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get Personnel Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/personnel/{{deliveryPersonnelId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "personnel", "{{deliveryPersonnelId}}", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Get Delivery Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/delivery/metrics?startDate=2025-10-01&endDate=2025-10-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["delivery", "metrics"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-10-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-10-31"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Task 9 - Notifications",
+      "item": [
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token-string-here\",\n  \"platform\": \"android\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/device-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "device-token"]
+            }
+          }
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "preferences"]
+            }
+          }
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pushEnabled\": true,\n  \"smsEnabled\": false,\n  \"emailEnabled\": true,\n  \"promotionalEnabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "preferences"]
+            }
+          }
+        },
+        {
+          "name": "Send Test Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "test"]
+            }
+          }
+        },
+        {
+          "name": "Get Notification History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/history?limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unregister Device Token",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"fcm-device-token-string-here\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/device-token",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "device-token"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
