@@ -3,15 +3,34 @@
  */
 
 export type NotificationType =
+  // Order Status Notifications
   | 'order_confirmed'
   | 'order_preparing'
+  | 'order_ready_for_pickup'
   | 'order_out_for_delivery'
   | 'order_delivered'
   | 'order_canceled'
+  | 'order_on_hold'
+  
+  // Payment Notifications
   | 'payment_success'
   | 'payment_failed'
+  
+  // Delivery Notifications
   | 'delivery_assigned'
   | 'delivery_eta_update'
+  | 'delivery_failed'
+  | 'delivery_rescheduled'
+  
+  // Return & Refund Notifications
+  | 'return_requested'
+  | 'return_approved'
+  | 'return_rejected'
+  | 'return_pickup_scheduled'
+  | 'refund_initiated'
+  | 'refund_completed'
+  
+  // General Notifications
   | 'promotional'
   | 'low_stock_alert';
 

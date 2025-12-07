@@ -54,11 +54,40 @@ function mapOrderFromDb(row: any): Order {
     deliveryPersonnelId: row.delivery_personnel_id,
     estimatedDeliveryTime: row.estimated_delivery_time,
     actualDeliveryTime: row.actual_delivery_time,
+    
+    // Timestamps
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     confirmedAt: row.confirmed_at,
     deliveredAt: row.delivered_at,
     canceledAt: row.canceled_at,
+    
+    // Hold Management
+    onHoldReason: row.on_hold_reason,
+    onHoldAt: row.on_hold_at,
+    
+    // Enhanced Delivery Tracking
+    readyForPickupAt: row.ready_for_pickup_at,
+    deliveryAttemptedAt: row.delivery_attempted_at,
+    deliveryAttemptCount: row.delivery_attempt_count,
+    deliveryFailureReason: row.delivery_failure_reason,
+    deliveryInstructions: row.delivery_instructions,
+    deliveryInstructionsUpdatedAt: row.delivery_instructions_updated_at,
+    
+    // Return Management
+    returnRequestedAt: row.return_requested_at,
+    returnApprovedAt: row.return_approved_at,
+    returnRejectedAt: row.return_rejected_at,
+    returnReason: row.return_reason,
+    returnNotes: row.return_notes,
+    returnApprovedBy: row.return_approved_by,
+    
+    // Refund Tracking
+    refundInitiatedAt: row.refund_initiated_at,
+    refundCompletedAt: row.refund_completed_at,
+    refundAmount: row.refund_amount ? row.refund_amount / 100 : undefined,
+    refundReference: row.refund_reference,
+    refundNotes: row.refund_notes,
   };
 }
 
@@ -81,12 +110,30 @@ function mapOrderItemFromDb(row: any): OrderItemRecord {
 
 class OrderService {
   /**
-   * Log action to order history
+   * Log action to order history - Enhanced with all action types
    */
   private async logOrderHistory(
     params: {
       orderId: string;
-      actionType: 'order_created' | 'status_change' | 'delivery_assignment' | 'cancellation' | 'return' | 'note';
+      actionType: 
+        | 'order_created'
+        | 'status_change'
+        | 'payment_status_change'
+        | 'delivery_assignment'
+        | 'delivery_attempt'
+        | 'on_hold'
+        | 'hold_released'
+        | 'cancellation'
+        | 'return_request'
+        | 'return_approval'
+        | 'return_rejection'
+        | 'return_pickup'
+        | 'return_complete'
+        | 'refund_initiated'
+        | 'refund_completed'
+        | 'note'
+        | 'customer_contact'
+        | 'item_substitution';
       oldValue?: string;
       newValue?: string;
       reason?: string;
@@ -1204,7 +1251,7 @@ class OrderService {
       // Log return with reason to order history
       await this.logOrderHistory({
         orderId,
-        actionType: 'return',
+        actionType: 'return_complete',
         oldValue: 'delivered',
         newValue: 'returned',
         reason: trimmedReason,
@@ -1316,6 +1363,1004 @@ class OrderService {
   }
 
   /**
+   * Put order on hold
+   */
+  async putOnHold(
+    orderId: string,
+    reason: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      // Validate order can be put on hold
+      const allowedStatuses: OrderStatus[] = ['confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivery_attempted'];
+      if (!allowedStatuses.includes(order.status)) {
+        throw new BadRequestError(
+          `Cannot put order on hold from status ${order.status}`,
+          'INVALID_STATUS_FOR_HOLD'
+        );
+      }
+
+      const oldStatus = order.status;
+
+      // Update order
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'on_hold',
+          on_hold_reason: reason,
+          on_hold_at: new Date(),
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'on_hold',
+        oldValue: oldStatus,
+        newValue: 'on_hold',
+        reason,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Order put on hold', {
+        orderId,
+        orderNumber: order.order_number,
+        previousStatus: oldStatus,
+        reason,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'order_on_hold',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            reason,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send on hold notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error putting order on hold', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Release order from hold
+   */
+  async releaseHold(
+    orderId: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'on_hold') {
+        throw new BadRequestError('Order is not on hold', 'ORDER_NOT_ON_HOLD');
+      }
+
+      // Determine next status based on what was done before hold
+      // Default to preparing if we can't determine
+      const nextStatus: OrderStatus = 'preparing';
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: nextStatus,
+          on_hold_reason: null,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'hold_released',
+        oldValue: 'on_hold',
+        newValue: nextStatus,
+        note: `Hold released, resuming to ${nextStatus}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Order hold released', {
+        orderId,
+        orderNumber: order.order_number,
+        nextStatus,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error releasing order hold', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Mark order as ready for pickup
+   */
+  async markReadyForPickup(
+    orderId: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'preparing') {
+        throw new BadRequestError(
+          `Cannot mark order as ready for pickup from status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'ready_for_pickup',
+          ready_for_pickup_at: new Date(),
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'status_change',
+        oldValue: 'preparing',
+        newValue: 'ready_for_pickup',
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Order marked ready for pickup', {
+        orderId,
+        orderNumber: order.order_number,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error marking order ready for pickup', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Record delivery attempt (failed delivery)
+   */
+  async recordDeliveryAttempt(
+    orderId: string,
+    reason: string,
+    notes: string | undefined,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'out_for_delivery') {
+        throw new BadRequestError(
+          `Cannot record delivery attempt for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      const attemptCount = (order.delivery_attempt_count || 0) + 1;
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'delivery_attempted',
+          delivery_attempted_at: new Date(),
+          delivery_attempt_count: attemptCount,
+          delivery_failure_reason: reason,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'delivery_attempt',
+        oldValue: 'out_for_delivery',
+        newValue: 'delivery_attempted',
+        reason,
+        note: notes || `Delivery attempt #${attemptCount} failed`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Delivery attempt recorded', {
+        orderId,
+        orderNumber: order.order_number,
+        attemptCount,
+        reason,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'delivery_failed',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            reason,
+            attemptCount,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send delivery attempt notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error recording delivery attempt', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Retry delivery after failed attempt
+   */
+  async retryDelivery(
+    orderId: string,
+    newDeliveryTime: Date | undefined,
+    deliveryPersonnelId: string | undefined,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'delivery_attempted') {
+        throw new BadRequestError(
+          `Cannot retry delivery for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      const updateData: any = {
+        status: 'out_for_delivery',
+        updated_at: new Date(),
+      };
+
+      if (newDeliveryTime) {
+        updateData.estimated_delivery_time = newDeliveryTime;
+      }
+
+      if (deliveryPersonnelId) {
+        updateData.delivery_personnel_id = deliveryPersonnelId;
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update(updateData);
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'status_change',
+        oldValue: 'delivery_attempted',
+        newValue: 'out_for_delivery',
+        note: `Delivery retry scheduled${newDeliveryTime ? ` for ${newDeliveryTime.toISOString()}` : ''}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Delivery retry scheduled', {
+        orderId,
+        orderNumber: order.order_number,
+        newDeliveryTime,
+        deliveryPersonnelId,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error retrying delivery', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Request return (customer-initiated)
+   */
+  async requestReturn(
+    orderId: string,
+    reason: string,
+    userId: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId, user_id: userId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'delivered') {
+        throw new BadRequestError(
+          'Only delivered orders can be returned',
+          'INVALID_STATUS_FOR_RETURN'
+        );
+      }
+
+      // Check if return window is still open (e.g., 7 days)
+      const deliveredAt = new Date(order.delivered_at);
+      const daysSinceDelivery = Math.floor((Date.now() - deliveredAt.getTime()) / (1000 * 60 * 60 * 24));
+      const returnWindowDays = 7;
+
+      if (daysSinceDelivery > returnWindowDays) {
+        throw new BadRequestError(
+          `Return window of ${returnWindowDays} days has expired`,
+          'RETURN_WINDOW_EXPIRED'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'return_requested',
+          return_requested_at: new Date(),
+          return_reason: reason,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'return_request',
+        oldValue: 'delivered',
+        newValue: 'return_requested',
+        reason,
+        adminEmail: `user-${userId}`,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Return requested', {
+        orderId,
+        orderNumber: order.order_number,
+        reason,
+        userId,
+        daysSinceDelivery,
+      });
+
+      // Send notification to admin
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'return_requested',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            reason,
+          },
+          channels: ['push'],
+        });
+      } catch (error) {
+        logger.error('Failed to send return request notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error requesting return', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Approve return (admin)
+   */
+  async approveReturn(
+    orderId: string,
+    notes: string | undefined,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'return_requested') {
+        throw new BadRequestError(
+          `Cannot approve return for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'return_approved',
+          return_approved_at: new Date(),
+          return_approved_by: adminId,
+          return_notes: notes,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'return_approval',
+        oldValue: 'return_requested',
+        newValue: 'return_approved',
+        note: notes,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Return approved', {
+        orderId,
+        orderNumber: order.order_number,
+        adminEmail,
+        notes,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'return_approved',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send return approval notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error approving return', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Reject return (admin)
+   */
+  async rejectReturn(
+    orderId: string,
+    reason: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'return_requested') {
+        throw new BadRequestError(
+          `Cannot reject return for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'return_rejected',
+          return_rejected_at: new Date(),
+          return_notes: reason,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'return_rejection',
+        oldValue: 'return_requested',
+        newValue: 'return_rejected',
+        reason,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Return rejected', {
+        orderId,
+        orderNumber: order.order_number,
+        reason,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'return_rejected',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            reason,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send return rejection notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error rejecting return', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Schedule return pickup
+   */
+  async scheduleReturnPickup(
+    orderId: string,
+    pickupTime: Date,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'return_approved') {
+        throw new BadRequestError(
+          `Cannot schedule pickup for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'return_pickup_scheduled',
+          estimated_delivery_time: pickupTime, // Reuse this field for pickup time
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'return_pickup',
+        oldValue: 'return_approved',
+        newValue: 'return_pickup_scheduled',
+        note: `Pickup scheduled for ${pickupTime.toISOString()}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Return pickup scheduled', {
+        orderId,
+        orderNumber: order.order_number,
+        pickupTime,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'return_pickup_scheduled',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            pickupTime,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send pickup schedule notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error scheduling return pickup', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Complete return and restock items
+   */
+  async completeReturn(
+    orderId: string,
+    restockItems: boolean,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      const validStatuses: OrderStatus[] = ['return_pickup_scheduled', 'return_in_transit'];
+      if (!validStatuses.includes(order.status)) {
+        throw new BadRequestError(
+          `Cannot complete return for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'returned',
+          updated_at: new Date(),
+        });
+
+      // Restock items if requested
+      if (restockItems) {
+        const items = await trx('order_items').where({ order_id: orderId });
+        for (const item of items) {
+          await trx('inventory')
+            .where({ product_id: item.product_id })
+            .increment('available_stock', item.quantity)
+            .increment('total_stock', item.quantity);
+
+          // Log inventory history
+          await trx('inventory_history').insert({
+            product_id: item.product_id,
+            change_type: 'return',
+            quantity_change: item.quantity,
+            performed_by: adminId,
+            reason: `Order return: ${order.order_number}`,
+          });
+        }
+      }
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'return_complete',
+        oldValue: order.status,
+        newValue: 'returned',
+        note: restockItems ? 'Items restocked' : 'Items not restocked',
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Return completed', {
+        orderId,
+        orderNumber: order.order_number,
+        restockItems,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error completing return', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Initiate refund
+   */
+  async initiateRefund(
+    orderId: string,
+    amount: number | undefined,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      const validStatuses: OrderStatus[] = ['returned', 'canceled'];
+      if (!validStatuses.includes(order.status)) {
+        throw new BadRequestError(
+          `Cannot initiate refund for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      const refundAmount = amount || order.total_amount;
+
+      // Only initiate refund if payment was completed
+      if (order.payment_status === 'completed' && order.payment_id) {
+        await paymentService.initiateRefund(order.payment_id, refundAmount);
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'refund_pending',
+          payment_status: 'refund_processing',
+          refund_initiated_at: new Date(),
+          refund_amount: refundAmount,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'refund_initiated',
+        oldValue: order.status,
+        newValue: 'refund_pending',
+        note: `Refund of ₹${(refundAmount / 100).toFixed(2)} initiated`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Refund initiated', {
+        orderId,
+        orderNumber: order.order_number,
+        refundAmount,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'refund_initiated',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            amount: refundAmount / 100,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send refund initiation notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error initiating refund', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Complete refund
+   */
+  async completeRefund(
+    orderId: string,
+    refundReference: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      if (order.status !== 'refund_pending') {
+        throw new BadRequestError(
+          `Cannot complete refund for order with status ${order.status}`,
+          'INVALID_STATUS'
+        );
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          status: 'refunded',
+          payment_status: 'refund_completed',
+          refund_completed_at: new Date(),
+          refund_reference: refundReference,
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'refund_completed',
+        oldValue: 'refund_pending',
+        newValue: 'refunded',
+        note: `Refund completed. Reference: ${refundReference}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Refund completed', {
+        orderId,
+        orderNumber: order.order_number,
+        refundReference,
+        adminEmail,
+      });
+
+      // Send notification to customer
+      try {
+        await notificationService.sendNotification({
+          userId: order.user_id,
+          type: 'refund_completed',
+          data: {
+            orderId,
+            orderNumber: order.order_number,
+            amount: order.refund_amount / 100,
+            reference: refundReference,
+          },
+          channels: ['push', 'sms'],
+        });
+      } catch (error) {
+        logger.error('Failed to send refund completion notification', { orderId, error });
+      }
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error completing refund', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Log customer contact
+   */
+  async contactCustomer(
+    orderId: string,
+    method: string,
+    message: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'customer_contact',
+        note: `Contact via ${method}: ${message}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Customer contact logged', {
+        orderId,
+        orderNumber: order.order_number,
+        method,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error logging customer contact', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
+   * Update delivery instructions
+   */
+  async updateDeliveryInstructions(
+    orderId: string,
+    instructions: string,
+    adminEmail: string,
+    adminId?: string
+  ): Promise<void> {
+    const trx = await getDb().transaction();
+
+    try {
+      const order = await trx('orders').where({ id: orderId }).first();
+
+      if (!order) {
+        throw new NotFoundError('Order not found', 'ORDER_NOT_FOUND');
+      }
+
+      await trx('orders')
+        .where({ id: orderId })
+        .update({
+          delivery_instructions: instructions,
+          delivery_instructions_updated_at: new Date(),
+          updated_at: new Date(),
+        });
+
+      // Log to history
+      await this.logOrderHistory({
+        orderId,
+        actionType: 'note',
+        note: `Delivery instructions updated: ${instructions}`,
+        adminId,
+        adminEmail,
+      }, trx);
+
+      await trx.commit();
+
+      logger.info('Delivery instructions updated', {
+        orderId,
+        orderNumber: order.order_number,
+        adminEmail,
+      });
+    } catch (error) {
+      await trx.rollback();
+      logger.error('Error updating delivery instructions', { error, orderId });
+      throw error;
+    }
+  }
+
+  /**
    * Get available delivery personnel
    */
   async getAvailableDeliveryPersonnel(all: boolean = false): Promise<DeliveryPerson[]> {
@@ -1355,26 +2400,44 @@ class OrderService {
   }
 
   /**
-   * Validate status transition
+   * Validate status transition - Production-Ready Rules
    */
   private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
     const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-      pending: ['confirmed', 'canceled'],
-      payment_processing: ['confirmed', 'failed'],
-      confirmed: ['preparing', 'canceled'],
-      preparing: ['out_for_delivery', 'canceled'],
-      out_for_delivery: ['delivered', 'canceled'],
-      delivered: ['returned'],
-      canceled: [],
-      returned: [],
-      failed: [],
+      // Payment & Confirmation Flow
+      pending: ['payment_processing', 'canceled'],
+      payment_processing: ['confirmed', 'payment_failed', 'failed'],
+      payment_failed: ['payment_processing', 'canceled'], // Allow retry
+      confirmed: ['preparing', 'on_hold', 'canceled'],
+      
+      // Preparation & Delivery Flow
+      on_hold: ['preparing', 'ready_for_pickup', 'canceled'], // Can resume to any preparation state
+      preparing: ['ready_for_pickup', 'on_hold', 'canceled'],
+      ready_for_pickup: ['out_for_delivery', 'on_hold', 'canceled'],
+      out_for_delivery: ['delivered', 'delivery_attempted', 'on_hold', 'canceled'],
+      delivery_attempted: ['out_for_delivery', 'on_hold', 'canceled', 'failed'], // Allow retry or give up
+      delivered: ['return_requested'],
+      
+      // Return & Refund Flow
+      return_requested: ['return_approved', 'return_rejected'],
+      return_approved: ['return_pickup_scheduled'],
+      return_rejected: [], // Terminal state
+      return_pickup_scheduled: ['return_in_transit'],
+      return_in_transit: ['returned'],
+      returned: ['refund_pending'],
+      refund_pending: ['refunded'],
+      
+      // Terminal States
+      canceled: [], // Cannot transition from canceled
+      failed: [], // Cannot transition from failed
+      refunded: [], // Cannot transition from refunded
     };
 
     const validNextStatuses = VALID_TRANSITIONS[currentStatus] || [];
     
     if (!validNextStatuses.includes(newStatus)) {
       throw new BadRequestError(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`,
+        `Invalid status transition from ${currentStatus} to ${newStatus}. Valid transitions: ${validNextStatuses.join(', ') || 'none'}`,
         'INVALID_STATUS_TRANSITION'
       );
     }

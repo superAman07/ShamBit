@@ -1,15 +1,48 @@
+/**
+ * Production-Ready Order Status System
+ */
 export type OrderStatus =
+  // Payment & Confirmation
   | 'pending'
   | 'payment_processing'
+  | 'payment_failed'
   | 'confirmed'
+  
+  // Preparation & Delivery
+  | 'on_hold'
   | 'preparing'
+  | 'ready_for_pickup'
   | 'out_for_delivery'
+  | 'delivery_attempted'
   | 'delivered'
-  | 'canceled'
+  
+  // Return & Refund
+  | 'return_requested'
+  | 'return_approved'
+  | 'return_rejected'
+  | 'return_pickup_scheduled'
+  | 'return_in_transit'
   | 'returned'
+  | 'refund_pending'
+  | 'refunded'
+  
+  // Terminal States
+  | 'canceled'
   | 'failed';
 
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
+/**
+ * Enhanced Payment Status System
+ */
+export type PaymentStatus = 
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'refund_initiated'
+  | 'refund_processing'
+  | 'refund_completed'
+  | 'refund_failed'
+  | 'partially_refunded';
 export type PaymentMethod = 'card' | 'upi' | 'cod';
 
 export interface OrderItem {
@@ -61,9 +94,29 @@ export interface DeliveryPerson {
   email?: string;
 }
 
+export type OrderHistoryActionType =
+  | 'order_created'
+  | 'status_change'
+  | 'payment_status_change'
+  | 'delivery_assignment'
+  | 'delivery_attempt'
+  | 'on_hold'
+  | 'hold_released'
+  | 'cancellation'
+  | 'return_request'
+  | 'return_approval'
+  | 'return_rejection'
+  | 'return_pickup'
+  | 'return_complete'
+  | 'refund_initiated'
+  | 'refund_completed'
+  | 'note'
+  | 'customer_contact'
+  | 'item_substitution';
+
 export interface OrderHistoryEntry {
   id: string;
-  actionType: 'order_created' | 'status_change' | 'delivery_assignment' | 'cancellation' | 'return' | 'note';
+  actionType: OrderHistoryActionType;
   oldValue?: string;
   newValue?: string;
   reason?: string;
@@ -118,6 +171,33 @@ export interface Order {
   confirmedAt?: string;
   deliveredAt?: string;
   canceledAt?: string;
+  
+  // Hold Management
+  onHoldReason?: string;
+  onHoldAt?: string;
+  
+  // Enhanced Delivery Tracking
+  readyForPickupAt?: string;
+  deliveryAttemptedAt?: string;
+  deliveryAttemptCount?: number;
+  deliveryFailureReason?: string;
+  deliveryInstructions?: string;
+  deliveryInstructionsUpdatedAt?: string;
+  
+  // Return Management
+  returnRequestedAt?: string;
+  returnApprovedAt?: string;
+  returnRejectedAt?: string;
+  returnReason?: string;
+  returnNotes?: string;
+  returnApprovedBy?: string;
+  
+  // Refund Tracking
+  refundInitiatedAt?: string;
+  refundCompletedAt?: string;
+  refundAmount?: number;
+  refundReference?: string;
+  refundNotes?: string;
 }
 
 export interface OrderFilters {

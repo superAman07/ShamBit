@@ -164,6 +164,161 @@ class OrderService {
     
     return apiService.get<any>('/orders/admin/statistics', params);
   }
+
+  // ============================================================================
+  // ENHANCED ORDER MANAGEMENT METHODS (Production-Ready)
+  // ============================================================================
+
+  /**
+   * Put order on hold
+   */
+  async putOnHold(orderId: string, reason: string, notes?: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/hold`, {
+      reason,
+      notes,
+    });
+  }
+
+  /**
+   * Release order from hold
+   */
+  async releaseHold(orderId: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/release-hold`, {});
+  }
+
+  /**
+   * Mark order as ready for pickup
+   */
+  async markReadyForPickup(orderId: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/ready-for-pickup`, {});
+  }
+
+  /**
+   * Record delivery attempt (failed delivery)
+   */
+  async recordDeliveryAttempt(
+    orderId: string,
+    reason: string,
+    notes?: string,
+    rescheduleTime?: string
+  ): Promise<void> {
+    await apiService.post<void>(`/orders/admin/${orderId}/delivery-attempt`, {
+      reason,
+      notes,
+      rescheduleTime,
+    });
+  }
+
+  /**
+   * Retry delivery after failed attempt
+   */
+  async retryDelivery(
+    orderId: string,
+    newDeliveryTime?: string,
+    deliveryPersonnelId?: string,
+    notes?: string
+  ): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/retry-delivery`, {
+      newDeliveryTime,
+      deliveryPersonnelId,
+      notes,
+    });
+  }
+
+  /**
+   * Update delivery instructions
+   */
+  async updateDeliveryInstructions(orderId: string, instructions: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/delivery-instructions`, {
+      instructions,
+    });
+  }
+
+  /**
+   * Request return (customer-initiated)
+   */
+  async requestReturn(orderId: string, reason: string): Promise<void> {
+    await apiService.post<void>(`/orders/${orderId}/return-request`, {
+      reason,
+    });
+  }
+
+  /**
+   * Approve return request
+   */
+  async approveReturn(orderId: string, notes?: string, restockItems: boolean = true): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/return/approve`, {
+      notes,
+      restockItems,
+    });
+  }
+
+  /**
+   * Reject return request
+   */
+  async rejectReturn(orderId: string, reason: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/return/reject`, {
+      reason,
+    });
+  }
+
+  /**
+   * Schedule return pickup
+   */
+  async scheduleReturnPickup(orderId: string, pickupTime: string, notes?: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/return/schedule-pickup`, {
+      pickupTime,
+      notes,
+    });
+  }
+
+  /**
+   * Complete return process
+   */
+  async completeReturn(orderId: string, restockItems: boolean = true, notes?: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/return/complete`, {
+      restockItems,
+      notes,
+    });
+  }
+
+  /**
+   * Initiate refund
+   */
+  async initiateRefund(orderId: string, amount?: number, reason?: string): Promise<void> {
+    await apiService.post<void>(`/orders/admin/${orderId}/refund/initiate`, {
+      amount,
+      reason,
+    });
+  }
+
+  /**
+   * Complete refund
+   */
+  async completeRefund(orderId: string, refundReference: string, notes?: string): Promise<void> {
+    await apiService.put<void>(`/orders/admin/${orderId}/refund/complete`, {
+      refundReference,
+      notes,
+    });
+  }
+
+  /**
+   * Log customer contact
+   */
+  async contactCustomer(
+    orderId: string,
+    method: 'phone' | 'sms' | 'whatsapp' | 'email',
+    message: string,
+    responseReceived?: boolean,
+    followUpRequired?: boolean
+  ): Promise<void> {
+    await apiService.post<void>(`/orders/admin/${orderId}/contact-customer`, {
+      method,
+      message,
+      responseReceived,
+      followUpRequired,
+    });
+  }
 }
 
 export const orderService = new OrderService();

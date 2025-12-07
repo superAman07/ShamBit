@@ -68,6 +68,68 @@ const addNoteSchema = z.object({
   note: z.string().min(1).max(500),
 });
 
+// New validation schemas for enhanced order management
+const putOnHoldSchema = z.object({
+  reason: z.string().min(1).max(500),
+  notes: z.string().max(1000).optional(),
+});
+
+const recordDeliveryAttemptSchema = z.object({
+  reason: z.string().min(1).max(500),
+  notes: z.string().max(1000).optional(),
+  rescheduleTime: z.string().datetime().optional(),
+});
+
+const retryDeliverySchema = z.object({
+  newDeliveryTime: z.string().datetime().optional(),
+  deliveryPersonnelId: z.string().uuid().optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+const requestReturnSchema = z.object({
+  reason: z.string().min(1).max(1000),
+});
+
+const approveReturnSchema = z.object({
+  notes: z.string().max(1000).optional(),
+  restockItems: z.boolean().optional().default(true),
+});
+
+const rejectReturnSchema = z.object({
+  reason: z.string().min(1).max(500),
+});
+
+const scheduleReturnPickupSchema = z.object({
+  pickupTime: z.string().datetime(),
+  notes: z.string().max(1000).optional(),
+});
+
+const completeReturnSchema = z.object({
+  restockItems: z.boolean().default(true),
+  notes: z.string().max(1000).optional(),
+});
+
+const initiateRefundSchema = z.object({
+  amount: z.number().positive().optional(),
+  reason: z.string().max(500).optional(),
+});
+
+const completeRefundSchema = z.object({
+  refundReference: z.string().min(1).max(255),
+  notes: z.string().max(1000).optional(),
+});
+
+const contactCustomerSchema = z.object({
+  method: z.enum(['phone', 'sms', 'whatsapp', 'email']),
+  message: z.string().min(1).max(1000),
+  responseReceived: z.boolean().optional(),
+  followUpRequired: z.boolean().optional(),
+});
+
+const updateDeliveryInstructionsSchema = z.object({
+  instructions: z.string().min(1).max(500),
+});
+
 // Helper function to get admin email from JWT or database
 async function getAdminEmail(req: Request): Promise<string> {
   const adminId = req.user!.id;
@@ -706,6 +768,676 @@ router.post('/admin/:id/notes', ...requireAdmin, async (req: Request, res: Respo
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Failed to add note',
+        },
+      });
+    }
+  }
+});
+
+// ============================================================================
+// ENHANCED ORDER MANAGEMENT ROUTES (Production-Ready)
+// ============================================================================
+
+/**
+ * Put order on hold (admin)
+ * PUT /api/v1/orders/admin/:id/hold
+ */
+router.put('/admin/:id/hold', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = putOnHoldSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.putOnHold(orderId, validatedData.reason, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Order put on hold successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to put order on hold',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Release order from hold (admin)
+ * PUT /api/v1/orders/admin/:id/release-hold
+ */
+router.put('/admin/:id/release-hold', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.releaseHold(orderId, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Order hold released successfully',
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to release order hold',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Mark order as ready for pickup (admin)
+ * PUT /api/v1/orders/admin/:id/ready-for-pickup
+ */
+router.put('/admin/:id/ready-for-pickup', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.markReadyForPickup(orderId, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Order marked as ready for pickup',
+    });
+  } catch (error) {
+    if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to mark order ready for pickup',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Record delivery attempt (admin)
+ * POST /api/v1/orders/admin/:id/delivery-attempt
+ */
+router.post('/admin/:id/delivery-attempt', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = recordDeliveryAttemptSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.recordDeliveryAttempt(
+      orderId,
+      validatedData.reason,
+      validatedData.notes,
+      adminEmail,
+      adminId
+    );
+
+    res.json({
+      success: true,
+      message: 'Delivery attempt recorded successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to record delivery attempt',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Retry delivery (admin)
+ * PUT /api/v1/orders/admin/:id/retry-delivery
+ */
+router.put('/admin/:id/retry-delivery', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = retryDeliverySchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    const newDeliveryTime = validatedData.newDeliveryTime 
+      ? new Date(validatedData.newDeliveryTime) 
+      : undefined;
+
+    await orderService.retryDelivery(
+      orderId,
+      newDeliveryTime,
+      validatedData.deliveryPersonnelId,
+      adminEmail,
+      adminId
+    );
+
+    res.json({
+      success: true,
+      message: 'Delivery retry scheduled successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retry delivery',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Request return (customer)
+ * POST /api/v1/orders/:id/return-request
+ */
+router.post('/:id/return-request', authenticate, async (req: Request, res: Response) => {
+  try {
+    const validatedData = requestReturnSchema.parse(req.body);
+    const userId = req.user!.id;
+    const orderId = req.params.id;
+
+    await orderService.requestReturn(orderId, validatedData.reason, userId);
+
+    res.json({
+      success: true,
+      message: 'Return request submitted successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to request return',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Approve return (admin)
+ * PUT /api/v1/orders/admin/:id/return/approve
+ */
+router.put('/admin/:id/return/approve', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = approveReturnSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.approveReturn(orderId, validatedData.notes, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Return approved successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to approve return',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Reject return (admin)
+ * PUT /api/v1/orders/admin/:id/return/reject
+ */
+router.put('/admin/:id/return/reject', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = rejectReturnSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.rejectReturn(orderId, validatedData.reason, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Return rejected successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to reject return',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Schedule return pickup (admin)
+ * PUT /api/v1/orders/admin/:id/return/schedule-pickup
+ */
+router.put('/admin/:id/return/schedule-pickup', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = scheduleReturnPickupSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    const pickupTime = new Date(validatedData.pickupTime);
+
+    await orderService.scheduleReturnPickup(orderId, pickupTime, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Return pickup scheduled successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to schedule return pickup',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Complete return (admin)
+ * PUT /api/v1/orders/admin/:id/return/complete
+ */
+router.put('/admin/:id/return/complete', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = completeReturnSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.completeReturn(orderId, validatedData.restockItems, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Return completed successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to complete return',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Initiate refund (admin)
+ * POST /api/v1/orders/admin/:id/refund/initiate
+ */
+router.post('/admin/:id/refund/initiate', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = initiateRefundSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.initiateRefund(orderId, validatedData.amount, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Refund initiated successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to initiate refund',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Complete refund (admin)
+ * PUT /api/v1/orders/admin/:id/refund/complete
+ */
+router.put('/admin/:id/refund/complete', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = completeRefundSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.completeRefund(orderId, validatedData.refundReference, adminEmail, adminId);
+
+    res.json({
+      success: true,
+      message: 'Refund completed successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to complete refund',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Log customer contact (admin)
+ * POST /api/v1/orders/admin/:id/contact-customer
+ */
+router.post('/admin/:id/contact-customer', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = contactCustomerSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.contactCustomer(
+      orderId,
+      validatedData.method,
+      validatedData.message,
+      adminEmail,
+      adminId
+    );
+
+    res.json({
+      success: true,
+      message: 'Customer contact logged successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to log customer contact',
+        },
+      });
+    }
+  }
+});
+
+/**
+ * Update delivery instructions (admin)
+ * PUT /api/v1/orders/admin/:id/delivery-instructions
+ */
+router.put('/admin/:id/delivery-instructions', ...requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const validatedData = updateDeliveryInstructionsSchema.parse(req.body);
+    const adminId = req.user!.id;
+    const adminEmail = await getAdminEmail(req);
+    const orderId = req.params.id;
+
+    await orderService.updateDeliveryInstructions(
+      orderId,
+      validatedData.instructions,
+      adminEmail,
+      adminId
+    );
+
+    res.json({
+      success: true,
+      message: 'Delivery instructions updated successfully',
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid request data',
+          details: error.issues,
+        },
+      });
+    } else if (error instanceof AppError) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: {
+          code: error.code || 'ERROR',
+          message: error.message,
+        },
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to update delivery instructions',
         },
       });
     }
