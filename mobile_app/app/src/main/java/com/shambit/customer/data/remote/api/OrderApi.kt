@@ -78,4 +78,14 @@ interface OrderApi {
     suspend fun validatePromotion(
         @Body request: ValidatePromotionRequest
     ): Response<ApiResponse<PromotionValidationResponse>>
+    
+    /**
+     * Request return for delivered order
+     * POST /orders/:id/return-request
+     */
+    @POST("orders/{id}/return-request")
+    suspend fun requestReturn(
+        @Path("id") orderId: String,
+        @Body request: com.shambit.customer.data.remote.dto.request.ReturnRequestRequest
+    ): Response<ApiResponse<OrderDto>>
 }

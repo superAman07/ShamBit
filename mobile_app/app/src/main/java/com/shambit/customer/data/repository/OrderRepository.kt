@@ -119,4 +119,19 @@ class OrderRepository @Inject constructor(
             )
         }
     }
+    
+    /**
+     * Request return for delivered order
+     */
+    suspend fun requestReturn(
+        orderId: String,
+        reason: String
+    ): NetworkResult<OrderDto> {
+        return safeApiCall {
+            orderApi.requestReturn(
+                orderId = orderId,
+                request = com.shambit.customer.data.remote.dto.request.ReturnRequestRequest(reason = reason)
+            )
+        }
+    }
 }

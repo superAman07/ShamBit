@@ -16,7 +16,7 @@ data class OrderDto(
     val userId: String,
     
     @SerializedName("status")
-    val status: String, // "pending", "confirmed", "preparing", "out_for_delivery", "delivered", "canceled", "returned", "failed"
+    val status: String, // 20 statuses: pending, payment_processing, payment_failed, confirmed, on_hold, preparing, ready_for_pickup, out_for_delivery, delivery_attempted, delivered, return_requested, return_approved, return_rejected, return_pickup_scheduled, return_in_transit, returned, refund_pending, refunded, canceled, failed
     
     @SerializedName("deliveryAddressId")
     val deliveryAddressId: String,
@@ -43,7 +43,7 @@ data class OrderDto(
     val paymentMethod: String,
     
     @SerializedName("paymentStatus")
-    val paymentStatus: String, // "pending", "completed", "failed", "refunded"
+    val paymentStatus: String, // 9 statuses: pending, processing, completed, failed, refund_initiated, refund_processing, refund_completed, refund_failed, partially_refunded
     
     @SerializedName("paymentId")
     val paymentId: String? = null,
@@ -78,6 +78,58 @@ data class OrderDto(
     @SerializedName("canceledAt")
     val canceledAt: String? = null,
     
+    // Hold Management
+    @SerializedName("onHoldReason")
+    val onHoldReason: String? = null,
+    
+    @SerializedName("onHoldAt")
+    val onHoldAt: String? = null,
+    
+    // Delivery Management
+    @SerializedName("readyForPickupAt")
+    val readyForPickupAt: String? = null,
+    
+    @SerializedName("deliveryAttemptedAt")
+    val deliveryAttemptedAt: String? = null,
+    
+    @SerializedName("deliveryAttemptCount")
+    val deliveryAttemptCount: Int? = null,
+    
+    @SerializedName("deliveryFailureReason")
+    val deliveryFailureReason: String? = null,
+    
+    @SerializedName("deliveryInstructions")
+    val deliveryInstructions: String? = null,
+    
+    // Return Management
+    @SerializedName("returnRequestedAt")
+    val returnRequestedAt: String? = null,
+    
+    @SerializedName("returnApprovedAt")
+    val returnApprovedAt: String? = null,
+    
+    @SerializedName("returnRejectedAt")
+    val returnRejectedAt: String? = null,
+    
+    @SerializedName("returnReason")
+    val returnReason: String? = null,
+    
+    @SerializedName("returnNotes")
+    val returnNotes: String? = null,
+    
+    // Refund Management
+    @SerializedName("refundInitiatedAt")
+    val refundInitiatedAt: String? = null,
+    
+    @SerializedName("refundCompletedAt")
+    val refundCompletedAt: String? = null,
+    
+    @SerializedName("refundAmount")
+    val refundAmount: Double? = null,
+    
+    @SerializedName("refundReference")
+    val refundReference: String? = null,
+    
     @SerializedName("timeline")
     val timeline: List<OrderHistoryDto>? = null
 )
@@ -90,7 +142,7 @@ data class OrderHistoryDto(
     val id: String,
     
     @SerializedName("actionType")
-    val actionType: String, // "order_created", "status_change", "delivery_assignment", "cancellation", "return", "note"
+    val actionType: String, // 18 types: order_created, status_change, payment_status_change, delivery_assignment, delivery_attempt, on_hold, hold_released, cancellation, return_request, return_approval, return_rejection, return_pickup, return_complete, refund_initiated, refund_completed, note, customer_contact, item_substitution
     
     @SerializedName("oldValue")
     val oldValue: String? = null,

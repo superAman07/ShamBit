@@ -36,6 +36,14 @@ data class CancelOrderRequest(
 )
 
 /**
+ * Return request
+ */
+data class ReturnRequestRequest(
+    @SerializedName("reason")
+    val reason: String
+)
+
+/**
  * Validate promotion request
  */
 data class ValidatePromotionRequest(
