@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shambit.customer.data.remote.dto.response.OrderDto
 import com.shambit.customer.ui.components.EmptyState
+import com.shambit.customer.util.OrderStatusUtil
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -202,69 +203,18 @@ private fun OrderItem(
 
 @Composable
 private fun OrderStatusBadge(status: String) {
-    val (backgroundColor, textColor, displayText) = when (status.lowercase()) {
-        "pending" -> Triple(
-            MaterialTheme.colorScheme.secondaryContainer,
-            MaterialTheme.colorScheme.onSecondaryContainer,
-            "Pending"
-        )
-        "confirmed" -> Triple(
-            androidx.compose.ui.graphics.Color(0xFF4CAF50),
-            androidx.compose.ui.graphics.Color.White,
-            "Confirmed"
-        )
-        "preparing" -> Triple(
-            androidx.compose.ui.graphics.Color(0xFFFF9800),
-            androidx.compose.ui.graphics.Color.White,
-            "Preparing"
-        )
-        "out_for_delivery" -> Triple(
-            androidx.compose.ui.graphics.Color(0xFF2196F3),
-            androidx.compose.ui.graphics.Color.White,
-            "Out for Delivery"
-        )
-        "delivered" -> Triple(
-            androidx.compose.ui.graphics.Color(0xFF4CAF50),
-            androidx.compose.ui.graphics.Color.White,
-            "Delivered"
-        )
-        "canceled", "cancelled" -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-            "Canceled"
-        )
-        "returned" -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-            "Returned"
-        )
-        "failed" -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-            "Failed"
-        )
-        "payment_processing" -> Triple(
-            androidx.compose.ui.graphics.Color(0xFFFF9800),
-            androidx.compose.ui.graphics.Color.White,
-            "Payment Processing"
-        )
-        else -> Triple(
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-            status.replace("_", " ").capitalize()
-        )
-    }
+    val statusInfo = OrderStatusUtil.getStatusInfo(status)
     
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
+            .background(statusInfo.color)
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(
-            text = displayText,
+            text = statusInfo.displayName,
             style = MaterialTheme.typography.labelSmall,
-            color = textColor,
+            color = androidx.compose.ui.graphics.Color.White,
             fontWeight = FontWeight.Medium
         )
     }

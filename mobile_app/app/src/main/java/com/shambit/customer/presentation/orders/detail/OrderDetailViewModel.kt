@@ -130,4 +130,57 @@ class OrderDetailViewModel @Inject constructor(
         val status = _state.value.order?.status?.lowercase() ?: return false
         return status in listOf("pending", "confirmed", "preparing")
     }
+    
+    /**
+     * Request return for delivered order
+     */
+    fun requestReturn(reason: String) {
+        val orderId = _state.value.order?.id ?: return
+        
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            
+            when (val result = orderRepository.requestReturn(orderId, reason)) {
+                is NetworkResult.Success -> {
+                    _state.update {
+                        it.copy(
+                            order = result.data,
+                            isLoading = false
+                        )
+                    }
+                }
+                is NetworkResult.Error -> {
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            error = result.message
+                        )
+                    }
+                }
+                is NetworkResult.Loading -> {
+                    // Already handled above
+                }
+            }
+        }
+    }
+    
+    /**
+     * Start auto-tracking for active orders
+     * Polls every 30 seconds for orders in active delivery states
+     */
+    fun startOrderTracking(orderId: String) {
+        viewModelScope.launch {
+            while (true) {
+                val currentStatus = _state.value.order?.status?.lowercase()
+                if (currentStatus in listOf(
+                    "preparing", "ready_for_pickup", "out_for_delivery", "delivery_attempted"
+                )) {
+                    kotlinx.coroutines.delay(30000) // 30 seconds
+                    loadOrderDetail(orderId)
+                } else {
+                    break
+                }
+            }
+        }
+    }
 }

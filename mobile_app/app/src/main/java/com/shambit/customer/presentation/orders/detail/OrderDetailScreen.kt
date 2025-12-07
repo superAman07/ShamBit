@@ -32,6 +32,12 @@ import com.shambit.customer.data.remote.dto.response.OrderHistoryDto
 import com.shambit.customer.data.remote.dto.response.OrderItemDto
 import com.shambit.customer.ui.components.LoadingState
 import com.shambit.customer.util.ImageUrlHelper
+import com.shambit.customer.util.OrderStatusUtil
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardReturn
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Schedule
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -48,9 +54,12 @@ fun OrderDetailScreen(
     var showCancelDialog by remember { mutableStateOf(false) }
     var showReorderSuccess by remember { mutableStateOf(false) }
     var showCancelSuccess by remember { mutableStateOf(false) }
+    var showReturnDialog by remember { mutableStateOf(false) }
+    var showReturnSuccess by remember { mutableStateOf(false) }
     
     LaunchedEffect(orderId) {
         viewModel.loadOrderDetail(orderId)
+        viewModel.startOrderTracking(orderId)
     }
     
     // Navigate back after successful cancellation
@@ -100,6 +109,14 @@ fun OrderDetailScreen(
                         Text("Order canceled successfully")
                     }
                 }
+                showReturnSuccess -> {
+                    Snackbar(
+                        modifier = Modifier.padding(16.dp),
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ) {
+                        Text("Return request submitted successfully")
+                    }
+                }
             }
         }
     ) { padding ->
@@ -117,11 +134,13 @@ fun OrderDetailScreen(
                 state.order != null -> {
                     OrderDetailContent(
                         order = state.order!!,
+                        deliveryTracking = state.deliveryTracking,
                         onCancelOrder = { showCancelDialog = true },
                         onReorder = {
                             viewModel.reorder()
                             showReorderSuccess = true
                         },
+                        onRequestReturn = { showReturnDialog = true },
                         onContactSupport = {
                             // TODO: Implement contact support (phone/email/chat)
                         },
@@ -142,13 +161,26 @@ fun OrderDetailScreen(
             }
         )
     }
+    
+    if (showReturnDialog) {
+        ReturnRequestDialog(
+            onDismiss = { showReturnDialog = false },
+            onConfirm = { reason ->
+                viewModel.requestReturn(reason)
+                showReturnDialog = false
+                showReturnSuccess = true
+            }
+        )
+    }
 }
 
 @Composable
 private fun OrderDetailContent(
     order: OrderDto,
+    deliveryTracking: com.shambit.customer.data.remote.dto.response.DeliveryDto?,
     onCancelOrder: () -> Unit,
     onReorder: () -> Unit,
+    onRequestReturn: () -> Unit,
     onContactSupport: () -> Unit,
     onNavigateToProduct: (String) -> Unit
 ) {
@@ -165,6 +197,52 @@ private fun OrderDetailContent(
         // Order Status Timeline
         item {
             OrderTimelineCard(order = order)
+        }
+        
+        // Hold Information Card
+        if (order.status.lowercase() == "on_hold" && !order.onHoldReason.isNullOrBlank()) {
+            item {
+                InfoCard(
+                    title = "Order On Hold",
+                    message = order.onHoldReason,
+                    icon = Icons.Default.Pause,
+                    backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    iconColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+        
+        // Delivery Attempt Information
+        if (order.deliveryAttemptCount != null && order.deliveryAttemptCount > 0) {
+            item {
+                InfoCard(
+                    title = "Delivery Attempts: ${order.deliveryAttemptCount}",
+                    message = order.deliveryFailureReason ?: "Delivery will be retried soon",
+                    icon = Icons.Default.LocalShipping,
+                    backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    iconColor = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+            }
+        }
+        
+        // Delivery Tracking Card
+        if (OrderStatusUtil.isActiveDelivery(order.status)) {
+            item {
+                DeliveryTrackingCard(
+                    order = order,
+                    deliveryTracking = deliveryTracking,
+                    onContactDeliveryPerson = {
+                        // TODO: Implement call functionality
+                    }
+                )
+            }
+        }
+        
+        // Refund Status Card
+        if (order.status.lowercase() in listOf("refund_pending", "refunded")) {
+            item {
+                RefundStatusCard(order = order)
+            }
         }
         
         // Order Items
@@ -259,59 +337,18 @@ private fun OrderHeaderCard(order: OrderDto) {
 
 @Composable
 private fun OrderStatusBadge(status: String) {
-    val (backgroundColor, textColor, displayText) = when (status.lowercase()) {
-        "pending" -> Triple(
-            MaterialTheme.colorScheme.secondaryContainer,
-            MaterialTheme.colorScheme.onSecondaryContainer,
-            "Pending"
-        )
-        "confirmed" -> Triple(
-            Color(0xFF4CAF50),
-            Color.White,
-            "Confirmed"
-        )
-        "preparing" -> Triple(
-            Color(0xFFFF9800),
-            Color.White,
-            "Preparing"
-        )
-        "out_for_delivery" -> Triple(
-            Color(0xFF2196F3),
-            Color.White,
-            "Out for Delivery"
-        )
-        "delivered" -> Triple(
-            Color(0xFF4CAF50),
-            Color.White,
-            "Delivered"
-        )
-        "canceled", "cancelled" -> Triple(
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-            "Canceled"
-        )
-        "payment_processing" -> Triple(
-            Color(0xFFFF9800),
-            Color.White,
-            "Payment Processing"
-        )
-        else -> Triple(
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-            status.replace("_", " ").capitalize()
-        )
-    }
+    val statusInfo = OrderStatusUtil.getStatusInfo(status)
     
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
+            .background(statusInfo.color)
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
         Text(
-            text = displayText,
+            text = statusInfo.displayName,
             style = MaterialTheme.typography.labelMedium,
-            color = textColor,
+            color = Color.White,
             fontWeight = FontWeight.Bold
         )
     }
@@ -414,21 +451,11 @@ private fun TimelineItemFromHistory(
     historyItem: OrderHistoryDto,
     isLast: Boolean
 ) {
-    val (title, description) = when (historyItem.actionType) {
-        "order_created" -> "Order Placed" to null
-        "status_change" -> {
-            val statusTitle = getStatusDisplayName(historyItem.newValue ?: "")
-            val desc = if (historyItem.adminEmail != null) {
-                "Updated by admin"
-            } else null
-            statusTitle to desc
-        }
-        "delivery_assignment" -> "Delivery Person Assigned" to historyItem.note
-        "cancellation" -> "Order Canceled" to historyItem.reason
-        "return" -> "Order Returned" to historyItem.reason
-        "note" -> "Note Added" to historyItem.note
-        else -> historyItem.actionType.replace("_", " ").capitalize() to null
-    }
+    val title = OrderStatusUtil.getActionTypeDisplayName(
+        historyItem.actionType,
+        historyItem.newValue
+    )
+    val description = historyItem.reason ?: historyItem.note
     
     TimelineItem(
         title = title,
@@ -437,21 +464,6 @@ private fun TimelineItemFromHistory(
         isCompleted = true,
         isLast = isLast
     )
-}
-
-private fun getStatusDisplayName(status: String): String {
-    return when (status.lowercase()) {
-        "pending" -> "Order Pending"
-        "payment_processing" -> "Processing Payment"
-        "confirmed" -> "Order Confirmed"
-        "preparing" -> "Preparing Order"
-        "out_for_delivery" -> "Out for Delivery"
-        "delivered" -> "Delivered"
-        "canceled" -> "Order Canceled"
-        "returned" -> "Order Returned"
-        "failed" -> "Order Failed"
-        else -> status.replace("_", " ").capitalize()
-    }
 }
 
 @Composable
@@ -801,12 +813,7 @@ private fun PaymentDetailsCard(order: OrderDto) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     
-                    val (statusColor, statusText) = when (order.paymentStatus.lowercase()) {
-                        "completed" -> Color(0xFF4CAF50) to "Completed"
-                        "pending" -> Color(0xFFFF9800) to "Pending"
-                        "failed" -> MaterialTheme.colorScheme.error to "Failed"
-                        else -> MaterialTheme.colorScheme.onSurface to order.paymentStatus.capitalize()
-                    }
+                    val (statusText, statusColor) = OrderStatusUtil.getPaymentStatusInfo(order.paymentStatus)
                     
                     Text(
                         statusText,
@@ -833,22 +840,34 @@ private fun PaymentDetailsCard(order: OrderDto) {
 private fun OrderActionButtons(
     order: OrderDto,
     onCancelOrder: () -> Unit,
-    onReorder: () -> Unit = {},
-    onContactSupport: () -> Unit = {}
+    onReorder: () -> Unit,
+    onRequestReturn: () -> Unit,
+    onContactSupport: () -> Unit
 ) {
-    // Debug: Log the order status
-    val statusLower = order.status.lowercase()
-    android.util.Log.d("OrderDetail", "Order status: '${order.status}' (lowercase: '$statusLower')")
-    
-    val canCancel = statusLower in listOf("pending", "confirmed", "payment_processing", "preparing")
-    val canReorder = statusLower in listOf("delivered", "canceled", "cancelled")
-    
-    android.util.Log.d("OrderDetail", "Can cancel: $canCancel, Can reorder: $canReorder")
+    val canCancel = OrderStatusUtil.canCancelOrder(order.status)
+    val canReorder = order.status.lowercase() in listOf("delivered", "canceled", "cancelled")
+    val canReturn = OrderStatusUtil.canRequestReturn(order)
     
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Return Request button (NEW - for delivered orders within 7 days)
+        if (canReturn) {
+            Button(
+                onClick = onRequestReturn,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary
+                )
+            ) {
+                Icon(Icons.Default.KeyboardReturn, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Request Return")
+            }
+        }
+        
         // Reorder button (for delivered/canceled orders)
         if (canReorder) {
             Button(
@@ -862,7 +881,7 @@ private fun OrderActionButtons(
             }
         }
         
-        // Cancel Order button (only for pending/confirmed/preparing orders)
+        // Cancel Order button (only for eligible orders)
         if (canCancel) {
             OutlinedButton(
                 onClick = onCancelOrder,
@@ -964,6 +983,268 @@ private fun CancelOrderDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Keep Order")
+            }
+        }
+    )
+}
+
+@Composable
+private fun InfoCard(
+    title: String,
+    message: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    backgroundColor: Color,
+    iconColor: Color
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = backgroundColor
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = iconColor
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = iconColor.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeliveryTrackingCard(
+    order: OrderDto,
+    deliveryTracking: com.shambit.customer.data.remote.dto.response.DeliveryDto?,
+    onContactDeliveryPerson: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Delivery Tracking",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (deliveryTracking?.deliveryPersonnel != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = deliveryTracking.deliveryPersonnel.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = deliveryTracking.deliveryPersonnel.mobileNumber,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    if (OrderStatusUtil.canContactDeliveryPerson(order)) {
+                        IconButton(onClick = onContactDeliveryPerson) {
+                            Icon(
+                                imageVector = Icons.Default.Phone,
+                                contentDescription = "Call delivery person",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+                
+                if (deliveryTracking.estimatedDeliveryTime != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Estimated arrival: ${formatDate(deliveryTracking.estimatedDeliveryTime)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Text(
+                    text = "Delivery person will be assigned soon",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefundStatusCard(order: OrderDto) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (order.status.lowercase() == "refunded") 
+                        "Refund Completed" else "Refund Processing",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Icon(
+                    imageVector = if (order.status.lowercase() == "refunded") 
+                        Icons.Default.CheckCircle else Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = if (order.status.lowercase() == "refunded")
+                        MaterialTheme.colorScheme.primary 
+                    else MaterialTheme.colorScheme.tertiary
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (order.refundAmount != null) {
+                Text(
+                    text = "Refund Amount: ${formatCurrency(order.refundAmount)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            
+            if (!order.refundReference.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Reference: ${order.refundReference}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = if (order.status.lowercase() == "refunded")
+                    "The refund has been processed to your original payment method"
+                else
+                    "Your refund is being processed and will be credited within 5-7 business days",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReturnRequestDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var selectedReason by remember { mutableStateOf("") }
+    var customReason by remember { mutableStateOf("") }
+    
+    val returnReasons = listOf(
+        "Product quality issue",
+        "Wrong item delivered",
+        "Damaged during delivery",
+        "Not as described",
+        "Changed my mind",
+        "Other"
+    )
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Request Return") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                Text("Please select a reason for return:")
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                returnReasons.forEach { reason ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedReason = reason }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedReason == reason,
+                            onClick = { selectedReason = reason }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(reason)
+                    }
+                }
+                
+                if (selectedReason == "Other") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customReason,
+                        onValueChange = { customReason = it },
+                        label = { Text("Please specify") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val finalReason = if (selectedReason == "Other") customReason else selectedReason
+                    onConfirm(finalReason)
+                },
+                enabled = selectedReason.isNotEmpty() && 
+                         (selectedReason != "Other" || customReason.isNotBlank())
+            ) {
+                Text("Submit Request")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )
