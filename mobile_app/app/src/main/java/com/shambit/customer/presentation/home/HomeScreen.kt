@@ -1,12 +1,19 @@
 package com.shambit.customer.presentation.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -24,11 +31,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shambit.customer.ui.components.AdaptiveHeader
 import com.shambit.customer.ui.components.ErrorState
+import com.shambit.customer.ui.components.ProductCardSkeleton
+import com.shambit.customer.ui.components.shimmer
 import kotlinx.coroutines.launch
 import com.shambit.customer.ui.components.LoadingState
 import com.shambit.customer.ui.components.ShamBitPullRefreshIndicator
@@ -46,29 +56,50 @@ fun HomeScreen(
     onNavigateToWishlist: () -> Unit = {},
     onNavigateToCart: () -> Unit = {},
     onNavigateToProduct: (String) -> Unit = {},
-    onNavigateToCategory: (String) -> Unit = {},
+    onNavigateToCategory: (com.shambit.customer.data.remote.dto.response.CategoryDto) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAddressSelection: () -> Unit = {},
     onOpenUrl: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val wishlistProductIds by viewModel.wishlistProductIds.collectAsState()
     val hapticFeedback = rememberHapticFeedback()
     val listState = rememberLazyListState()
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     
+    // Snackbar host state for non-blocking errors
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    
     // Pull-to-refresh state
     val pullToRefreshState = rememberPullToRefreshState()
 
-    // Calculate scroll offset
+    // Local scroll offset - no ViewModel involvement
     val scrollOffset by remember {
         derivedStateOf {
             listState.firstVisibleItemScrollOffset.toFloat()
         }
     }
-
-    // Update scroll offset in ViewModel
+    
+    // Track previous scroll offset for direction calculation
+    var previousScrollOffset by remember { mutableStateOf(0f) }
+    
+    // Calculate scroll direction locally
+    val scrollDirection by remember {
+        derivedStateOf {
+            when {
+                scrollOffset > previousScrollOffset -> com.shambit.customer.ui.components.ScrollDirection.Down
+                scrollOffset < previousScrollOffset -> com.shambit.customer.ui.components.ScrollDirection.Up
+                else -> com.shambit.customer.ui.components.ScrollDirection.None
+            }
+        }
+    }
+    
+    // Update previous scroll offset and notify ViewModel of direction changes only
     LaunchedEffect(scrollOffset) {
-        viewModel.updateScrollOffset(scrollOffset)
+        if (scrollDirection != com.shambit.customer.ui.components.ScrollDirection.None) {
+            viewModel.updateScrollDirection(scrollDirection)
+        }
+        previousScrollOffset = scrollOffset
     }
     
     // Handle pull-to-refresh
@@ -84,8 +115,41 @@ fun HomeScreen(
             pullToRefreshState.endRefresh()
         }
     }
+    
+    // Show non-blocking errors in Snackbar
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
+            val result = snackbarHostState.showSnackbar(
+                message = error,
+                actionLabel = "Retry",
+                duration = androidx.compose.material3.SnackbarDuration.Short
+            )
+            
+            // Handle retry action
+            if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.loadHomeData()
+            }
+            
+            // Clear error after showing
+            viewModel.clearError()
+        }
+    }
+    
+    // Show wishlist action messages in Snackbar
+    LaunchedEffect(uiState.snackbarMessage) {
+        uiState.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = androidx.compose.material3.SnackbarDuration.Short
+            )
+            
+            // Clear snackbar message after showing
+            viewModel.clearSnackbarMessage()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         topBar = {
             com.shambit.customer.ui.components.ShamBitHeader(
                 address = uiState.deliveryAddress,
@@ -108,7 +172,7 @@ fun HomeScreen(
             com.shambit.customer.ui.components.BottomNavigationBar(
                 selectedRoute = uiState.currentRoute,
                 scrollOffset = scrollOffset,
-                scrollDirection = uiState.scrollDirection,
+                scrollDirection = scrollDirection,
                 onNavigate = { route ->
                     viewModel.updateCurrentRoute(route)
                     when (route) {
@@ -140,23 +204,36 @@ fun HomeScreen(
                 .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
             when {
-                uiState.isLoading && uiState.heroBanners.isEmpty() -> {
-                    LoadingState()
+                uiState.isLoading && uiState.heroBannersState.isLoading() -> {
+                    // Show skeleton screen instead of generic loading state
+                    HomeScreenSkeleton()
                 }
-                uiState.error != null && uiState.heroBanners.isEmpty() -> {
+                // Only show blocking error state if ALL sections failed to load
+                uiState.heroBannersState is DataState.Error && 
+                uiState.categoriesState is DataState.Error && 
+                uiState.featuredProductsState is DataState.Error -> {
                     ErrorState(
-                        message = uiState.error ?: "An error occurred",
+                        message = "Unable to load content. Please check your connection.",
                         onRetry = { viewModel.loadHomeData() }
                     )
                 }
                 else -> {
                     HomeContent(
                         uiState = uiState,
+                        wishlistProductIds = wishlistProductIds,
                         listState = listState,
                         onBannerClick = { banner ->
                             when (val action = viewModel.onBannerClick(banner)) {
                                 is BannerAction.NavigateToProduct -> onNavigateToProduct(action.productId)
-                                is BannerAction.NavigateToCategory -> onNavigateToCategory(action.categoryId)
+                                is BannerAction.NavigateToCategory -> {
+                                    // Try to find the category in the current state
+                                    val category = (uiState.categoriesState as? DataState.Success)?.data?.find { it.id == action.categoryId }
+                                    if (category != null) {
+                                        onNavigateToCategory(category)
+                                    }
+                                    // If category not found in state, we can't determine if it has subcategories
+                                    // This is an edge case that shouldn't happen often
+                                }
                                 is BannerAction.OpenUrl -> onOpenUrl(action.url)
                                 is BannerAction.NavigateToSearch -> onNavigateToSearch()
                                 BannerAction.None -> {}
@@ -164,7 +241,7 @@ fun HomeScreen(
                         },
                         onCategoryClick = { category ->
                             viewModel.onCategoryTap(category.id)
-                            onNavigateToCategory(category.id)
+                            onNavigateToCategory(category)
                         },
                         onProductClick = { product ->
                             onNavigateToProduct(product.id)
@@ -176,6 +253,7 @@ fun HomeScreen(
                         onAddToCart = { productId -> viewModel.addToCart(productId, 1) },
                         onIncrementCart = { productId -> viewModel.incrementCart(productId) },
                         onDecrementCart = { productId -> viewModel.decrementCart(productId) },
+                        onToggleWishlist = { product -> viewModel.toggleWishlist(product) },
                         hapticFeedback = hapticFeedback
                     )
                 }
@@ -197,6 +275,7 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
+    wishlistProductIds: Set<String>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onBannerClick: (com.shambit.customer.data.remote.dto.response.BannerDto) -> Unit,
     onCategoryClick: (com.shambit.customer.data.remote.dto.response.CategoryDto) -> Unit = {},
@@ -205,6 +284,7 @@ private fun HomeContent(
     onAddToCart: (String) -> Unit = {},
     onIncrementCart: (String) -> Unit = {},
     onDecrementCart: (String) -> Unit = {},
+    onToggleWishlist: (com.shambit.customer.data.remote.dto.response.ProductDto) -> Unit = {},
     hapticFeedback: com.shambit.customer.util.HapticFeedbackManager? = null
 ) {
     LazyColumn(
@@ -212,66 +292,144 @@ private fun HomeContent(
         modifier = Modifier.fillMaxSize()
     ) {
         // Hero Banner Carousel
-        if (uiState.heroBanners.isNotEmpty()) {
-            item {
-                com.shambit.customer.ui.components.HeroBannerCarousel(
-                    banners = uiState.heroBanners,
-                    onBannerClick = onBannerClick
-                )
+        when (val state = uiState.heroBannersState) {
+            is DataState.Success -> {
+                if (state.data.isNotEmpty()) {
+                    item {
+                        com.shambit.customer.ui.components.HeroBannerCarousel(
+                            banners = state.data,
+                            onBannerClick = onBannerClick
+                        )
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Skip section on error
+            }
+            is DataState.Loading -> {
+                item {
+                    BannerSkeleton()
+                }
             }
         }
         
         // Category Section
-        if (uiState.categories.isNotEmpty()) {
-            item {
-                com.shambit.customer.ui.components.CategorySection(
-                    categories = uiState.categories,
-                    onCategoryClick = onCategoryClick,
-                    hapticFeedback = hapticFeedback
-                )
+        when (val state = uiState.categoriesState) {
+            is DataState.Success -> {
+                if (state.data.isNotEmpty()) {
+                    item {
+                        com.shambit.customer.ui.components.CategorySection(
+                            categories = state.data,
+                            onCategoryClick = onCategoryClick,
+                            hapticFeedback = hapticFeedback
+                        )
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Skip section on error
+            }
+            is DataState.Loading -> {
+                item {
+                    CategorySkeleton()
+                }
             }
         }
         
         // Promotional Banners Carousel
-        if (uiState.promotionalBanners.isNotEmpty()) {
-            item {
-                com.shambit.customer.ui.components.PromotionalBannerCarousel(
-                    banners = uiState.promotionalBanners,
-                    onBannerClick = onBannerClick
-                )
+        when (val state = uiState.promotionalBannersState) {
+            is DataState.Success -> {
+                if (state.data.isNotEmpty()) {
+                    item {
+                        com.shambit.customer.ui.components.PromotionalBannerCarousel(
+                            banners = state.data,
+                            onBannerClick = onBannerClick
+                        )
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Skip section on error
+            }
+            is DataState.Loading -> {
+                item {
+                    BannerSkeleton()
+                }
             }
         }
         
         // Featured Products Section
-        item {
-            if (uiState.featuredProducts.isNotEmpty()) {
-                com.shambit.customer.ui.components.FeaturedProductsSection(
-                    products = uiState.featuredProducts,
-                    onProductClick = onProductClick,
-                    getCartQuantity = getCartQuantity,
-                    onAddToCart = { product -> onAddToCart(product.id) },
-                    onIncrementCart = { product -> onIncrementCart(product.id) },
-                    onDecrementCart = { product -> onDecrementCart(product.id) },
-                    hapticFeedback = hapticFeedback
-                )
-            } else {
-                // Debug: Show message when no products
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Featured Products",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "No featured products available. Check logs for details.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+        when (val state = uiState.featuredProductsState) {
+            is DataState.Success -> {
+                item {
+                    if (state.data.isNotEmpty()) {
+                        com.shambit.customer.ui.components.FeaturedProductsSection(
+                            products = state.data,
+                            onProductClick = onProductClick,
+                            getCartQuantity = getCartQuantity,
+                            isInWishlist = { productId -> wishlistProductIds.contains(productId) },
+                            onAddToCart = { product -> onAddToCart(product.id) },
+                            onIncrementCart = { product -> onIncrementCart(product.id) },
+                            onDecrementCart = { product -> onDecrementCart(product.id) },
+                            onToggleWishlist = onToggleWishlist,
+                            hapticFeedback = hapticFeedback
+                        )
+                    } else {
+                        // Debug: Show message when no products
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Featured Products",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "No featured products available. Check logs for details.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Skip section on error
+            }
+            is DataState.Loading -> {
+                item {
+                    // Show horizontal product skeleton
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp)
+                    ) {
+                        // Section title skeleton
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .width(180.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .shimmer()
+                        )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Product cards skeleton
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(4) {
+                                ProductCardSkeleton()
+                            }
+                        }
+                    }
                 }
             }
         }

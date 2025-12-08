@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.shambit.customer.presentation.auth.login.LoginScreen
 import com.shambit.customer.presentation.auth.otp.OtpScreen
+import com.shambit.customer.presentation.category.CategoryDetailScreen
 import com.shambit.customer.presentation.category.CategoryProductsScreen
 import com.shambit.customer.presentation.home.HomeScreen
 import com.shambit.customer.presentation.product.detail.ProductDetailScreen
@@ -81,8 +82,14 @@ fun NavGraph(
                 onNavigateToProduct = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
-                onNavigateToCategory = { categoryId ->
-                    navController.navigate(Screen.CategoryProducts.createRoute(categoryId))
+                onNavigateToCategory = { category ->
+                    // Navigate to CategoryDetailScreen if category has subcategories
+                    // Otherwise navigate directly to CategoryProducts
+                    if (category.hasSubcategories && !category.subcategories.isNullOrEmpty()) {
+                        navController.navigate(Screen.CategoryDetail.createRoute(category.id))
+                    } else {
+                        navController.navigate(Screen.CategoryProducts.createRoute(category.id))
+                    }
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
@@ -138,6 +145,25 @@ fun NavGraph(
                 },
                 onShare = { product ->
                     // TODO: Implement share functionality
+                }
+            )
+        }
+        
+        // Category Detail Screen (shows subcategories)
+        composable(
+            route = Screen.CategoryDetail.route,
+            arguments = listOf(
+                navArgument("categoryId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
+            CategoryDetailScreen(
+                categoryId = categoryId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToSubcategory = { subcategoryId ->
+                    navController.navigate(Screen.CategoryProducts.createRoute(subcategoryId))
                 }
             )
         }

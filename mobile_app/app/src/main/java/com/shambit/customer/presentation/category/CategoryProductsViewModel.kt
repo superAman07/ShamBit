@@ -52,6 +52,32 @@ class CategoryProductsViewModel @Inject constructor(
         loadProducts()
     }
     
+    /**
+     * Load category details by ID
+     * Public method for CategoryDetailScreen
+     */
+    fun loadCategory(categoryId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            when (val result = productRepository.getCategoryById(categoryId)) {
+                is NetworkResult.Success -> {
+                    _uiState.update { it.copy(
+                        isLoading = false,
+                        category = result.data
+                    ) }
+                }
+                is NetworkResult.Error -> {
+                    _uiState.update { it.copy(
+                        isLoading = false,
+                        error = result.message
+                    ) }
+                }
+                is NetworkResult.Loading -> {}
+            }
+        }
+    }
+    
     private fun loadCategoryDetails() {
         viewModelScope.launch {
             when (val result = productRepository.getCategoryById(categoryId)) {

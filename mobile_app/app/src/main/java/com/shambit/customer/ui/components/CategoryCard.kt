@@ -6,8 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,8 +19,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,9 +37,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import com.shambit.customer.data.remote.dto.response.CategoryDto
 import com.shambit.customer.util.HapticFeedbackManager
+import com.shambit.customer.R
 
 /**
  * CategoryCard Component
@@ -46,12 +53,14 @@ import com.shambit.customer.util.HapticFeedbackManager
  * - Icon URL with fallback to image URL
  * - Scale animation on tap (1.0x → 0.95x → 1.0x)
  * - Haptic feedback (20ms light impact)
+ * - Optional subcategory indicator (arrow icon)
  */
 @Composable
 fun CategoryCard(
     category: CategoryDto,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showSubcategoryIndicator: Boolean = false,
     hapticFeedback: HapticFeedbackManager? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -81,20 +90,38 @@ fun CategoryCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Circular icon
-        Card(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape),
-            shape = CircleShape,
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        // Circular icon with optional arrow indicator
+        Box(
+            modifier = Modifier.size(64.dp)
         ) {
-            AsyncImage(
-                model = category.getFullIconUrl(),
-                contentDescription = "Category icon: ${category.name}",
-                modifier = Modifier.size(64.dp),
-                contentScale = ContentScale.Crop
-            )
+            Card(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape),
+                shape = CircleShape,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                AsyncImage(
+                    model = category.getFullIconUrl(),
+                    contentDescription = "Category icon: ${category.name}",
+                    modifier = Modifier.size(64.dp),
+                    contentScale = ContentScale.Fit,
+                    placeholder = painterResource(R.drawable.ic_category_placeholder),
+                    error = painterResource(R.drawable.ic_category_placeholder)
+                )
+            }
+            
+            // Show arrow indicator if category has subcategories
+            if (showSubcategoryIndicator && category.hasSubcategories) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowRight,
+                    contentDescription = "Has subcategories",
+                    modifier = Modifier
+                        .size(20.dp)
+                        .align(Alignment.BottomEnd),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -122,6 +149,7 @@ fun CategoryCard(
  * - Swipe gesture with momentum
  * - Haptic feedback on swipe
  * - Animated position changes (400ms)
+ * - Shows subcategory indicators for categories with subcategories
  */
 @Composable
 fun CategoryRow(
@@ -156,6 +184,7 @@ fun CategoryRow(
                 CategoryCard(
                     category = category,
                     onClick = { onCategoryClick(category) },
+                    showSubcategoryIndicator = true,
                     hapticFeedback = hapticFeedback
                 )
             }
@@ -166,6 +195,7 @@ fun CategoryRow(
 /**
  * CategorySection Component
  * Complete category section with title and row
+ * Shows only top-level categories (filters out subcategories)
  */
 @Composable
 fun CategorySection(
@@ -174,7 +204,10 @@ fun CategorySection(
     modifier: Modifier = Modifier,
     hapticFeedback: HapticFeedbackManager? = null
 ) {
-    if (categories.isEmpty()) return
+    // Filter to show only top-level categories (those without a parent)
+    val topLevelCategories = categories.filter { it.parentId == null }
+    
+    if (topLevelCategories.isEmpty()) return
     
     Column(
         modifier = modifier
@@ -189,9 +222,9 @@ fun CategorySection(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
         
-        // Category row
+        // Category row with subcategory indicators
         CategoryRow(
-            categories = categories,
+            categories = topLevelCategories,
             onCategoryClick = onCategoryClick,
             hapticFeedback = hapticFeedback
         )
