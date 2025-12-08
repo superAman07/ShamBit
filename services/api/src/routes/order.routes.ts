@@ -539,9 +539,13 @@ router.put('/admin/:id/status', ...requireAdmin, async (req: Request, res: Respo
 
     await orderService.updateOrderStatus(orderId, validatedData.status, adminEmail, adminId);
 
+    // Fetch and return the updated order
+    const updatedOrder = await orderService.getOrderById(orderId);
+
     res.json({
       success: true,
       message: 'Order status updated successfully',
+      data: updatedOrder,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -589,9 +593,13 @@ router.put('/admin/:id/delivery', ...requireAdmin, async (req: Request, res: Res
 
     await orderService.assignDeliveryPerson(orderId, validatedData.deliveryPersonId, adminEmail, adminId);
 
+    // Fetch and return the updated order
+    const updatedOrder = await orderService.getOrderById(orderId);
+
     res.json({
       success: true,
       message: 'Delivery person assigned successfully',
+      data: updatedOrder,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -639,9 +647,13 @@ router.put('/admin/:id/cancel', ...requireAdmin, async (req: Request, res: Respo
 
     await orderService.cancelOrder(orderId, validatedData.reason, adminEmail, adminId);
 
+    // Fetch and return the updated order
+    const updatedOrder = await orderService.getOrderById(orderId);
+
     res.json({
       success: true,
       message: 'Order cancelled successfully',
+      data: updatedOrder,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -689,9 +701,13 @@ router.put('/admin/:id/return', ...requireAdmin, async (req: Request, res: Respo
 
     await orderService.processReturn(orderId, validatedData.reason, adminEmail, adminId);
 
+    // Fetch and return the updated order
+    const updatedOrder = await orderService.getOrderById(orderId);
+
     res.json({
       success: true,
       message: 'Order return processed successfully',
+      data: updatedOrder,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -739,9 +755,13 @@ router.post('/admin/:id/notes', ...requireAdmin, async (req: Request, res: Respo
 
     await orderService.addNote(orderId, validatedData.note, adminEmail, adminId);
 
+    // Fetch and return the updated order
+    const updatedOrder = await orderService.getOrderById(orderId);
+
     res.json({
       success: true,
       message: 'Note added successfully',
+      data: updatedOrder,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

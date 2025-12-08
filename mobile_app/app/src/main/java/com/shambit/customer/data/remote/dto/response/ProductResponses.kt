@@ -258,6 +258,35 @@ data class ProductListResponse(
 )
 
 /**
+ * Subcategory DTO
+ * Represents a subcategory under a parent category
+ */
+data class SubcategoryDto(
+    @SerializedName("id")
+    val id: String,
+    
+    @SerializedName("name")
+    val name: String,
+    
+    @SerializedName("parentCategoryId")
+    val parentCategoryId: String,
+    
+    @SerializedName("imageUrl")
+    val imageUrl: String? = null,
+    
+    @SerializedName("displayOrder")
+    val displayOrder: Int = 0
+) {
+    /**
+     * Get full image URL
+     * Converts relative URLs to absolute URLs
+     */
+    fun getFullImageUrl(): String? {
+        return com.shambit.customer.util.ImageUrlHelper.getAbsoluteUrl(imageUrl)
+    }
+}
+
+/**
  * Category DTO
  */
 data class CategoryDto(
@@ -297,8 +326,11 @@ data class CategoryDto(
     @SerializedName("productCount")
     val productCount: Int = 0,
     
+    @SerializedName("hasSubcategories")
+    val hasSubcategories: Boolean = false,
+    
     @SerializedName("subcategories")
-    val subcategories: List<CategoryDto>? = null,
+    val subcategories: List<SubcategoryDto>? = null,
     
     @SerializedName("metaTitle")
     val metaTitle: String? = null,

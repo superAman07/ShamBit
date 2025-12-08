@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import com.shambit.customer.data.remote.dto.response.BannerDto
+import com.shambit.customer.R
 import kotlinx.coroutines.delay
 
 /**
@@ -115,7 +118,6 @@ private fun BannerCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -123,10 +125,12 @@ private fun BannerCard(
         AsyncImage(
             model = banner.getMobileImage(),
             contentDescription = banner.title,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
+            placeholder = painterResource(R.drawable.placeholder_banner),
+            error = painterResource(R.drawable.placeholder_banner),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .aspectRatio(16f / 9f)
         )
     }
 }

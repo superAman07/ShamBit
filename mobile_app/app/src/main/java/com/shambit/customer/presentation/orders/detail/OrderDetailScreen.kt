@@ -35,9 +35,13 @@ import com.shambit.customer.util.ImageUrlHelper
 import com.shambit.customer.util.OrderStatusUtil
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardReturn
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -205,7 +209,7 @@ private fun OrderDetailContent(
                 InfoCard(
                     title = "Order On Hold",
                     message = order.onHoldReason,
-                    icon = Icons.Default.Pause,
+                    icon = Icons.Default.Warning,
                     backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
                     iconColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
@@ -218,7 +222,7 @@ private fun OrderDetailContent(
                 InfoCard(
                     title = "Delivery Attempts: ${order.deliveryAttemptCount}",
                     message = order.deliveryFailureReason ?: "Delivery will be retried soon",
-                    icon = Icons.Default.LocalShipping,
+                    icon = Icons.Default.ShoppingCart,
                     backgroundColor = MaterialTheme.colorScheme.tertiaryContainer,
                     iconColor = MaterialTheme.colorScheme.onTertiaryContainer
                 )
@@ -284,6 +288,7 @@ private fun OrderDetailContent(
                 order = order,
                 onCancelOrder = onCancelOrder,
                 onReorder = onReorder,
+                onRequestReturn = onRequestReturn,
                 onContactSupport = onContactSupport
             )
         }
@@ -862,7 +867,7 @@ private fun OrderActionButtons(
                     containerColor = MaterialTheme.colorScheme.tertiary
                 )
             ) {
-                Icon(Icons.Default.KeyboardReturn, contentDescription = null)
+                Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Request Return")
             }
@@ -1079,7 +1084,7 @@ private fun DeliveryTrackingCard(
                     if (OrderStatusUtil.canContactDeliveryPerson(order)) {
                         IconButton(onClick = onContactDeliveryPerson) {
                             Icon(
-                                imageVector = Icons.Default.Phone,
+                                imageVector = Icons.Default.Call,
                                 contentDescription = "Call delivery person",
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -1134,7 +1139,7 @@ private fun RefundStatusCard(order: OrderDto) {
                 
                 Icon(
                     imageVector = if (order.status.lowercase() == "refunded") 
-                        Icons.Default.CheckCircle else Icons.Default.Schedule,
+                        Icons.Default.CheckCircle else Icons.Default.Info,
                     contentDescription = null,
                     tint = if (order.status.lowercase() == "refunded")
                         MaterialTheme.colorScheme.primary 

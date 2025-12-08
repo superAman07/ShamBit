@@ -161,19 +161,23 @@ class DashboardService {
         period = 'monthly';
       }
 
-      // Get order metrics
+      // Get order metrics - count ALL orders but exclude canceled from revenue
       const orderMetrics = await this.db('orders')
         .whereBetween('created_at', [startDate, endDate])
-        .whereIn('status', ['confirmed', 'preparing', 'out_for_delivery', 'delivered'])
         .select(
           this.db.raw('COUNT(*) as total_orders'),
-          this.db.raw('COALESCE(SUM(total_amount), 0) as total_revenue')
+          this.db.raw("COALESCE(SUM(CASE WHEN status != 'canceled' THEN total_amount ELSE 0 END), 0) as total_revenue"),
+          this.db.raw("COUNT(CASE WHEN status != 'canceled' THEN 1 END) as non_canceled_count")
         )
         .first();
 
       const totalOrders = parseInt(orderMetrics?.total_orders as string) || 0;
-      const totalRevenue = parseFloat(orderMetrics?.total_revenue as string) || 0;
-      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      // Convert from paise to rupees by dividing by 100
+      const totalRevenue = (parseFloat(orderMetrics?.total_revenue as string) || 0) / 100;
+      
+      // Calculate average order value only from non-canceled orders
+      const validOrderCount = parseInt(orderMetrics?.non_canceled_count as string) || 0;
+      const averageOrderValue = validOrderCount > 0 ? totalRevenue / validOrderCount : 0;
 
       return {
         totalOrders,
@@ -272,57 +276,176 @@ class DashboardService {
    */
   async getProductPerformanceMetrics(dateRange?: DateRange): Promise<ProductPerformanceMetrics> {
     try {
-      // For now, return mock data since complex joins with order data would require
-      // the orders table structure which may not be fully implemented
-      const topSellingProducts: TopSellingProduct[] = [];
-      const lowPerformingProducts: LowPerformingProduct[] = [];
-      
-      // Get category performance (simplified)
-      const categories = await this.db('categories')
-        .leftJoin('products', 'categories.id', 'products.category_id')
-        .where('categories.is_active', true)
-        .where('products.is_active', true)
-        .groupBy('categories.id', 'categories.name')
+      // Determine date range
+      let startDate: Date;
+      let endDate: Date;
+
+      if (dateRange) {
+        startDate = new Date(dateRange.startDate);
+        endDate = new Date(dateRange.endDate);
+      } else {
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+      }
+
+      // Get top selling products from order items
+      const topSellingData = await this.db('order_items as oi')
+        .join('orders as o', 'oi.order_id', 'o.id')
+        .join('products as p', 'oi.product_id', 'p.id')
+        .join('categories as c', 'p.category_id', 'c.id')
+        .leftJoin('brands as b', 'p.brand_id', 'b.id')
+        .whereBetween('o.created_at', [startDate, endDate])
+        .where('o.status', '!=', 'canceled')
+        .where('p.is_active', true)
+        .groupBy('p.id', 'p.name', 'p.sku', 'c.name', 'b.name', 'p.image_url')
         .select(
-          'categories.id',
-          'categories.name',
-          this.db.raw('COUNT(products.id) as product_count')
+          'p.id',
+          'p.name',
+          'p.sku',
+          'c.name as category',
+          'b.name as brand',
+          'p.image_url',
+          this.db.raw('SUM(oi.quantity) as total_sales'),
+          this.db.raw('SUM(oi.quantity * oi.price) as total_revenue'),
+          this.db.raw('AVG(oi.price) as average_price')
         )
+        .orderBy('total_sales', 'desc')
         .limit(10);
 
-      const categoryPerformance: CategoryPerformance[] = categories.map((cat: any) => ({
+      const topSellingProducts: TopSellingProduct[] = topSellingData.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        sku: row.sku,
+        category: row.category,
+        brand: row.brand,
+        totalSales: parseInt(row.total_sales) || 0,
+        totalRevenue: (parseFloat(row.total_revenue) || 0) / 100,
+        averagePrice: (parseFloat(row.average_price) || 0) / 100,
+        imageUrl: row.image_url,
+      }));
+
+      // Get low performing products (products with no sales in date range)
+      const lowPerformingData = await this.db('products as p')
+        .join('categories as c', 'p.category_id', 'c.id')
+        .leftJoin('brands as b', 'p.brand_id', 'b.id')
+        .leftJoin('inventory as inv', 'p.id', 'inv.product_id')
+        .leftJoin(
+          this.db('order_items as oi')
+            .join('orders as o', 'oi.order_id', 'o.id')
+            .whereBetween('o.created_at', [startDate, endDate])
+            .where('o.status', '!=', 'canceled')
+            .select('oi.product_id', this.db.raw('MAX(o.created_at) as last_sale_date'))
+            .groupBy('oi.product_id')
+            .as('sales'),
+          'p.id',
+          'sales.product_id'
+        )
+        .where('p.is_active', true)
+        .whereNull('sales.product_id')
+        .groupBy('p.id', 'p.name', 'p.sku', 'c.name', 'b.name', 'p.image_url', 'p.created_at')
+        .select(
+          'p.id',
+          'p.name',
+          'p.sku',
+          'c.name as category',
+          'b.name as brand',
+          'p.image_url',
+          this.db.raw('0 as total_sales'),
+          this.db.raw('0 as total_revenue'),
+          this.db.raw(`EXTRACT(DAY FROM (NOW() - p.created_at)) as days_without_sale`),
+          this.db.raw('COALESCE(SUM(inv.available_stock), 0) as current_stock')
+        )
+        .orderBy('days_without_sale', 'desc')
+        .limit(10);
+
+      const lowPerformingProducts: LowPerformingProduct[] = lowPerformingData.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        sku: row.sku,
+        category: row.category,
+        brand: row.brand,
+        totalSales: 0,
+        totalRevenue: 0,
+        daysWithoutSale: parseInt(row.days_without_sale) || 0,
+        currentStock: parseInt(row.current_stock) || 0,
+        imageUrl: row.image_url,
+      }));
+      
+      // Get category performance with actual sales data
+      const categoryData = await this.db('categories as c')
+        .leftJoin('products as p', 'c.id', 'p.category_id')
+        .leftJoin('order_items as oi', 'p.id', 'oi.product_id')
+        .leftJoin('orders as o', 'oi.order_id', 'o.id')
+        .where('c.is_active', true)
+        .where(function() {
+          this.where('p.is_active', true).orWhereNull('p.id');
+        })
+        .where(function() {
+          this.where(function() {
+            this.whereBetween('o.created_at', [startDate, endDate])
+              .andWhere('o.status', '!=', 'canceled');
+          }).orWhereNull('o.id');
+        })
+        .groupBy('c.id', 'c.name')
+        .select(
+          'c.id',
+          'c.name',
+          this.db.raw('COUNT(DISTINCT p.id) as product_count'),
+          this.db.raw('COALESCE(SUM(oi.quantity), 0) as total_sales'),
+          this.db.raw('COALESCE(SUM(oi.quantity * oi.price), 0) as total_revenue'),
+          this.db.raw('COALESCE(AVG(oi.price), 0) as average_price')
+        )
+        .orderBy('total_revenue', 'desc')
+        .limit(10);
+
+      const categoryPerformance: CategoryPerformance[] = categoryData.map((cat: any) => ({
         id: cat.id,
         name: cat.name,
         productCount: parseInt(cat.product_count) || 0,
-        totalSales: 0,
-        totalRevenue: 0,
-        averagePrice: 0,
-        growthRate: 0,
+        totalSales: parseInt(cat.total_sales) || 0,
+        totalRevenue: (parseFloat(cat.total_revenue) || 0) / 100,
+        averagePrice: (parseFloat(cat.average_price) || 0) / 100,
+        growthRate: 0, // Growth rate calculation would require historical comparison
       }));
 
-      // Get brand performance (simplified)
-      const brands = await this.db('brands')
-        .leftJoin('products', 'brands.id', 'products.brand_id')
-        .where('brands.is_active', true)
-        .where('products.is_active', true)
-        .groupBy('brands.id', 'brands.name', 'brands.logo_url')
+      // Get brand performance with actual sales data
+      const brandData = await this.db('brands as b')
+        .leftJoin('products as p', 'b.id', 'p.brand_id')
+        .leftJoin('order_items as oi', 'p.id', 'oi.product_id')
+        .leftJoin('orders as o', 'oi.order_id', 'o.id')
+        .where('b.is_active', true)
+        .where(function() {
+          this.where('p.is_active', true).orWhereNull('p.id');
+        })
+        .where(function() {
+          this.where(function() {
+            this.whereBetween('o.created_at', [startDate, endDate])
+              .andWhere('o.status', '!=', 'canceled');
+          }).orWhereNull('o.id');
+        })
+        .groupBy('b.id', 'b.name', 'b.logo_url')
         .select(
-          'brands.id',
-          'brands.name',
-          'brands.logo_url',
-          this.db.raw('COUNT(products.id) as product_count')
+          'b.id',
+          'b.name',
+          'b.logo_url',
+          this.db.raw('COUNT(DISTINCT p.id) as product_count'),
+          this.db.raw('COALESCE(SUM(oi.quantity), 0) as total_sales'),
+          this.db.raw('COALESCE(SUM(oi.quantity * oi.price), 0) as total_revenue'),
+          this.db.raw('COALESCE(AVG(oi.price), 0) as average_price')
         )
+        .orderBy('total_revenue', 'desc')
         .limit(10);
 
-      const brandPerformance: BrandPerformance[] = brands.map((brand: any) => ({
+      const brandPerformance: BrandPerformance[] = brandData.map((brand: any) => ({
         id: brand.id,
         name: brand.name,
         logoUrl: brand.logo_url,
         productCount: parseInt(brand.product_count) || 0,
-        totalSales: 0,
-        totalRevenue: 0,
-        averagePrice: 0,
-        growthRate: 0,
+        totalSales: parseInt(brand.total_sales) || 0,
+        totalRevenue: (parseFloat(brand.total_revenue) || 0) / 100,
+        averagePrice: (parseFloat(brand.average_price) || 0) / 100,
+        growthRate: 0, // Growth rate calculation would require historical comparison
       }));
 
       return {
@@ -403,17 +526,18 @@ class DashboardService {
    */
   async getBulkOperationSummary(): Promise<BulkOperationSummary> {
     try {
-      const result = await this.db('products')
-        .where('is_active', true)
+      const totalResult = await this.db('products')
         .count('* as count')
         .first();
 
+      // Note: Bulk operations tracking would require a separate bulk_operations table
+      // For now, returning actual product counts with zero operations
       return {
-        totalProducts: parseInt(result?.count as string) || 0,
-        selectedProducts: 0,
-        pendingOperations: 0,
-        completedOperations: 0,
-        failedOperations: 0,
+        totalProducts: parseInt(totalResult?.count as string) || 0,
+        selectedProducts: 0, // Would come from user session/selection state
+        pendingOperations: 0, // Would query bulk_operations table
+        completedOperations: 0, // Would query bulk_operations table
+        failedOperations: 0, // Would query bulk_operations table
       };
     } catch (error) {
       logger.error('Error fetching bulk operation summary:', { error });
@@ -426,21 +550,55 @@ class DashboardService {
    */
   async getProductActivity(limit?: number): Promise<ProductActivity[]> {
     try {
-      // Get recent product updates
-      let query = this.db('products')
+      // Note: This requires an audit/activity log table to track actual user actions
+      // For now, we'll return recent product changes based on timestamps
+      
+      const recentlyCreated = this.db('products')
+        .where('created_at', '>', this.db.raw("NOW() - INTERVAL '7 days'"))
+        .select(
+          this.db.raw("'created' as type"),
+          'id as product_id',
+          'name as product_name',
+          this.db.raw("CONCAT('Product \"', name, '\" was created') as description"),
+          this.db.raw("'system' as user_id"),
+          this.db.raw("'System' as user_name"),
+          'created_at as timestamp',
+          this.db.raw('null as details'),
+          this.db.raw("CONCAT('product_created_', id, '_', EXTRACT(epoch FROM created_at)) as id")
+        );
+
+      const recentlyUpdated = this.db('products')
         .where('updated_at', '>', this.db.raw("NOW() - INTERVAL '7 days'"))
+        .whereRaw('updated_at > created_at + INTERVAL \'1 minute\'')
         .select(
           this.db.raw("'updated' as type"),
           'id as product_id',
           'name as product_name',
-          this.db.raw("'Product updated' as description"),
+          this.db.raw("CONCAT('Product \"', name, '\" was updated') as description"),
           this.db.raw("'system' as user_id"),
           this.db.raw("'System' as user_name"),
           'updated_at as timestamp',
           this.db.raw('null as details'),
-          this.db.raw("CONCAT('product_', id, '_', EXTRACT(epoch FROM updated_at)) as id")
-        )
-        .orderBy('updated_at', 'desc');
+          this.db.raw("CONCAT('product_updated_', id, '_', EXTRACT(epoch FROM updated_at)) as id")
+        );
+
+      const stockUpdates = this.db('inventory')
+        .join('products', 'inventory.product_id', 'products.id')
+        .where('inventory.updated_at', '>', this.db.raw("NOW() - INTERVAL '7 days'"))
+        .select(
+          this.db.raw("'stock_updated' as type"),
+          'products.id as product_id',
+          'products.name as product_name',
+          this.db.raw("CONCAT('Stock updated for \"', products.name, '\"') as description"),
+          this.db.raw("'system' as user_id"),
+          this.db.raw("'System' as user_name"),
+          'inventory.updated_at as timestamp',
+          this.db.raw('null as details'),
+          this.db.raw("CONCAT('stock_', inventory.id, '_', EXTRACT(epoch FROM inventory.updated_at)) as id")
+        );
+
+      let query = this.db.unionAll([recentlyCreated, recentlyUpdated, stockUpdates], true)
+        .orderBy('timestamp', 'desc');
 
       if (limit) {
         query = query.limit(limit);
@@ -470,11 +628,26 @@ class DashboardService {
    */
   async dismissInventoryAlert(alertId: string): Promise<void> {
     try {
-      // For now, we'll just log the dismissal
-      // In a real implementation, you might want to store dismissed alerts
-      logger.info('Inventory alert dismissed', { alertId });
+      // Note: This requires a dismissed_alerts table to persist dismissals
+      // For now, we validate the alert exists
+      const alertIdParts = alertId.split('_');
+      if (alertIdParts[0] === 'low' && alertIdParts[1] === 'stock') {
+        const inventoryId = alertIdParts[2];
+        const exists = await this.db('inventory')
+          .where('id', inventoryId)
+          .first();
+        
+        if (!exists) {
+          throw new AppError('Alert not found', 404, 'ALERT_NOT_FOUND');
+        }
+        
+        logger.info('Inventory alert dismissed', { alertId, inventoryId });
+      } else {
+        throw new AppError('Invalid alert ID format', 400, 'INVALID_ALERT_ID');
+      }
     } catch (error) {
       logger.error('Error dismissing inventory alert:', { error, alertId });
+      if (error instanceof AppError) throw error;
       throw new AppError('Failed to dismiss alert', 500, 'DISMISS_ALERT_ERROR');
     }
   }

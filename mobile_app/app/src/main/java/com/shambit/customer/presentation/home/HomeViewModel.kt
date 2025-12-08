@@ -11,8 +11,12 @@ import com.shambit.customer.data.repository.PromotionRepository
 import com.shambit.customer.util.NetworkResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,18 +28,25 @@ data class HomeUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val refreshSuccess: Boolean? = null,
-    val error: String? = null,
-    val heroBanners: List<BannerDto> = emptyList(),
-    val categories: List<CategoryDto> = emptyList(),
-    val promotionalBanners: List<BannerDto> = emptyList(),
-    val featuredProducts: List<ProductDto> = emptyList(),
+    
+    // Per-section states using DataState
+    val heroBannersState: DataState<List<BannerDto>> = DataState.Loading,
+    val categoriesState: DataState<List<CategoryDto>> = DataState.Loading,
+    val promotionalBannersState: DataState<List<BannerDto>> = DataState.Loading,
+    val featuredProductsState: DataState<List<ProductDto>> = DataState.Loading,
+    
     val isOffline: Boolean = false,
-    val scrollOffset: Float = 0f,
     val scrollDirection: com.shambit.customer.ui.components.ScrollDirection = com.shambit.customer.ui.components.ScrollDirection.None,
     val cartItemCount: Int = 0,
     val currentRoute: String = "home",
     val cartQuantities: Map<String, Int> = emptyMap(), // Product ID to quantity mapping
-    val deliveryAddress: String? = null // Current delivery address
+    val deliveryAddress: String? = null, // Current delivery address
+    
+    // Transient error for Snackbar
+    val error: String? = null,
+    
+    // Snackbar message for wishlist actions
+    val snackbarMessage: String? = null
 )
 
 /**
@@ -49,13 +60,32 @@ class HomeViewModel @Inject constructor(
     private val promotionRepository: PromotionRepository,
     private val categoryPreferencesManager: com.shambit.customer.data.local.preferences.CategoryPreferencesManager,
     private val cartRepository: com.shambit.customer.data.repository.CartRepository,
-    private val addressRepository: com.shambit.customer.data.repository.AddressRepository
+    private val addressRepository: com.shambit.customer.data.repository.AddressRepository,
+    private val wishlistRepository: com.shambit.customer.data.repository.WishlistRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private val _cartState = MutableStateFlow<com.shambit.customer.data.remote.dto.response.CartDto?>(null)
+    
+    // Optimistic cart quantities for immediate UI updates
+    private val _optimisticCartQuantities = MutableStateFlow<Map<String, Int>>(emptyMap())
+    
+    // Merge optimistic and server state for display
+    val displayCartQuantities: StateFlow<Map<String, Int>> = combine(
+        _uiState,
+        _optimisticCartQuantities
+    ) { uiState, optimistic ->
+        // Merge server state with optimistic updates
+        uiState.cartQuantities + optimistic
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+    
+    // Wishlist state - observe wishlist product IDs
+    val wishlistProductIds: StateFlow<Set<String>> = wishlistRepository
+        .getWishlistItems()
+        .map { items -> items.map { it.productId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptySet())
 
     init {
         loadHomeData()
@@ -144,18 +174,20 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Load all home screen data
+     * Load all home screen data in parallel
      */
     fun loadHomeData() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
 
             try {
-                // Load all data in parallel
-                loadHeroBanners()
-                loadFeaturedCategories()
-                loadPromotionalBanners()
-                loadFeaturedProducts()
+                // Launch all requests in parallel using coroutineScope
+                kotlinx.coroutines.coroutineScope {
+                    launch { loadHeroBanners() }
+                    launch { loadFeaturedCategories() }
+                    launch { loadPromotionalBanners() }
+                    launch { loadFeaturedProducts() }
+                }
                 
                 // Mark loading as complete
                 _uiState.update { it.copy(isLoading = false) }
@@ -174,12 +206,14 @@ class HomeViewModel @Inject constructor(
      * Load hero banners
      */
     private suspend fun loadHeroBanners() {
+        _uiState.update { it.copy(heroBannersState = DataState.Loading) }
+        
         when (val result = bannerRepository.getHeroBanners()) {
             is NetworkResult.Success -> {
-                _uiState.update { it.copy(heroBanners = result.data, isLoading = false) }
+                _uiState.update { it.copy(heroBannersState = DataState.Success(result.data)) }
             }
             is NetworkResult.Error -> {
-                _uiState.update { it.copy(error = result.message, isLoading = false) }
+                _uiState.update { it.copy(heroBannersState = DataState.Error(result.message ?: "Failed to load banners")) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -191,6 +225,8 @@ class HomeViewModel @Inject constructor(
      * Load featured categories
      */
     private suspend fun loadFeaturedCategories() {
+        _uiState.update { it.copy(categoriesState = DataState.Loading) }
+        
         // Try featured categories first
         var result = productRepository.getFeaturedCategories()
         
@@ -204,11 +240,11 @@ class HomeViewModel @Inject constructor(
                 // Reorder categories based on tap frequency if needed
                 val reorderedCategories = reorderCategoriesIfNeeded(result.data)
                 
-                _uiState.update { it.copy(categories = reorderedCategories) }
+                _uiState.update { it.copy(categoriesState = DataState.Success(reorderedCategories)) }
             }
             is NetworkResult.Error -> {
                 // Don't show error for categories, just use empty list
-                _uiState.update { it.copy(categories = emptyList()) }
+                _uiState.update { it.copy(categoriesState = DataState.Success(emptyList())) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -259,12 +295,14 @@ class HomeViewModel @Inject constructor(
      * Load promotional banners
      */
     private suspend fun loadPromotionalBanners() {
+        _uiState.update { it.copy(promotionalBannersState = DataState.Loading) }
+        
         when (val result = bannerRepository.getPromotionalBanners()) {
             is NetworkResult.Success -> {
-                _uiState.update { it.copy(promotionalBanners = result.data) }
+                _uiState.update { it.copy(promotionalBannersState = DataState.Success(result.data)) }
             }
             is NetworkResult.Error -> {
-                _uiState.update { it.copy(error = result.message) }
+                _uiState.update { it.copy(promotionalBannersState = DataState.Error(result.message ?: "Failed to load promotional banners")) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -276,13 +314,15 @@ class HomeViewModel @Inject constructor(
      * Load featured products
      */
     private suspend fun loadFeaturedProducts() {
+        _uiState.update { it.copy(featuredProductsState = DataState.Loading) }
+        
         when (val result = productRepository.getFeaturedProducts(pageSize = 10)) {
             is NetworkResult.Success -> {
-                _uiState.update { it.copy(featuredProducts = result.data.products) }
+                _uiState.update { it.copy(featuredProductsState = DataState.Success(result.data.products)) }
             }
             is NetworkResult.Error -> {
                 // Don't show error for featured products, just use empty list
-                _uiState.update { it.copy(featuredProducts = emptyList()) }
+                _uiState.update { it.copy(featuredProductsState = DataState.Success(emptyList())) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -338,23 +378,11 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Update scroll offset for adaptive header behavior
+     * Update scroll direction for bottom navigation behavior
      */
-    private var previousScrollOffset: Float = 0f
-    
-    fun updateScrollOffset(offset: Float) {
-        val direction = when {
-            offset > previousScrollOffset -> com.shambit.customer.ui.components.ScrollDirection.Down
-            offset < previousScrollOffset -> com.shambit.customer.ui.components.ScrollDirection.Up
-            else -> com.shambit.customer.ui.components.ScrollDirection.None
-        }
-        previousScrollOffset = offset
-        
+    fun updateScrollDirection(direction: com.shambit.customer.ui.components.ScrollDirection) {
         _uiState.update { 
-            it.copy(
-                scrollOffset = offset,
-                scrollDirection = direction
-            ) 
+            it.copy(scrollDirection = direction) 
         }
     }
     
@@ -379,16 +407,33 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Add product to cart
+     * Add product to cart with optimistic UI update
      */
     fun addToCart(productId: String, quantity: Int = 1) {
+        addToCartOptimistic(productId, quantity)
+    }
+    
+    /**
+     * Add product to cart with optimistic update
+     * Updates UI immediately, then syncs with server
+     */
+    private fun addToCartOptimistic(productId: String, quantity: Int = 1) {
+        // Update UI immediately
+        val currentQty = _optimisticCartQuantities.value[productId] ?: 0
+        _optimisticCartQuantities.update { 
+            it + (productId to currentQty + quantity)
+        }
+        
+        // Then make API call
         viewModelScope.launch {
             when (val result = cartRepository.addToCart(productId, quantity)) {
                 is NetworkResult.Success -> {
-                    // Cart updated successfully
+                    // Server confirmed, remove optimistic state
+                    _optimisticCartQuantities.update { it - productId }
                 }
                 is NetworkResult.Error -> {
-                    // Show error
+                    // Revert optimistic update on failure
+                    _optimisticCartQuantities.update { it - productId }
                     _uiState.update { it.copy(error = result.message) }
                 }
                 is NetworkResult.Loading -> {
@@ -399,7 +444,7 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Increment product quantity in cart
+     * Increment product quantity in cart with optimistic update
      */
     fun incrementCart(productId: String) {
         viewModelScope.launch {
@@ -407,12 +452,21 @@ class HomeViewModel @Inject constructor(
             val currentQty = cartRepository.getQuantityForProduct(productId)
             
             if (cartItemId != null && currentQty > 0) {
+                // Optimistic update
+                val optimisticQty = _optimisticCartQuantities.value[productId] ?: 0
+                _optimisticCartQuantities.update { 
+                    it + (productId to optimisticQty + 1)
+                }
+                
                 // Update existing cart item
                 when (val result = cartRepository.updateCartItem(cartItemId, currentQty + 1)) {
                     is NetworkResult.Success -> {
-                        // Cart updated successfully
+                        // Server confirmed, remove optimistic state
+                        _optimisticCartQuantities.update { it - productId }
                     }
                     is NetworkResult.Error -> {
+                        // Revert optimistic update on failure
+                        _optimisticCartQuantities.update { it - productId }
                         _uiState.update { it.copy(error = result.message) }
                     }
                     is NetworkResult.Loading -> {
@@ -421,13 +475,13 @@ class HomeViewModel @Inject constructor(
                 }
             } else {
                 // Add new item to cart
-                addToCart(productId, 1)
+                addToCartOptimistic(productId, 1)
             }
         }
     }
     
     /**
-     * Decrement product quantity in cart
+     * Decrement product quantity in cart with optimistic update
      */
     fun decrementCart(productId: String) {
         viewModelScope.launch {
@@ -435,13 +489,22 @@ class HomeViewModel @Inject constructor(
             val currentQty = cartRepository.getQuantityForProduct(productId)
             
             if (cartItemId != null && currentQty > 0) {
+                // Optimistic update
+                val optimisticQty = _optimisticCartQuantities.value[productId] ?: 0
+                _optimisticCartQuantities.update { 
+                    it + (productId to optimisticQty - 1)
+                }
+                
                 if (currentQty == 1) {
                     // Remove item from cart
                     when (val result = cartRepository.removeFromCart(cartItemId)) {
                         is NetworkResult.Success -> {
-                            // Cart updated successfully
+                            // Server confirmed, remove optimistic state
+                            _optimisticCartQuantities.update { it - productId }
                         }
                         is NetworkResult.Error -> {
+                            // Revert optimistic update on failure
+                            _optimisticCartQuantities.update { it - productId }
                             _uiState.update { it.copy(error = result.message) }
                         }
                         is NetworkResult.Loading -> {
@@ -452,9 +515,12 @@ class HomeViewModel @Inject constructor(
                     // Decrease quantity
                     when (val result = cartRepository.updateCartItem(cartItemId, currentQty - 1)) {
                         is NetworkResult.Success -> {
-                            // Cart updated successfully
+                            // Server confirmed, remove optimistic state
+                            _optimisticCartQuantities.update { it - productId }
                         }
                         is NetworkResult.Error -> {
+                            // Revert optimistic update on failure
+                            _optimisticCartQuantities.update { it - productId }
                             _uiState.update { it.copy(error = result.message) }
                         }
                         is NetworkResult.Loading -> {
@@ -468,9 +534,10 @@ class HomeViewModel @Inject constructor(
     
     /**
      * Get cart quantity for a product
+     * Returns merged server and optimistic state
      */
     fun getCartQuantity(productId: String): Int {
-        return _uiState.value.cartQuantities[productId] ?: 0
+        return displayCartQuantities.value[productId] ?: 0
     }
 
     /**
@@ -478,6 +545,38 @@ class HomeViewModel @Inject constructor(
      */
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+    
+    /**
+     * Toggle wishlist status for a product
+     * Adds to wishlist if not present, removes if already in wishlist
+     */
+    fun toggleWishlist(product: ProductDto) {
+        viewModelScope.launch {
+            try {
+                val added = wishlistRepository.toggleWishlist(product)
+                _uiState.update {
+                    it.copy(
+                        snackbarMessage = if (added) {
+                            "Added to wishlist"
+                        } else {
+                            "Removed from wishlist"
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(error = "Failed to update wishlist: ${e.message}")
+                }
+            }
+        }
+    }
+    
+    /**
+     * Clear snackbar message
+     */
+    fun clearSnackbarMessage() {
+        _uiState.update { it.copy(snackbarMessage = null) }
     }
 }
 

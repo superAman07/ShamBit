@@ -721,65 +721,62 @@ class DeliveryService {
 
   /**
    * Get delivery status overview for dashboard
+   * Maps order statuses to delivery stages for dashboard display
    */
   async getDeliveryStatusOverview() {
     const db = getDb();
 
     try {
-      // Get counts by status
-      const statusCounts = await db('deliveries')
-        .select('status')
-        .count('* as count')
-        .groupBy('status');
+      // Get order counts by status from orders table
+      // Map order statuses to delivery stages:
+      // - assigned: orders that are 'preparing' or 'ready_for_pickup' (assigned to delivery but not picked up)
+      // - picked_up: orders that are 'out_for_delivery' (picked up and in transit)
+      // - in_transit: same as picked_up (out_for_delivery)
+      // - delivered: orders that are 'delivered'
+      // - failed: orders that are 'delivery_attempted' or 'failed'
 
-      // Get active deliveries count
-      const activeCount = await db('deliveries')
-        .whereIn('status', ['pending', 'assigned', 'out_for_delivery'])
-        .count('* as count')
-        .first();
-
-      // Get personnel counts
-      const [availablePersonnelResult, totalPersonnelResult] = await Promise.all([
-        db('delivery_personnel')
-          .where({ is_active: true, is_available: true })
+      const [assignedResult, pickedUpResult, deliveredResult, failedResult] = await Promise.all([
+        // Assigned: preparing or ready for pickup
+        db('orders')
+          .whereIn('status', ['preparing', 'ready_for_pickup'])
           .count('* as count')
           .first(),
-        db('delivery_personnel')
-          .where({ is_active: true })
+        
+        // Picked Up / In Transit: out for delivery
+        db('orders')
+          .where('status', 'out_for_delivery')
           .count('* as count')
-          .first()
+          .first(),
+        
+        // Delivered
+        db('orders')
+          .where('status', 'delivered')
+          .whereRaw('DATE(delivered_at) = CURRENT_DATE') // Only today's deliveries
+          .count('* as count')
+          .first(),
+        
+        // Failed: delivery attempted or failed
+        db('orders')
+          .whereIn('status', ['delivery_attempted', 'failed'])
+          .count('* as count')
+          .first(),
       ]);
 
-      // Initialize status counts
-      const statusMap = {
-        pending: 0,
-        assigned: 0,
-        out_for_delivery: 0,
-        delivered: 0,
-      };
-
-      // Map status counts
-      statusCounts.forEach((row: any) => {
-        const status = row.status;
-        if (status in statusMap) {
-          statusMap[status as keyof typeof statusMap] = parseInt(row.count);
-        }
-      });
-
-      const totalPersonnel = parseInt(totalPersonnelResult?.count as string) || 0;
-      const availablePersonnel = parseInt(availablePersonnelResult?.count as string) || 0;
-      const busyPersonnel = totalPersonnel - availablePersonnel;
+      const assigned = parseInt(assignedResult?.count as string) || 0;
+      const pickedUp = parseInt(pickedUpResult?.count as string) || 0;
+      const delivered = parseInt(deliveredResult?.count as string) || 0;
+      const failed = parseInt(failedResult?.count as string) || 0;
 
       // Format the response to match frontend expectations
       const overview = {
-        totalActive: parseInt(activeCount?.count as string) || 0,
-        pending: statusMap.pending,
-        assigned: statusMap.assigned,
-        outForDelivery: statusMap.out_for_delivery,
-        totalPersonnel,
-        availablePersonnel,
-        busyPersonnel,
+        assigned,
+        picked_up: pickedUp,
+        in_transit: pickedUp, // Same as picked_up (out_for_delivery)
+        delivered,
+        failed,
       };
+
+      logger.info('Delivery status overview fetched', overview);
 
       return overview;
     } catch (error) {
