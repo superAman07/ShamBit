@@ -47,17 +47,17 @@ fun StockBadge(
         StockStatus.IN_STOCK -> Triple(
             "In Stock",
             EcommerceColors.StockInStock.copy(alpha = 0.9f),
-            Color.White
+            EcommerceColors.OnSemanticColor
         )
         StockStatus.LOW_STOCK -> Triple(
             "Only $stockQuantity left",
             EcommerceColors.StockLowStock.copy(alpha = 0.9f),
-            Color.White
+            EcommerceColors.OnSemanticColor
         )
         StockStatus.OUT_OF_STOCK -> Triple(
             "Out of Stock",
             EcommerceColors.StockOutOfStock.copy(alpha = 0.9f),
-            Color.White
+            EcommerceColors.OnSemanticColor
         )
     }
     

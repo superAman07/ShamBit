@@ -68,7 +68,9 @@ import com.shambit.customer.ui.components.LoadingState
 
 /**
  * Address Selection Screen
- * Allows user to select delivery address for checkout
+ * Allows user to select delivery address for checkout or from home screen
+ * 
+ * @param returnDestination The destination to return to after address selection ("home", "cart", or "checkout")
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +79,9 @@ fun AddressSelectionScreen(
     onNavigateBack: () -> Unit = {},
     onNavigateToAddAddress: () -> Unit = {},
     onNavigateToEditAddress: (String) -> Unit = {},
-    onAddressSelected: (String) -> Unit = {}
+    onNavigateToManageAddresses: () -> Unit = {},
+    onAddressSelected: (String) -> Unit = {},
+    returnDestination: String = "checkout"
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -104,10 +108,22 @@ fun AddressSelectionScreen(
         }
     }
     
-    // Show success snackbar
+    // Show success snackbar and navigate when address is set
     LaunchedEffect(uiState.successMessage) {
         uiState.successMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
+            // Check if this is from setActiveAddress
+            if (message == "Address updated successfully") {
+                if (returnDestination == "checkout") {
+                    // In checkout flow, navigate to order summary
+                    onAddressSelected(uiState.selectedAddressId ?: "")
+                } else {
+                    // From home/cart, navigate back immediately
+                    onAddressSelected(uiState.selectedAddressId ?: "")
+                }
+            } else {
+                // Show snackbar for other success messages (delete, set default)
+                snackbarHostState.showSnackbar(message)
+            }
             viewModel.clearSuccessMessage()
         }
     }
@@ -128,6 +144,14 @@ fun AddressSelectionScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
+                    }
+                },
+                actions = {
+                    // Show "Manage Addresses" only when not in checkout flow
+                    if (returnDestination != "checkout") {
+                        TextButton(onClick = onNavigateToManageAddresses) {
+                            Text("Manage")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -161,14 +185,30 @@ fun AddressSelectionScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                 ) {
                     Button(
-                        onClick = { onAddressSelected(uiState.selectedAddressId!!) },
+                        onClick = { 
+                            // Set the selected address as active (this will set it as default)
+                            viewModel.setActiveAddress(uiState.selectedAddressId!!)
+                        },
+                        enabled = uiState.settingDefaultId == null && !uiState.isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+                        if (uiState.settingDefaultId != null) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Text(
-                            text = "Deliver to this Address",
+                            text = when (returnDestination) {
+                                "home" -> if (uiState.settingDefaultId != null) "Updating..." else "Use this Address"
+                                "cart" -> if (uiState.settingDefaultId != null) "Updating..." else "Deliver to this Address"
+                                else -> if (uiState.settingDefaultId != null) "Updating..." else "Deliver to this Address"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
@@ -392,7 +432,10 @@ private fun AddressCard(
             ) {
                 // Edit button
                 TextButton(
-                    onClick = onEdit,
+                    onClick = {
+                        onEdit()
+                    },
+                    enabled = !isDeleting && !isSettingDefault,
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
@@ -406,8 +449,10 @@ private fun AddressCard(
                 
                 // Delete button
                 TextButton(
-                    onClick = onDelete,
-                    enabled = !isDeleting,
+                    onClick = {
+                        onDelete()
+                    },
+                    enabled = !isDeleting && !isSettingDefault,
                     modifier = Modifier.weight(1f)
                 ) {
                     if (isDeleting) {
@@ -429,8 +474,10 @@ private fun AddressCard(
                 // Set default button
                 if (!address.isDefault) {
                     TextButton(
-                        onClick = onSetDefault,
-                        enabled = !isSettingDefault,
+                        onClick = {
+                            onSetDefault()
+                        },
+                        enabled = !isDeleting && !isSettingDefault,
                         modifier = Modifier.weight(1f)
                     ) {
                         if (isSettingDefault) {

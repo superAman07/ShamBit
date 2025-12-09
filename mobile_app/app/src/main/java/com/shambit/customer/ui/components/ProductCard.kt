@@ -311,6 +311,21 @@ fun ProductRow(
         cartLoadingProductId = null
     }
     
+    // Auto-clear loading state after timeout (2 seconds) to prevent infinite loading
+    LaunchedEffect(cartLoadingProductId) {
+        cartLoadingProductId?.let {
+            kotlinx.coroutines.delay(2000)
+            cartLoadingProductId = null
+        }
+    }
+    
+    LaunchedEffect(wishlistLoadingProductId) {
+        wishlistLoadingProductId?.let {
+            kotlinx.coroutines.delay(2000)
+            wishlistLoadingProductId = null
+        }
+    }
+    
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp),

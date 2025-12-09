@@ -8,6 +8,9 @@ import com.shambit.customer.data.remote.dto.response.AddressDto
 import com.shambit.customer.data.remote.dto.response.ReverseGeocodeResponse
 import com.shambit.customer.util.NetworkResult
 import com.shambit.customer.util.safeApiCall
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,12 +23,21 @@ class AddressRepository @Inject constructor(
     private val locationApi: LocationApi
 ) {
     
+    // Cached addresses with reactive updates
+    private val _addresses = MutableStateFlow<List<AddressDto>>(emptyList())
+    val addresses: StateFlow<List<AddressDto>> = _addresses.asStateFlow()
+    
     /**
      * Get all user addresses
      */
     suspend fun getAddresses(): NetworkResult<List<AddressDto>> {
         return safeApiCall {
             profileApi.getAddresses()
+        }.also { result ->
+            // Update cache on success
+            if (result is NetworkResult.Success) {
+                _addresses.value = result.data
+            }
         }
     }
     
@@ -35,6 +47,11 @@ class AddressRepository @Inject constructor(
     suspend fun addAddress(request: AddAddressRequest): NetworkResult<AddressDto> {
         return safeApiCall {
             profileApi.addAddress(request)
+        }.also { result ->
+            // Refresh cache on success
+            if (result is NetworkResult.Success) {
+                getAddresses()
+            }
         }
     }
     
@@ -47,6 +64,11 @@ class AddressRepository @Inject constructor(
     ): NetworkResult<AddressDto> {
         return safeApiCall {
             profileApi.updateAddress(addressId, request)
+        }.also { result ->
+            // Refresh cache on success
+            if (result is NetworkResult.Success) {
+                getAddresses()
+            }
         }
     }
     
@@ -56,6 +78,11 @@ class AddressRepository @Inject constructor(
     suspend fun deleteAddress(addressId: String): NetworkResult<Unit> {
         return safeApiCall {
             profileApi.deleteAddress(addressId)
+        }.also { result ->
+            // Refresh cache on success
+            if (result is NetworkResult.Success) {
+                getAddresses()
+            }
         }
     }
     
@@ -65,6 +92,15 @@ class AddressRepository @Inject constructor(
     suspend fun setDefaultAddress(addressId: String): NetworkResult<AddressDto> {
         return safeApiCall {
             profileApi.setDefaultAddress(addressId)
+        }.also { result ->
+            // Update cache immediately on success
+            if (result is NetworkResult.Success) {
+                // Update the cache to reflect the new default
+                val updatedAddresses = _addresses.value.map { address ->
+                    address.copy(isDefault = address.id == addressId)
+                }
+                _addresses.value = updatedAddresses
+            }
         }
     }
     

@@ -30,22 +30,22 @@ enum class ProductBadgeType(
     NEW(
         label = "New",
         backgroundColor = EcommerceColors.BadgeNew,
-        textColor = Color.White
+        textColor = EcommerceColors.OnSemanticColor
     ),
     TRENDING(
         label = "Trending",
         backgroundColor = EcommerceColors.BadgeTrending,
-        textColor = Color.White
+        textColor = EcommerceColors.OnSemanticColor
     ),
     ECO_FRIENDLY(
         label = "Eco-friendly",
         backgroundColor = EcommerceColors.BadgeEcoFriendly,
-        textColor = Color.White
+        textColor = EcommerceColors.OnSemanticColor
     ),
     LIMITED_OFFER(
         label = "Limited Offer",
         backgroundColor = EcommerceColors.BadgeLimitedOffer,
-        textColor = Color.White
+        textColor = EcommerceColors.OnSemanticColor
     )
 }
 

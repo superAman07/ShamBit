@@ -28,20 +28,36 @@ interface OrderFiltersDialogProps {
 const ORDER_STATUSES: OrderStatus[] = [
   'pending',
   'payment_processing',
+  'payment_failed',
   'confirmed',
+  'on_hold',
   'preparing',
+  'ready_for_pickup',
   'out_for_delivery',
+  'delivery_attempted',
   'delivered',
-  'canceled',
+  'return_requested',
+  'return_approved',
+  'return_rejected',
+  'return_pickup_scheduled',
+  'return_in_transit',
   'returned',
+  'refund_pending',
+  'refunded',
+  'canceled',
   'failed',
 ];
 
 const PAYMENT_STATUSES: PaymentStatus[] = [
   'pending',
+  'processing',
   'completed',
   'failed',
-  'refunded',
+  'refund_initiated',
+  'refund_processing',
+  'refund_completed',
+  'refund_failed',
+  'partially_refunded',
 ];
 
 const PAYMENT_METHODS: PaymentMethod[] = [

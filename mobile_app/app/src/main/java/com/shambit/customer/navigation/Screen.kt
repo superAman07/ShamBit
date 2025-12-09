@@ -31,7 +31,10 @@ sealed class Screen(val route: String) {
     
     // Checkout Flow
     object Checkout : Screen("checkout")
-    object AddressSelection : Screen("checkout/address")
+    object AddressSelection : Screen("checkout/address?returnDestination={returnDestination}") {
+        fun createRoute(returnDestination: String = "checkout") = 
+            "checkout/address?returnDestination=$returnDestination"
+    }
     object AddEditAddress : Screen("checkout/address/edit?addressId={addressId}") {
         fun createRoute(addressId: String? = null) = 
             if (addressId != null) "checkout/address/edit?addressId=$addressId"

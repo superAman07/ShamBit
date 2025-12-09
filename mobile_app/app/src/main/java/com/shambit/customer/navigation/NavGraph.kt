@@ -95,7 +95,7 @@ fun NavGraph(
                     navController.navigate(Screen.Profile.route)
                 },
                 onNavigateToAddressSelection = {
-                    navController.navigate(Screen.AddressSelection.route)
+                    navController.navigate(Screen.AddressSelection.createRoute("home"))
                 },
                 onOpenUrl = { url ->
                     // TODO: Open URL in browser
@@ -296,7 +296,9 @@ fun NavGraph(
                 onNavigateToEditAddress = { addressId ->
                     navController.navigate(Screen.AddEditAddress.createRoute(addressId))
                 },
-                onAddressSelected = { /* No action needed in profile context */ }
+                onNavigateToManageAddresses = { /* Already on manage addresses screen */ },
+                onAddressSelected = { /* No action needed in profile context */ },
+                returnDestination = "profile"
             )
         }
         
@@ -337,7 +339,17 @@ fun NavGraph(
         }
         
         // Address Selection Screen
-        composable(Screen.AddressSelection.route) {
+        composable(
+            route = Screen.AddressSelection.route,
+            arguments = listOf(
+                navArgument("returnDestination") {
+                    type = NavType.StringType
+                    defaultValue = "checkout"
+                }
+            )
+        ) { backStackEntry ->
+            val returnDestination = backStackEntry.arguments?.getString("returnDestination") ?: "checkout"
+            
             com.shambit.customer.presentation.checkout.address.AddressSelectionScreen(
                 onNavigateBack = {
                     navController.popBackStack()
@@ -348,9 +360,29 @@ fun NavGraph(
                 onNavigateToEditAddress = { addressId ->
                     navController.navigate(Screen.AddEditAddress.createRoute(addressId))
                 },
+                onNavigateToManageAddresses = {
+                    navController.navigate(Screen.Addresses.route)
+                },
                 onAddressSelected = { addressId ->
-                    navController.navigate(Screen.OrderSummary.route)
-                }
+                    // Navigate based on return destination
+                    when (returnDestination) {
+                        "home" -> {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Home.route) { inclusive = false }
+                            }
+                        }
+                        "cart" -> {
+                            navController.navigate(Screen.Cart.route) {
+                                popUpTo(Screen.Cart.route) { inclusive = false }
+                            }
+                        }
+                        else -> {
+                            // Default checkout flow
+                            navController.navigate(Screen.OrderSummary.route)
+                        }
+                    }
+                },
+                returnDestination = returnDestination
             )
         }
         

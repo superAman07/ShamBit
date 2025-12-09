@@ -132,6 +132,26 @@ export class SMSService {
         data?.message || 'Special offer from ShamBit! Check the app for exciting deals.',
       low_stock_alert: (data) =>
         `Low stock alert: ${data?.productName || 'Product'} has only ${data?.stock || 0} units remaining.`,
+      order_ready_for_pickup: (data) =>
+        `Your order ${data?.orderNumber || 'N/A'} is ready for pickup. Please collect it at your convenience.`,
+      order_on_hold: (data) =>
+        `Your order ${data?.orderNumber || 'N/A'} is on hold. ${data?.reason || 'We will update you soon.'}`,
+      delivery_failed: (data) =>
+        `Delivery attempt for order ${data?.orderNumber || 'N/A'} failed. ${data?.reason || 'We will retry soon.'}`,
+      delivery_rescheduled: (data) =>
+        `Delivery for order ${data?.orderNumber || 'N/A'} has been rescheduled to ${data?.newDate || 'a new date'}.`,
+      return_requested: (data) =>
+        `Your return request for order ${data?.orderNumber || 'N/A'} has been received. We'll review it shortly.`,
+      return_approved: (data) =>
+        `Your return request for order ${data?.orderNumber || 'N/A'} has been approved. Pickup will be scheduled soon.`,
+      return_rejected: (data) =>
+        `Your return request for order ${data?.orderNumber || 'N/A'} has been rejected. ${data?.reason || 'Contact support for details.'}`,
+      return_pickup_scheduled: (data) =>
+        `Pickup for your return (Order ${data?.orderNumber || 'N/A'}) is scheduled for ${data?.pickupDate || 'soon'}.`,
+      refund_initiated: (data) =>
+        `Refund of Rs.${data?.amount ? (data.amount / 100).toFixed(2) : '0.00'} for order ${data?.orderNumber || 'N/A'} has been initiated. It will be credited in 5-7 business days.`,
+      refund_completed: (data) =>
+        `Refund of Rs.${data?.amount ? (data.amount / 100).toFixed(2) : '0.00'} for order ${data?.orderNumber || 'N/A'} has been completed.`,
     };
 
     const templateFn = templates[type];

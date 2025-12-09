@@ -75,9 +75,9 @@ interface ProfileApi {
     
     /**
      * Set default address
-     * PUT /profile/addresses/:id/default
+     * POST /profile/addresses/:id/set-default
      */
-    @PUT("profile/addresses/{id}/default")
+    @POST("profile/addresses/{id}/set-default")
     suspend fun setDefaultAddress(
         @Path("id") addressId: String
     ): Response<ApiResponse<AddressDto>>

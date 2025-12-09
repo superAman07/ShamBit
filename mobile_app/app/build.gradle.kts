@@ -18,13 +18,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
             isMinifyEnabled = false
         }
         release {
@@ -114,6 +114,10 @@ dependencies {
 
 
     testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -45,20 +45,36 @@ import { OrderFiltersDialog } from './components/OrderFiltersDialog';
 const ORDER_STATUS_COLORS: Record<OrderStatus, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
   pending: 'warning',
   payment_processing: 'info',
+  payment_failed: 'error',
   confirmed: 'primary',
+  on_hold: 'warning',
   preparing: 'info',
+  ready_for_pickup: 'info',
   out_for_delivery: 'secondary',
+  delivery_attempted: 'warning',
   delivered: 'success',
+  return_requested: 'warning',
+  return_approved: 'info',
+  return_rejected: 'error',
+  return_pickup_scheduled: 'info',
+  return_in_transit: 'secondary',
+  returned: 'default',
+  refund_pending: 'warning',
+  refunded: 'info',
   canceled: 'error',
-  returned: 'error',
   failed: 'error',
 };
 
 const PAYMENT_STATUS_COLORS: Record<PaymentStatus, 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'> = {
   pending: 'warning',
+  processing: 'info',
   completed: 'success',
   failed: 'error',
-  refunded: 'info',
+  refund_initiated: 'warning',
+  refund_processing: 'info',
+  refund_completed: 'success',
+  refund_failed: 'error',
+  partially_refunded: 'info',
 };
 
 export const OrderListPage: React.FC = () => {

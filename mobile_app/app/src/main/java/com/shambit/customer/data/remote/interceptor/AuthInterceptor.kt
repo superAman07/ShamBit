@@ -31,15 +31,21 @@ class AuthInterceptor @Inject constructor(
             userPreferences.getAccessToken().first()
         }
         
+        // Add Authorization and Content-Type headers
+        val requestBuilder = originalRequest.newBuilder()
+        
         // Add Authorization header if token exists
-        val newRequest = if (accessToken != null) {
-            originalRequest.newBuilder()
-                .addHeader("Authorization", "Bearer $accessToken")
-                .build()
-        } else {
-            originalRequest
+        if (accessToken != null) {
+            requestBuilder.addHeader("Authorization", "Bearer $accessToken")
         }
         
-        return chain.proceed(newRequest)
+        // Add Content-Type header for all requests (required by API security middleware)
+        // Only add if not already present and not a multipart request
+        if (originalRequest.header("Content-Type") == null && 
+            originalRequest.body?.contentType()?.type != "multipart") {
+            requestBuilder.addHeader("Content-Type", "application/json")
+        }
+        
+        return chain.proceed(requestBuilder.build())
     }
 }

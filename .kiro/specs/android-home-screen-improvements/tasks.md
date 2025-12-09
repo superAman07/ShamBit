@@ -257,77 +257,126 @@
 
 ## Phase 8: Address Selection Fix (Medium Priority)
 
-- [ ] 8. Fix address selection navigation
-- [ ] 8.1 Update AddressSelectionScreen with return destination
+- [x] 8. Fix address selection navigation
+
+
+
+
+
+- [x] 8.1 Update AddressSelectionScreen with return destination
+
+
   - Add returnDestination parameter (default "home")
   - Update navigation logic to return to correct screen
   - _Requirements: 6.3, 6.6_
 
-- [ ] 8.2 Update HomeScreen header address click
+- [x] 8.2 Update HomeScreen header address click
+
+
   - Pass "return=home" parameter when navigating to address selection
   - _Requirements: 6.1, 6.6_
 
-- [ ] 8.3 Implement "Set as Default" functionality
+- [x] 8.3 Implement "Set as Default" functionality
+
+
   - Add setDefaultAddress() method to AddressViewModel
   - Update UI to highlight default address
   - Call API to update default on server
   - _Requirements: 6.4_
 
-- [ ] 8.4 Add "Manage Addresses" navigation
+
+- [x] 8.4 Add "Manage Addresses" navigation
+
   - Add button/link to navigate to address management screen
   - _Requirements: 6.5_
 
 ## Phase 9: String Resources and Localization (Medium Priority)
 
-- [ ] 9. Extract hardcoded strings
-- [ ] 9.1 Audit HomeScreen for hardcoded strings
+- [x] 9. Extract hardcoded strings
+
+
+
+
+
+
+- [x] 9.1 Audit HomeScreen for hardcoded strings
+
   - Find all hardcoded text in HomeScreen.kt
   - Find all hardcoded text in HomeViewModel.kt
   - _Requirements: 2.2_
 
-- [ ] 9.2 Add missing strings to strings.xml
+
+- [x] 9.2 Add missing strings to strings.xml
+
   - Add "Featured Products", "Shop by Category", "View All", etc.
   - Add error messages
   - Add empty state messages
   - Add wishlist messages
   - _Requirements: 2.2_
 
-- [ ] 9.3 Replace hardcoded strings with string resources
+
+- [x] 9.3 Replace hardcoded strings with string resources
+
   - Update all UI components to use stringResource()
   - Update ViewModel to use context.getString() where needed
   - _Requirements: 2.2_
 
 ## Phase 10: Production Readiness (Critical)
 
-- [ ] 10. Ensure production stability
-- [ ] 10.1 Create proguard-rules.pro file
+- [x] 10. Ensure production stability
+
+
+
+
+
+- [x] 10.1 Create proguard-rules.pro file
+
+
   - Add @Keep annotations or rules for all DTO classes
   - Add rules for BannerDto, CategoryDto, ProductDto, AddressDto, CartDto, etc.
   - _Requirements: 2.3, 9.4_
 
-- [ ] 10.2 Fix TokenAuthenticator runBlocking usage
+- [x] 10.2 Fix TokenAuthenticator runBlocking usage
+
+
   - Review current runBlocking usage in TokenAuthenticator.kt
   - Ensure safe usage (only for synchronous reads)
   - Use GlobalScope.launch for async saves
   - _Requirements: 9.1_
 
-- [ ] 10.3 Audit for hardcoded colors
+
+- [x] 10.3 Audit for hardcoded colors
+
   - Find all Color.X usages in home screen components
   - Replace with MaterialTheme.colorScheme tokens
   - _Requirements: 9.3_
 
-- [ ] 10.4 Test dark mode compatibility
+
+- [x] 10.4 Test dark mode compatibility
+
   - Verify all colors use theme tokens
   - Test home screen in dark mode
   - _Requirements: 9.3_
 
 ## Phase 11: Final Integration and Testing
 
-- [ ] 11. Integration and validation
-- [ ] 11.1 Test parallel loading
+- [x] 11. Integration and validation
+
+
+
+
+
+
+
+- [x] 11.1 Test parallel loading
+
+
+
+
   - Verify all sections load simultaneously
   - Test with network throttling
   - _Requirements: 1.2_
+
 
 - [ ] 11.2 Test error resilience
   - Mock individual API failures
@@ -335,29 +384,37 @@
   - Verify appropriate error handling
   - _Requirements: 1.3, 2.4_
 
+
 - [ ] 11.3 Test optimistic cart updates
   - Verify immediate UI response
   - Test rollback on API failure
+
   - _Requirements: 3.2_
 
 - [ ] 11.4 Test wishlist across all screens
   - Verify consistent state on home, category, search, detail
+
   - Test add/remove operations
   - _Requirements: 7.2, 7.4_
 
-- [ ] 11.5 Test address selection flow
+- [x] 11.5 Test address selection flow
+
   - Verify navigation returns to home screen
   - Test set default functionality
   - _Requirements: 6.3, 6.4, 6.6_
+
 
 - [ ] 11.6 Test category hierarchy
   - Verify only top-level categories on home
   - Test navigation to subcategories
   - _Requirements: 5.1, 5.2_
 
+
 - [ ] 11.7 Perform scroll performance testing
   - Verify 60 FPS scrolling
   - Test with large product lists
+
+
   - _Requirements: 1.1_
 
 - [ ] 11.8 Test release build with Proguard

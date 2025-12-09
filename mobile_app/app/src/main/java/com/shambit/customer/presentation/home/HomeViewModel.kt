@@ -61,7 +61,8 @@ class HomeViewModel @Inject constructor(
     private val categoryPreferencesManager: com.shambit.customer.data.local.preferences.CategoryPreferencesManager,
     private val cartRepository: com.shambit.customer.data.repository.CartRepository,
     private val addressRepository: com.shambit.customer.data.repository.AddressRepository,
-    private val wishlistRepository: com.shambit.customer.data.repository.WishlistRepository
+    private val wishlistRepository: com.shambit.customer.data.repository.WishlistRepository,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -93,6 +94,7 @@ class HomeViewModel @Inject constructor(
         observeCart()
         loadCart()
         loadDefaultAddress()
+        observeDefaultAddress()
     }
     
     /**
@@ -105,25 +107,24 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load default delivery address
+     * Load default delivery address (initial load)
      */
     private fun loadDefaultAddress() {
         viewModelScope.launch {
-            when (val result = addressRepository.getAddresses()) {
-                is NetworkResult.Success -> {
-                    val defaultAddress = result.data.find { it.isDefault }
-                    if (defaultAddress != null) {
-                        // Format address for display
-                        val formattedAddress = formatAddressForHeader(defaultAddress)
-                        _uiState.update { it.copy(deliveryAddress = formattedAddress) }
-                    }
-                }
-                is NetworkResult.Error -> {
-                    // Silently fail - address is optional
-                }
-                is NetworkResult.Loading -> {
-                    // Loading state
-                }
+            addressRepository.getAddresses()
+        }
+    }
+    
+    /**
+     * Observe default address changes from repository
+     * This automatically updates the UI when address changes without manual refresh
+     */
+    private fun observeDefaultAddress() {
+        viewModelScope.launch {
+            addressRepository.addresses.collect { addresses ->
+                val defaultAddress = addresses.find { it.isDefault }
+                val formattedAddress = defaultAddress?.let { formatAddressForHeader(it) }
+                _uiState.update { it.copy(deliveryAddress = formattedAddress) }
             }
         }
     }
@@ -195,7 +196,7 @@ class HomeViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        error = e.message ?: "Failed to load home data"
+                        error = e.message ?: context.getString(com.shambit.customer.R.string.error_load_home_data)
                     )
                 }
             }
@@ -213,7 +214,7 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { it.copy(heroBannersState = DataState.Success(result.data)) }
             }
             is NetworkResult.Error -> {
-                _uiState.update { it.copy(heroBannersState = DataState.Error(result.message ?: "Failed to load banners")) }
+                _uiState.update { it.copy(heroBannersState = DataState.Error(result.message ?: context.getString(com.shambit.customer.R.string.error_load_banners))) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -302,7 +303,7 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { it.copy(promotionalBannersState = DataState.Success(result.data)) }
             }
             is NetworkResult.Error -> {
-                _uiState.update { it.copy(promotionalBannersState = DataState.Error(result.message ?: "Failed to load promotional banners")) }
+                _uiState.update { it.copy(promotionalBannersState = DataState.Error(result.message ?: context.getString(com.shambit.customer.R.string.error_load_promotional_banners))) }
             }
             is NetworkResult.Loading -> {
                 // Already in loading state
@@ -366,7 +367,7 @@ class HomeViewModel @Inject constructor(
                         isRefreshing = false,
                         isLoading = false,
                         refreshSuccess = false,
-                        error = e.message ?: "Failed to refresh data"
+                        error = e.message ?: context.getString(com.shambit.customer.R.string.error_refresh_data)
                     )
                 }
                 
@@ -558,15 +559,15 @@ class HomeViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         snackbarMessage = if (added) {
-                            "Added to wishlist"
+                            context.getString(com.shambit.customer.R.string.wishlist_added)
                         } else {
-                            "Removed from wishlist"
+                            context.getString(com.shambit.customer.R.string.wishlist_removed)
                         }
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(error = "Failed to update wishlist: ${e.message}")
+                    it.copy(error = context.getString(com.shambit.customer.R.string.error_update_wishlist, e.message ?: ""))
                 }
             }
         }

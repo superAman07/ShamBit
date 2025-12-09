@@ -127,6 +127,66 @@ const notificationTemplates: Record<NotificationType, (data?: any) => Notificati
     body: `Product "${data?.productName || 'N/A'}" is running low. Current stock: ${data?.stock || 0} units.`,
     data: { productId: data?.productId, productName: data?.productName, stock: data?.stock },
   }),
+  order_ready_for_pickup: (data) => ({
+    type: 'order_ready_for_pickup',
+    title: 'Order Ready for Pickup 📦',
+    body: `Your order #${data?.orderNumber || 'N/A'} is ready for pickup. Please collect it at your convenience.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber },
+  }),
+  order_on_hold: (data) => ({
+    type: 'order_on_hold',
+    title: 'Order On Hold ⏸️',
+    body: `Your order #${data?.orderNumber || 'N/A'} is on hold. ${data?.reason || 'We will update you soon.'}`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, reason: data?.reason },
+  }),
+  delivery_failed: (data) => ({
+    type: 'delivery_failed',
+    title: 'Delivery Failed ❌',
+    body: `Delivery attempt for order #${data?.orderNumber || 'N/A'} failed. ${data?.reason || 'We will retry soon.'}`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, reason: data?.reason },
+  }),
+  delivery_rescheduled: (data) => ({
+    type: 'delivery_rescheduled',
+    title: 'Delivery Rescheduled 📅',
+    body: `Delivery for order #${data?.orderNumber || 'N/A'} has been rescheduled to ${data?.newDate || 'a new date'}.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, newDate: data?.newDate },
+  }),
+  return_requested: (data) => ({
+    type: 'return_requested',
+    title: 'Return Request Received 🔄',
+    body: `Your return request for order #${data?.orderNumber || 'N/A'} has been received. We'll review it shortly.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, returnId: data?.returnId },
+  }),
+  return_approved: (data) => ({
+    type: 'return_approved',
+    title: 'Return Approved ✅',
+    body: `Your return request for order #${data?.orderNumber || 'N/A'} has been approved. Pickup will be scheduled soon.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, returnId: data?.returnId },
+  }),
+  return_rejected: (data) => ({
+    type: 'return_rejected',
+    title: 'Return Rejected ❌',
+    body: `Your return request for order #${data?.orderNumber || 'N/A'} has been rejected. ${data?.reason || 'Contact support for details.'}`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, returnId: data?.returnId, reason: data?.reason },
+  }),
+  return_pickup_scheduled: (data) => ({
+    type: 'return_pickup_scheduled',
+    title: 'Return Pickup Scheduled 📦',
+    body: `Pickup for your return (Order #${data?.orderNumber || 'N/A'}) is scheduled for ${data?.pickupDate || 'soon'}.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, returnId: data?.returnId, pickupDate: data?.pickupDate },
+  }),
+  refund_initiated: (data) => ({
+    type: 'refund_initiated',
+    title: 'Refund Initiated 💰',
+    body: `Refund of ₹${(data?.amount / 100).toFixed(2)} for order #${data?.orderNumber || 'N/A'} has been initiated. It will be credited in 5-7 business days.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, amount: data?.amount },
+  }),
+  refund_completed: (data) => ({
+    type: 'refund_completed',
+    title: 'Refund Completed ✅',
+    body: `Refund of ₹${(data?.amount / 100).toFixed(2)} for order #${data?.orderNumber || 'N/A'} has been completed.`,
+    data: { orderId: data?.orderId, orderNumber: data?.orderNumber, amount: data?.amount },
+  }),
 };
 
 /**

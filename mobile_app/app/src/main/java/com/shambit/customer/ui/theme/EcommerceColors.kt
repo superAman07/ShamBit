@@ -6,6 +6,10 @@ import androidx.compose.ui.graphics.Color
  * E-commerce standard colors
  * These colors follow industry standards and should remain consistent
  * regardless of theme changes
+ * 
+ * Note: These are semantic colors with specific meanings (stock status, badges)
+ * that should maintain their visual identity across light and dark themes.
+ * Text colors are chosen to provide optimal contrast with their backgrounds.
  */
 object EcommerceColors {
     // Rating colors
@@ -23,4 +27,8 @@ object EcommerceColors {
     val BadgeTrending = Color(0xFF9C27B0)
     val BadgeEcoFriendly = Color(0xFF4CAF50)
     val BadgeLimitedOffer = Color(0xFFF44336)
+    
+    // Text colors for badges and status indicators
+    // White provides optimal contrast with the saturated background colors above
+    val OnSemanticColor = Color(0xFFFFFFFF)
 }

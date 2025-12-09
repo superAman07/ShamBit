@@ -33,8 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.shambit.customer.R
 import com.shambit.customer.ui.components.AdaptiveHeader
 import com.shambit.customer.ui.components.ErrorState
 import com.shambit.customer.ui.components.ProductCardSkeleton
@@ -63,9 +65,11 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val wishlistProductIds by viewModel.wishlistProductIds.collectAsState()
+    val cartQuantities by viewModel.displayCartQuantities.collectAsState()
     val hapticFeedback = rememberHapticFeedback()
     val listState = rememberLazyListState()
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     
     // Snackbar host state for non-blocking errors
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -117,11 +121,12 @@ fun HomeScreen(
     }
     
     // Show non-blocking errors in Snackbar
+    val retryLabel = stringResource(R.string.retry)
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             val result = snackbarHostState.showSnackbar(
                 message = error,
-                actionLabel = "Retry",
+                actionLabel = retryLabel,
                 duration = androidx.compose.material3.SnackbarDuration.Short
             )
             
@@ -213,7 +218,7 @@ fun HomeScreen(
                 uiState.categoriesState is DataState.Error && 
                 uiState.featuredProductsState is DataState.Error -> {
                     ErrorState(
-                        message = "Unable to load content. Please check your connection.",
+                        message = stringResource(R.string.error_load_content),
                         onRetry = { viewModel.loadHomeData() }
                     )
                 }
@@ -221,6 +226,7 @@ fun HomeScreen(
                     HomeContent(
                         uiState = uiState,
                         wishlistProductIds = wishlistProductIds,
+                        cartQuantities = cartQuantities,
                         listState = listState,
                         onBannerClick = { banner ->
                             when (val action = viewModel.onBannerClick(banner)) {
@@ -245,10 +251,6 @@ fun HomeScreen(
                         },
                         onProductClick = { product ->
                             onNavigateToProduct(product.id)
-                        },
-                        getCartQuantity = { productId -> 
-                            // Force recomposition by reading from uiState
-                            viewModel.getCartQuantity(productId)
                         },
                         onAddToCart = { productId -> viewModel.addToCart(productId, 1) },
                         onIncrementCart = { productId -> viewModel.incrementCart(productId) },
@@ -276,11 +278,11 @@ fun HomeScreen(
 private fun HomeContent(
     uiState: HomeUiState,
     wishlistProductIds: Set<String>,
+    cartQuantities: Map<String, Int>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onBannerClick: (com.shambit.customer.data.remote.dto.response.BannerDto) -> Unit,
     onCategoryClick: (com.shambit.customer.data.remote.dto.response.CategoryDto) -> Unit = {},
     onProductClick: (com.shambit.customer.data.remote.dto.response.ProductDto) -> Unit = {},
-    getCartQuantity: (String) -> Int = { 0 },
     onAddToCart: (String) -> Unit = {},
     onIncrementCart: (String) -> Unit = {},
     onDecrementCart: (String) -> Unit = {},
@@ -366,7 +368,7 @@ private fun HomeContent(
                         com.shambit.customer.ui.components.FeaturedProductsSection(
                             products = state.data,
                             onProductClick = onProductClick,
-                            getCartQuantity = getCartQuantity,
+                            getCartQuantity = { productId -> cartQuantities[productId] ?: 0 },
                             isInWishlist = { productId -> wishlistProductIds.contains(productId) },
                             onAddToCart = { product -> onAddToCart(product.id) },
                             onIncrementCart = { product -> onIncrementCart(product.id) },
@@ -382,12 +384,12 @@ private fun HomeContent(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "Featured Products",
+                                text = stringResource(R.string.featured_products),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "No featured products available. Check logs for details.",
+                                text = stringResource(R.string.no_featured_products),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 8.dp)

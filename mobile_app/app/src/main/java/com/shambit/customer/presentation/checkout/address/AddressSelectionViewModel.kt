@@ -162,4 +162,39 @@ class AddressSelectionViewModel @Inject constructor(
     fun clearSuccessMessage() {
         _uiState.update { it.copy(successMessage = null) }
     }
+    
+    /**
+     * Set active address (for immediate use, not necessarily default)
+     * This is used when selecting an address from home screen or other non-checkout flows
+     */
+    fun setActiveAddress(addressId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(settingDefaultId = addressId, error = null, successMessage = null) }
+            
+            // Set as default address so it persists
+            when (val result = addressRepository.setDefaultAddress(addressId)) {
+                is NetworkResult.Success -> {
+                    _uiState.update { 
+                        it.copy(
+                            settingDefaultId = null,
+                            successMessage = "Address updated successfully"
+                        ) 
+                    }
+                    // Reload addresses to reflect the change
+                    loadAddresses()
+                }
+                is NetworkResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            settingDefaultId = null,
+                            error = result.message
+                        )
+                    }
+                }
+                is NetworkResult.Loading -> {
+                    // Already handled by settingDefaultId
+                }
+            }
+        }
+    }
 }
