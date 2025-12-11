@@ -31,16 +31,6 @@ sealed class Screen(val route: String) {
     
     // Checkout Flow
     object Checkout : Screen("checkout")
-    object AddressSelection : Screen("checkout/address?returnDestination={returnDestination}") {
-        fun createRoute(returnDestination: String = "checkout") = 
-            "checkout/address?returnDestination=$returnDestination"
-    }
-    object AddEditAddress : Screen("checkout/address/edit?addressId={addressId}") {
-        fun createRoute(addressId: String? = null) = 
-            if (addressId != null) "checkout/address/edit?addressId=$addressId"
-            else "checkout/address/edit"
-    }
-    object OrderSummary : Screen("checkout/summary")
     object Payment : Screen("checkout/payment/{orderId}/{razorpayOrderId}/{amount}") {
         fun createRoute(orderId: String, razorpayOrderId: String, amount: Double) = 
             "checkout/payment/$orderId/$razorpayOrderId/$amount"
@@ -58,5 +48,10 @@ sealed class Screen(val route: String) {
     // Profile Flow
     object EditProfile : Screen("profile/edit")
     object Addresses : Screen("profile/addresses")
+    object AddEditAddress : Screen("profile/addresses/edit?addressId={addressId}") {
+        fun createRoute(addressId: String? = null) = 
+            if (addressId != null) "profile/addresses/edit?addressId=$addressId"
+            else "profile/addresses/edit"
+    }
     object Notifications : Screen("profile/notifications")
 }

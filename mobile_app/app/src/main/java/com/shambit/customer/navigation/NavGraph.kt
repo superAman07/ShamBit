@@ -94,8 +94,12 @@ fun NavGraph(
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
                 },
-                onNavigateToAddressSelection = {
-                    navController.navigate(Screen.AddressSelection.createRoute("home"))
+
+                onNavigateToAddNewAddress = {
+                    navController.navigate(Screen.AddEditAddress.createRoute())
+                },
+                onNavigateToManageAddresses = {
+                    navController.navigate(Screen.Addresses.route)
                 },
                 onOpenUrl = { url ->
                     // TODO: Open URL in browser
@@ -283,10 +287,9 @@ fun NavGraph(
             )
         }
         
-        // Addresses Screen (Placeholder)
+        // Addresses Screen (Manage Addresses)
         composable(Screen.Addresses.route) {
-            // Reuse AddressSelectionScreen for now
-            com.shambit.customer.presentation.checkout.address.AddressSelectionScreen(
+            com.shambit.customer.presentation.address.ManageAddressScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
@@ -295,10 +298,7 @@ fun NavGraph(
                 },
                 onNavigateToEditAddress = { addressId ->
                     navController.navigate(Screen.AddEditAddress.createRoute(addressId))
-                },
-                onNavigateToManageAddresses = { /* Already on manage addresses screen */ },
-                onAddressSelected = { /* No action needed in profile context */ },
-                returnDestination = "profile"
+                }
             )
         }
         
@@ -321,8 +321,8 @@ fun NavGraph(
                     navController.popBackStack()
                 },
                 onNavigateToCheckout = {
-                    // Navigate directly to address selection
-                    navController.navigate(Screen.AddressSelection.route)
+                    // Navigate directly to checkout
+                    navController.navigate(Screen.Checkout.route)
                 },
                 onNavigateToProduct = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
@@ -330,61 +330,25 @@ fun NavGraph(
             )
         }
         
-        // Checkout Screen (Placeholder)
+        // Checkout Screen
         composable(Screen.Checkout.route) {
-            // Navigate directly to address selection for now
-            navController.navigate(Screen.AddressSelection.route) {
-                popUpTo(Screen.Checkout.route) { inclusive = true }
-            }
-        }
-        
-        // Address Selection Screen
-        composable(
-            route = Screen.AddressSelection.route,
-            arguments = listOf(
-                navArgument("returnDestination") {
-                    type = NavType.StringType
-                    defaultValue = "checkout"
-                }
-            )
-        ) { backStackEntry ->
-            val returnDestination = backStackEntry.arguments?.getString("returnDestination") ?: "checkout"
-            
-            com.shambit.customer.presentation.checkout.address.AddressSelectionScreen(
+            com.shambit.customer.presentation.checkout.CheckoutScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
                 onNavigateToAddAddress = {
                     navController.navigate(Screen.AddEditAddress.createRoute())
                 },
-                onNavigateToEditAddress = { addressId ->
-                    navController.navigate(Screen.AddEditAddress.createRoute(addressId))
-                },
                 onNavigateToManageAddresses = {
                     navController.navigate(Screen.Addresses.route)
                 },
-                onAddressSelected = { addressId ->
-                    // Navigate based on return destination
-                    when (returnDestination) {
-                        "home" -> {
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Home.route) { inclusive = false }
-                            }
-                        }
-                        "cart" -> {
-                            navController.navigate(Screen.Cart.route) {
-                                popUpTo(Screen.Cart.route) { inclusive = false }
-                            }
-                        }
-                        else -> {
-                            // Default checkout flow
-                            navController.navigate(Screen.OrderSummary.route)
-                        }
-                    }
-                },
-                returnDestination = returnDestination
+                onNavigateToPayment = { orderId, razorpayOrderId, amount ->
+                    navController.navigate(Screen.Payment.createRoute(orderId, razorpayOrderId, amount))
+                }
             )
         }
+        
+
         
         // Add/Edit Address Screen
         composable(
@@ -397,26 +361,14 @@ fun NavGraph(
                 }
             )
         ) {
-            com.shambit.customer.presentation.checkout.address.AddEditAddressScreen(
+            com.shambit.customer.presentation.address.AddEditAddressScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
             )
         }
         
-        // Order Summary Screen
-        composable(Screen.OrderSummary.route) {
-            com.shambit.customer.presentation.checkout.summary.OrderSummaryScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
-                onNavigateToPayment = { orderId, razorpayOrderId, amount ->
-                    navController.navigate(
-                        Screen.Payment.createRoute(orderId, razorpayOrderId ?: "", amount)
-                    )
-                }
-            )
-        }
+
         
         // Payment Screen
         composable(

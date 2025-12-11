@@ -8,6 +8,10 @@ import com.shambit.customer.data.remote.dto.response.ProductDto
 import com.shambit.customer.data.repository.BannerRepository
 import com.shambit.customer.data.repository.ProductRepository
 import com.shambit.customer.data.repository.PromotionRepository
+import com.shambit.customer.domain.manager.AddressStateManager
+import com.shambit.customer.domain.model.Address
+import com.shambit.customer.domain.usecase.GetAddressesUseCase
+import com.shambit.customer.domain.usecase.SelectCheckoutAddressUseCase
 import com.shambit.customer.util.NetworkResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +44,9 @@ data class HomeUiState(
     val cartItemCount: Int = 0,
     val currentRoute: String = "home",
     val cartQuantities: Map<String, Int> = emptyMap(), // Product ID to quantity mapping
-    val deliveryAddress: String? = null, // Current delivery address
+    val deliveryAddress: String? = null, // Current delivery address (legacy)
+    val defaultAddress: Address? = null, // Current default address
+    val addresses: List<Address>? = null, // All addresses for bottom sheet
     
     // Transient error for Snackbar
     val error: String? = null,
@@ -62,6 +68,9 @@ class HomeViewModel @Inject constructor(
     private val cartRepository: com.shambit.customer.data.repository.CartRepository,
     private val addressRepository: com.shambit.customer.data.repository.AddressRepository,
     private val wishlistRepository: com.shambit.customer.data.repository.WishlistRepository,
+    private val getAddressesUseCase: GetAddressesUseCase,
+    private val selectCheckoutAddressUseCase: SelectCheckoutAddressUseCase,
+    private val addressStateManager: AddressStateManager,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context
 ) : ViewModel() {
 
@@ -69,6 +78,13 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private val _cartState = MutableStateFlow<com.shambit.customer.data.remote.dto.response.CartDto?>(null)
+    
+    // Address-related state flows as per requirements - now using shared state
+    val defaultAddress: StateFlow<Address?> = addressStateManager.defaultAddress
+    val addresses: StateFlow<List<Address>> = addressStateManager.addresses
+    
+    private val _showAddressBottomSheet = MutableStateFlow(false)
+    val showAddressBottomSheet: StateFlow<Boolean> = _showAddressBottomSheet.asStateFlow()
     
     // Optimistic cart quantities for immediate UI updates
     private val _optimisticCartQuantities = MutableStateFlow<Map<String, Int>>(emptyMap())
@@ -94,7 +110,7 @@ class HomeViewModel @Inject constructor(
         observeCart()
         loadCart()
         loadDefaultAddress()
-        observeDefaultAddress()
+        observeSharedAddressState()
     }
     
     /**
@@ -108,43 +124,101 @@ class HomeViewModel @Inject constructor(
     
     /**
      * Load default delivery address (initial load)
+     * Requirements: 4.3, 4.4, 10.4
      */
-    private fun loadDefaultAddress() {
+    fun loadDefaultAddress() {
         viewModelScope.launch {
-            addressRepository.getAddresses()
-        }
-    }
-    
-    /**
-     * Observe default address changes from repository
-     * This automatically updates the UI when address changes without manual refresh
-     */
-    private fun observeDefaultAddress() {
-        viewModelScope.launch {
-            addressRepository.addresses.collect { addresses ->
-                val defaultAddress = addresses.find { it.isDefault }
-                val formattedAddress = defaultAddress?.let { formatAddressForHeader(it) }
-                _uiState.update { it.copy(deliveryAddress = formattedAddress) }
+            // Refresh addresses through shared state manager
+            when (val result = addressStateManager.refreshAddresses()) {
+                is NetworkResult.Success -> {
+                    // State is automatically updated via observeSharedAddressState()
+                }
+                is NetworkResult.Error -> {
+                    // Handle error silently for now, could add error state later
+                    _uiState.update { 
+                        it.copy(
+                            deliveryAddress = null,
+                            defaultAddress = null,
+                            addresses = emptyList()
+                        ) 
+                    }
+                }
+                is NetworkResult.Loading -> {
+                    // Loading state handled by individual sections
+                }
             }
         }
     }
     
     /**
-     * Format address for header display
+     * Observe shared address state for cross-screen synchronization
+     * This automatically updates the UI when address changes from any screen
+     * Requirements: 4.4, 10.4
      */
-    private fun formatAddressForHeader(address: com.shambit.customer.data.remote.dto.response.AddressDto): String {
-        return buildString {
-            // Add type (Home, Work, Other)
-            append(address.type.replaceFirstChar { it.uppercase() })
-            append(" - ")
+    private fun observeSharedAddressState() {
+        viewModelScope.launch {
+            // Observe default address changes
+            defaultAddress.collect { address ->
+                val formattedAddress = address?.toShortDisplayString()
+                _uiState.update { 
+                    it.copy(
+                        deliveryAddress = formattedAddress,
+                        defaultAddress = address
+                    ) 
+                }
+            }
+        }
+        
+        viewModelScope.launch {
+            // Observe all addresses for bottom sheet
+            addresses.collect { addressList ->
+                _uiState.update { 
+                    it.copy(addresses = addressList) 
+                }
+            }
+        }
+    }
+    
+    /**
+     * Open address selection bottom sheet
+     * Requirements: 5.1
+     */
+    fun openAddressSelection() {
+        _showAddressBottomSheet.value = true
+    }
+    
+    /**
+     * Close address selection bottom sheet
+     */
+    fun closeAddressSelection() {
+        _showAddressBottomSheet.value = false
+    }
+    
+    /**
+     * Select an address and propagate state changes
+     * Requirements: 4.4, 5.3, 10.4
+     */
+    fun selectAddress(address: Address) {
+        viewModelScope.launch {
+            // Close bottom sheet
+            _showAddressBottomSheet.value = false
             
-            // Add address line 1
-            append(address.addressLine1)
+            // Update shared state for immediate cross-screen synchronization
+            addressStateManager.selectCheckoutAddress(address.id)
             
-            // Add landmark if available
-            if (!address.landmark.isNullOrBlank()) {
-                append(", ")
-                append(address.landmark)
+            // Propagate selection through use case for checkout synchronization
+            when (val result = selectCheckoutAddressUseCase(address.id)) {
+                is NetworkResult.Success -> {
+                    // Selection successful, update shared state
+                    addressStateManager.setDefaultAddress(address.id)
+                }
+                is NetworkResult.Error -> {
+                    // Handle error but keep optimistic update
+                    // Could show error message to user
+                }
+                is NetworkResult.Loading -> {
+                    // Loading state
+                }
             }
         }
     }
@@ -578,6 +652,41 @@ class HomeViewModel @Inject constructor(
      */
     fun clearSnackbarMessage() {
         _uiState.update { it.copy(snackbarMessage = null) }
+    }
+    
+    /**
+     * Retry failed operations with enhanced error handling
+     * 
+     * Provides intelligent retry logic for failed home screen operations.
+     * 
+     * Requirements: 3.5, 7.6, 11.3
+     */
+    fun retryFailedOperations() {
+        viewModelScope.launch {
+            try {
+                // Clear current error state
+                _uiState.update { it.copy(error = null) }
+                
+                // Retry loading home data
+                loadHomeData()
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(error = "Retry failed: ${e.message}") 
+                }
+            }
+        }
+    }
+    
+    /**
+     * Clear all error states
+     */
+    fun clearAllErrors() {
+        _uiState.update { 
+            it.copy(
+                error = null,
+                snackbarMessage = null
+            ) 
+        }
     }
 }
 

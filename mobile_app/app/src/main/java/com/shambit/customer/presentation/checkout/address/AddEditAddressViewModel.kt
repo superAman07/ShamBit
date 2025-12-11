@@ -297,6 +297,8 @@ class AddEditAddressViewModel @Inject constructor(
                 addressRepository.updateAddress(
                     addressId = state.addressId,
                     request = UpdateAddressRequest(
+                        name = "Default Name", // TODO: Add name field to UI state in later tasks
+                        phoneNumber = "1234567890", // TODO: Add phone field to UI state in later tasks
                         type = state.addressType,
                         addressLine1 = state.addressLine1,
                         addressLine2 = state.addressLine2.ifBlank { null },
@@ -313,6 +315,8 @@ class AddEditAddressViewModel @Inject constructor(
                 // Add new address
                 addressRepository.addAddress(
                     request = AddAddressRequest(
+                        name = "Default Name", // TODO: Add name field to UI state in later tasks
+                        phoneNumber = "1234567890", // TODO: Add phone field to UI state in later tasks
                         type = state.addressType,
                         addressLine1 = state.addressLine1,
                         addressLine2 = state.addressLine2.ifBlank { null },

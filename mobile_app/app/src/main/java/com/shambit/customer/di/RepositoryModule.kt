@@ -1,5 +1,6 @@
 package com.shambit.customer.di
 
+import com.shambit.customer.data.local.cache.AddressCache
 import com.shambit.customer.data.local.preferences.UserPreferences
 import com.shambit.customer.data.remote.api.AuthApi
 import com.shambit.customer.data.remote.api.BannerApi
@@ -7,11 +8,13 @@ import com.shambit.customer.data.remote.api.OrderApi
 import com.shambit.customer.data.remote.api.ProductApi
 import com.shambit.customer.data.remote.api.ProfileApi
 import com.shambit.customer.data.remote.api.PromotionApi
+import com.shambit.customer.data.repository.AddressRepositoryImpl
 import com.shambit.customer.data.repository.AuthRepository
 import com.shambit.customer.data.repository.BannerRepository
 import com.shambit.customer.data.repository.OrderRepository
 import com.shambit.customer.data.repository.ProductRepository
 import com.shambit.customer.data.repository.PromotionRepository
+import com.shambit.customer.domain.repository.AddressRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -79,5 +82,17 @@ object RepositoryModule {
         promotionApi: PromotionApi
     ): PromotionRepository {
         return PromotionRepository(promotionApi)
+    }
+    
+    /**
+     * Provide AddressRepository
+     */
+    @Provides
+    @Singleton
+    fun provideAddressRepository(
+        profileApi: ProfileApi,
+        addressCache: AddressCache
+    ): AddressRepository {
+        return AddressRepositoryImpl(profileApi, addressCache)
     }
 }

@@ -131,7 +131,7 @@ fun ProfileScreen(
                                     
                                     ProfileMenuItem(
                                         icon = Icons.Default.LocationOn,
-                                        title = "Saved Addresses",
+                                        title = "Manage Addresses",
                                         subtitle = "Manage delivery addresses",
                                         onClick = onNavigateToAddresses
                                     )

@@ -17,6 +17,12 @@ data class UpdateProfileRequest(
  * Add address request
  */
 data class AddAddressRequest(
+    @SerializedName("name")
+    val name: String,
+    
+    @SerializedName("phoneNumber")
+    val phoneNumber: String,
+    
     @SerializedName("type")
     val type: String, // "home", "work", "other"
     
@@ -52,6 +58,12 @@ data class AddAddressRequest(
  * Update address request
  */
 data class UpdateAddressRequest(
+    @SerializedName("name")
+    val name: String? = null,
+    
+    @SerializedName("phoneNumber")
+    val phoneNumber: String? = null,
+    
     @SerializedName("type")
     val type: String? = null,
     

@@ -5,8 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
+import com.shambit.customer.data.local.cache.AddressCache
+import com.shambit.customer.data.local.cache.AddressCacheImpl
 import com.shambit.customer.data.local.preferences.PreferencesManager
 import com.shambit.customer.data.local.preferences.UserPreferences
+import com.shambit.customer.data.repository.AddressRepository
+import com.shambit.customer.domain.manager.AddressStateManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -52,5 +56,29 @@ object AppModule {
         gson: Gson
     ): PreferencesManager {
         return PreferencesManager(userPreferences, gson)
+    }
+    
+    /**
+     * Provide AddressCache
+     */
+    @Provides
+    @Singleton
+    fun provideAddressCache(
+        dataStore: DataStore<Preferences>,
+        gson: Gson
+    ): AddressCache {
+        return AddressCacheImpl(dataStore, gson)
+    }
+    
+    /**
+     * Provide AddressStateManager for cross-screen state synchronization
+     */
+    @Provides
+    @Singleton
+    fun provideAddressStateManager(
+        addressRepository: AddressRepository,
+        addressCache: AddressCache
+    ): AddressStateManager {
+        return AddressStateManager(addressRepository, addressCache)
     }
 }

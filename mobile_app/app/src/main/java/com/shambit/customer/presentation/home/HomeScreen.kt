@@ -61,11 +61,15 @@ fun HomeScreen(
     onNavigateToCategory: (com.shambit.customer.data.remote.dto.response.CategoryDto) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAddressSelection: () -> Unit = {},
+    onNavigateToAddNewAddress: () -> Unit = {},
+    onNavigateToManageAddresses: () -> Unit = {},
     onOpenUrl: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val wishlistProductIds by viewModel.wishlistProductIds.collectAsState()
     val cartQuantities by viewModel.displayCartQuantities.collectAsState()
+    val defaultAddress by viewModel.defaultAddress.collectAsState()
+    val showAddressBottomSheet by viewModel.showAddressBottomSheet.collectAsState()
     val hapticFeedback = rememberHapticFeedback()
     val listState = rememberLazyListState()
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -157,9 +161,11 @@ fun HomeScreen(
         snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         topBar = {
             com.shambit.customer.ui.components.ShamBitHeader(
-                address = uiState.deliveryAddress,
+                address = defaultAddress?.toShortDisplayString(),
                 cartItemCount = uiState.cartItemCount,
-                onAddressClick = onNavigateToAddressSelection,
+                onAddressClick = {
+                    viewModel.openAddressSelection()
+                },
                 onSearchClick = {
                     viewModel.updateCurrentRoute(com.shambit.customer.ui.components.NavigationRoutes.SEARCH)
                     onNavigateToSearch()
@@ -267,6 +273,29 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             )
         }
+    }
+    
+    // Address Selection Bottom Sheet
+    // Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
+    if (showAddressBottomSheet) {
+        com.shambit.customer.ui.components.AddressSelectionBottomSheet(
+            addresses = uiState.addresses ?: emptyList(),
+            selectedAddressId = defaultAddress?.id,
+            onAddressSelected = { address ->
+                viewModel.selectAddress(address)
+            },
+            onAddNewAddress = {
+                viewModel.closeAddressSelection()
+                onNavigateToAddNewAddress()
+            },
+            onManageAddresses = {
+                viewModel.closeAddressSelection()
+                onNavigateToManageAddresses()
+            },
+            onDismiss = {
+                viewModel.closeAddressSelection()
+            }
+        )
     }
 }
 

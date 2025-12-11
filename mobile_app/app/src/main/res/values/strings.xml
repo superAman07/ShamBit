@@ -67,4 +67,52 @@
     <string name="empty_products">No products found</string>
     <string name="empty_products_message">Try adjusting your filters or check back later</string>
     <string name="try_again">Try Again</string>
+    
+    <!-- Enhanced Error Messages for Address Management -->
+    <string name="error_network_connection">Please check your internet connection and try again</string>
+    <string name="error_request_timeout">Request timed out. Please try again</string>
+    <string name="error_server_error">Server is temporarily unavailable. Please try again later</string>
+    <string name="error_unauthorized">Session expired. Please login again</string>
+    <string name="error_not_found">Requested resource not found</string>
+    <string name="error_concurrent_modification">Data was modified by another session. Refreshing...</string>
+    <string name="error_address_lock_failed">Unable to lock address for payment. Please try again</string>
+    <string name="error_unknown">An unexpected error occurred</string>
+    
+    <!-- Address Operation Messages -->
+    <string name="address_saved_success">Address saved successfully</string>
+    <string name="address_updated_success">Address updated successfully</string>
+    <string name="address_deleted_success">Address deleted successfully</string>
+    <string name="default_address_set">Default address updated</string>
+    <string name="address_selected">Address selected for delivery</string>
+    <string name="payment_ready">Ready to proceed to payment</string>
+    
+    <!-- Address Error Messages -->
+    <string name="error_save_address">Failed to save address</string>
+    <string name="error_update_address">Failed to update address</string>
+    <string name="error_delete_address">Failed to delete address</string>
+    <string name="error_set_default">Failed to set default address</string>
+    <string name="error_select_address">Failed to select address</string>
+    <string name="error_validation">Please check your input and try again</string>
+    
+    <!-- Loading Messages -->
+    <string name="loading_addresses">Loading addresses...</string>
+    <string name="saving_address">Saving address...</string>
+    <string name="updating_address">Updating address...</string>
+    <string name="deleting_address">Deleting address...</string>
+    <string name="setting_default">Setting default address...</string>
+    <string name="locking_address">Preparing for payment...</string>
+    <string name="refreshing_data">Refreshing data...</string>
+    <string name="validating_address">Validating address...</string>
+    <string name="syncing_changes">Syncing changes...</string>
+    
+    <!-- Retry Messages -->
+    <string name="retry_operation">Retry Operation</string>
+    <string name="retrying">Retrying...</string>
+    <string name="retry_count">Retry (%1$d/%2$d)</string>
+    
+    <!-- Warning Messages -->
+    <string name="first_address_info">This will be your default address</string>
+    <string name="default_changed_info">Default address changed</string>
+    <string name="last_address_warning">This is your only address</string>
+    <string name="data_conflict_warning">Data conflict detected. Please refresh and try again</string>
 </resources>
