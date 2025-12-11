@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,7 +40,7 @@ fun NotificationPreferencesScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -78,7 +78,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { orderUpdates = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "Delivery Updates",
@@ -87,7 +87,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { deliveryUpdates = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "Payment Alerts",
@@ -96,7 +96,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { paymentAlerts = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "Promotions & Offers",
@@ -105,7 +105,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { promotions = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "Wishlist Alerts",
@@ -141,7 +141,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { pushNotifications = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "Email Notifications",
@@ -150,7 +150,7 @@ fun NotificationPreferencesScreen(
                             onCheckedChange = { emailNotifications = it }
                         )
                         
-                        Divider()
+                        HorizontalDivider()
                         
                         PreferenceSwitch(
                             title = "SMS Notifications",

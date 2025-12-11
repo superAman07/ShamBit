@@ -7,11 +7,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -127,7 +127,7 @@ fun ProfileScreen(
                                         onClick = onNavigateToOrders
                                     )
                                     
-                                    Divider()
+                                    HorizontalDivider()
                                     
                                     ProfileMenuItem(
                                         icon = Icons.Default.LocationOn,
@@ -136,7 +136,7 @@ fun ProfileScreen(
                                         onClick = onNavigateToAddresses
                                     )
                                     
-                                    Divider()
+                                    HorizontalDivider()
                                     
                                     ProfileMenuItem(
                                         icon = Icons.Default.Favorite,
@@ -162,7 +162,7 @@ fun ProfileScreen(
                                         onClick = onNavigateToNotifications
                                     )
                                     
-                                    Divider()
+                                    HorizontalDivider()
                                     
                                     ProfileMenuItem(
                                         icon = Icons.Default.Info,
@@ -185,7 +185,7 @@ fun ProfileScreen(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ExitToApp,
+                                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                     contentDescription = null
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -327,7 +327,7 @@ private fun ProfileMenuItem(
         }
         
         Icon(
-            imageVector = Icons.Default.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -343,7 +343,7 @@ private fun LogoutDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(
-                imageVector = Icons.Default.ExitToApp,
+                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error
             )

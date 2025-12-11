@@ -70,7 +70,7 @@ fun FullScreenLoading(
             ) {
                 if (loadingState.progress != null) {
                     CircularProgressIndicator(
-                        progress = loadingState.progress,
+                        progress = { loadingState.progress },
                         modifier = Modifier.size(48.dp),
                         strokeWidth = 4.dp,
                         color = MaterialTheme.colorScheme.primary
@@ -175,7 +175,7 @@ fun ProgressLoading(
         )
         
         LinearProgressIndicator(
-            progress = progress,
+            progress = { progress },
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.primary,
             trackColor = MaterialTheme.colorScheme.surfaceVariant

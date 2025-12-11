@@ -138,7 +138,7 @@ private fun PaymentContent(
                     fontWeight = FontWeight.Bold
                 )
                 
-                Divider()
+                HorizontalDivider()
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -175,7 +175,7 @@ private fun PaymentContent(
                 
                 // Display locked delivery address in read-only format
                 uiState.order.deliveryAddress?.let { address ->
-                    Divider()
+                    HorizontalDivider()
                     
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -200,17 +200,17 @@ private fun PaymentContent(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "${address.type.uppercase()} - ${address.name}",
+                                    text = "${(address.type ?: "other").uppercase()} - ${address.name ?: ""}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = address.phoneNumber,
+                                    text = address.phoneNumber ?: "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.Gray
                                 )
                                 Text(
-                                    text = address.addressLine1,
+                                    text = address.addressLine1 ?: "",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 Text(

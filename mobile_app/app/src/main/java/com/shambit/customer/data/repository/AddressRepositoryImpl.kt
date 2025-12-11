@@ -130,7 +130,14 @@ class AddressRepositoryImpl @Inject constructor(
                 NetworkResult.Success(Unit)
             }
             is NetworkResult.Error -> {
-                NetworkResult.Error(result.message, result.code)
+                // Provide user-friendly error messages for specific error codes
+                val userFriendlyMessage = when (result.code) {
+                    "DATABASE_CONSTRAINT_VIOLATION" -> {
+                        "Cannot delete this address as it's linked to existing orders. Please contact support if you need to remove it."
+                    }
+                    else -> result.message
+                }
+                NetworkResult.Error(userFriendlyMessage, result.code)
             }
             is NetworkResult.Loading -> {
                 NetworkResult.Loading
@@ -166,5 +173,12 @@ class AddressRepositoryImpl @Inject constructor(
                 NetworkResult.Loading
             }
         }
+    }
+    
+    /**
+     * Clear address cache to force fresh fetch from server
+     */
+    override suspend fun clearAddressCache() {
+        addressCache.clear()
     }
 }

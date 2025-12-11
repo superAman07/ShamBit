@@ -21,14 +21,14 @@ import com.shambit.customer.domain.model.AddressType
 fun AddressDto.toDomainModel(): Address {
     return Address(
         id = id,
-        name = name,
-        phoneNumber = phoneNumber,
-        houseStreetArea = addressLine1,
-        city = city,
-        pincode = pincode,
-        type = AddressType.fromApiValue(type),
+        name = name ?: "Unknown", // Handle null name with default value
+        phoneNumber = phoneNumber ?: "", // Handle null phone number
+        houseStreetArea = addressLine1 ?: "", // Handle null address line
+        city = city ?: "", // Handle null city
+        pincode = pincode ?: "", // Handle null pincode
+        type = AddressType.fromApiValue(type ?: "other"), // Handle null type
         isDefault = isDefault,
-        createdAt = createdAt
+        createdAt = createdAt ?: "" // Handle null createdAt
     )
 }
 

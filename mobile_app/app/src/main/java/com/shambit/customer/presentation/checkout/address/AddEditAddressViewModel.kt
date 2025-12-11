@@ -76,13 +76,13 @@ class AddEditAddressViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                addressLine1 = address.addressLine1,
+                                addressLine1 = address.addressLine1 ?: "",
                                 addressLine2 = address.addressLine2 ?: "",
-                                city = address.city,
+                                city = address.city ?: "",
                                 state = address.state,
-                                pincode = address.pincode,
+                                pincode = address.pincode ?: "",
                                 landmark = address.landmark ?: "",
-                                addressType = address.type,
+                                addressType = address.type ?: "other",
                                 isDefault = address.isDefault,
                                 latitude = address.latitude,
                                 longitude = address.longitude

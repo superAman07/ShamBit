@@ -360,13 +360,13 @@ private fun AddressCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = getAddressTypeIcon(address.type),
+                                imageVector = getAddressTypeIcon(address.type ?: "other"),
                                 contentDescription = null,
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = address.type.replaceFirstChar { it.uppercase() },
+                                text = (address.type ?: "other").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -392,7 +392,7 @@ private fun AddressCard(
                         
                         // Address lines
                         Text(
-                            text = address.addressLine1,
+                            text = address.addressLine1 ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )

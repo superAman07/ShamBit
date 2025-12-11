@@ -76,13 +76,23 @@ class AddressRepository @Inject constructor(
      * Delete address
      */
     suspend fun deleteAddress(addressId: String): NetworkResult<Unit> {
-        return safeApiCall {
-            profileApi.deleteAddress(addressId)
-        }.also { result ->
-            // Refresh cache on success
-            if (result is NetworkResult.Success) {
+        return when (val result = safeApiCall { profileApi.deleteAddress(addressId) }) {
+            is NetworkResult.Success -> {
+                // Refresh cache on success
                 getAddresses()
+                NetworkResult.Success(Unit)
             }
+            is NetworkResult.Error -> {
+                // Provide user-friendly error messages for specific error codes
+                val userFriendlyMessage = when (result.code) {
+                    "DATABASE_CONSTRAINT_VIOLATION" -> {
+                        "Cannot delete this address as it's linked to existing orders. Please contact support if you need to remove it."
+                    }
+                    else -> result.message
+                }
+                NetworkResult.Error(userFriendlyMessage, result.code)
+            }
+            is NetworkResult.Loading -> NetworkResult.Loading
         }
     }
     
@@ -102,6 +112,13 @@ class AddressRepository @Inject constructor(
                 _addresses.value = updatedAddresses
             }
         }
+    }
+    
+    /**
+     * Clear address cache to force fresh fetch from server
+     */
+    suspend fun clearAddressCache() {
+        _addresses.value = emptyList()
     }
     
     /**

@@ -101,7 +101,7 @@ fun NavGraph(
                 onNavigateToManageAddresses = {
                     navController.navigate(Screen.Addresses.route)
                 },
-                onOpenUrl = { url ->
+                onOpenUrl = { _ ->
                     // TODO: Open URL in browser
                 }
             )
@@ -147,7 +147,7 @@ fun NavGraph(
                 onNavigateToProduct = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
-                onShare = { product ->
+                onShare = { _ ->
                     // TODO: Implement share functionality
                 }
             )

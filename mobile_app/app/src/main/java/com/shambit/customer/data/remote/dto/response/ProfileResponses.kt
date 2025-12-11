@@ -39,28 +39,28 @@ data class AddressDto(
     val userId: String,
     
     @SerializedName("name")
-    val name: String,
+    val name: String?,
     
     @SerializedName("phoneNumber")
-    val phoneNumber: String,
+    val phoneNumber: String?,
     
     @SerializedName("type")
-    val type: String, // "home", "work", "other"
+    val type: String?, // "home", "work", "other"
     
     @SerializedName("addressLine1")
-    val addressLine1: String,
+    val addressLine1: String?,
     
     @SerializedName("addressLine2")
     val addressLine2: String? = null,
     
     @SerializedName("city")
-    val city: String,
+    val city: String?,
     
     @SerializedName("state")
     val state: String,
     
     @SerializedName("pincode")
-    val pincode: String,
+    val pincode: String?,
     
     @SerializedName("landmark")
     val landmark: String? = null,
@@ -75,7 +75,7 @@ data class AddressDto(
     val isDefault: Boolean = false,
     
     @SerializedName("createdAt")
-    val createdAt: String,
+    val createdAt: String?,
     
     @SerializedName("updatedAt")
     val updatedAt: String

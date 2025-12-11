@@ -119,14 +119,14 @@ private fun OrderConfirmationContent(
                     value = uiState.order!!.orderNumber
                 )
                 
-                Divider()
+                HorizontalDivider()
                 
                 OrderDetailRow(
                     label = "Order ID",
                     value = uiState.order.id
                 )
                 
-                Divider()
+                HorizontalDivider()
                 
                 OrderDetailRow(
                     label = "Total Amount",
@@ -135,7 +135,7 @@ private fun OrderConfirmationContent(
                 )
                 
                 if (uiState.order.estimatedDeliveryTime != null) {
-                    Divider()
+                    HorizontalDivider()
                     
                     OrderDetailRow(
                         label = "Estimated Delivery",

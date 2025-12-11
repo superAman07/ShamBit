@@ -133,7 +133,7 @@ class CheckoutViewModel @Inject constructor(
                     currentState.copy(
                         hasAddress = hasAddresses,
                         canProceedToPayment = address != null && currentCart?.items?.isNotEmpty() == true && !currentState.isAddressLocked,
-                        totalAmount = currentCart?.totalAmount ?: currentState.totalAmount
+                        totalAmount = currentCart?.totalAmount ?: 0.0
                     )
                 }
                 

@@ -92,7 +92,7 @@ class HapticFeedbackManager(private val context: Context) {
     fun performViewHapticFeedback(view: View, feedbackConstant: Int = HapticFeedbackConstants.VIRTUAL_KEY) {
         view.performHapticFeedback(
             feedbackConstant,
-            HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+            HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
         )
     }
 
@@ -128,20 +128,20 @@ fun rememberHapticFeedback(): HapticFeedbackManager {
 fun View.performLightHaptic() {
     performHapticFeedback(
         HapticFeedbackConstants.VIRTUAL_KEY,
-        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
     )
 }
 
 fun View.performMediumHaptic() {
     performHapticFeedback(
         HapticFeedbackConstants.KEYBOARD_TAP,
-        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
     )
 }
 
 fun View.performHeavyHaptic() {
     performHapticFeedback(
         HapticFeedbackConstants.LONG_PRESS,
-        HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING
+        HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING
     )
 }

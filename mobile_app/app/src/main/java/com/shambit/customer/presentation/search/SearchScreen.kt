@@ -1028,7 +1028,7 @@ private fun SortBottomSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
             
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             
             SortOption.values().forEach { option ->
                 SortOptionItem(
@@ -1129,7 +1129,7 @@ private fun FilterBottomSheet(
                     }
                 }
                 
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
             
             // Price Range Filter

@@ -52,4 +52,9 @@ interface AddressRepository {
      * @return NetworkResult containing the updated address or error
      */
     suspend fun setDefaultAddress(id: String): NetworkResult<Address>
+    
+    /**
+     * Clear address cache to force fresh fetch from server
+     */
+    suspend fun clearAddressCache()
 }

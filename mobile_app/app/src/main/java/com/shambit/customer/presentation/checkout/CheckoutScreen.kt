@@ -26,8 +26,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
@@ -143,7 +143,7 @@ fun CheckoutScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -264,7 +264,7 @@ private fun CheckoutContent(
             ProceedToPaymentSection(
                 canProceedToPayment = checkoutState.canProceedToPayment,
                 addressLockState = addressLockState,
-                totalAmount = checkoutState.totalAmount,
+                totalAmount = cartItems?.totalAmount ?: 0.0,
                 onProceedToPayment = onProceedToPayment
             )
         }
@@ -567,6 +567,14 @@ private fun PriceBreakdownSection(
                 value = if (cartItems.deliveryFee > 0) "₹${cartItems.deliveryFee}" else "FREE"
             )
             
+            // Tax amount
+            if (cartItems.taxAmount > 0) {
+                PriceRow(
+                    label = "Tax",
+                    value = "₹${cartItems.taxAmount}"
+                )
+            }
+            
             // Discount
             if (cartItems.discountAmount > 0) {
                 PriceRow(
@@ -660,7 +668,7 @@ private fun ProceedToPaymentSection(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Total amount display
+            // Total amount display - use cart total instead of checkout state total
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -674,7 +682,7 @@ private fun ProceedToPaymentSection(
                 )
                 
                 Text(
-                    text = "₹$totalAmount",
+                    text = "₹${totalAmount}",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary

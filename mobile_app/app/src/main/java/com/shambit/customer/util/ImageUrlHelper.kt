@@ -9,7 +9,7 @@ import java.net.URLEncoder
  */
 object ImageUrlHelper {
     // Base URL for images (without /api/v1/)
-    private const val IMAGE_BASE_URL = "http://192.168.3.103:3000"
+    private const val IMAGE_BASE_URL = "http://192.168.29.45:3000"
     
     /**
      * Convert relative URL to absolute URL with proper encoding

@@ -77,6 +77,17 @@ class AddressSelectionViewModel @Inject constructor(
     }
     
     /**
+     * Force refresh addresses from server (bypassing cache)
+     */
+    private fun forceRefreshAddresses() {
+        viewModelScope.launch {
+            // Clear cache to force fresh fetch from server
+            addressRepository.clearAddressCache()
+            loadAddresses()
+        }
+    }
+    
+    /**
      * Select an address
      */
     fun selectAddress(addressId: String) {
@@ -92,14 +103,14 @@ class AddressSelectionViewModel @Inject constructor(
             
             when (val result = addressRepository.deleteAddress(addressId)) {
                 is NetworkResult.Success -> {
-                    // Reload addresses from server to ensure consistency
+                    // Force refresh from server to ensure UI shows updated list
                     _uiState.update { 
                         it.copy(
                             deletingAddressId = null,
                             successMessage = "Address deleted successfully"
                         ) 
                     }
-                    loadAddresses()
+                    forceRefreshAddresses()
                 }
                 is NetworkResult.Error -> {
                     _uiState.update {
@@ -125,14 +136,15 @@ class AddressSelectionViewModel @Inject constructor(
             
             when (val result = addressRepository.setDefaultAddress(addressId)) {
                 is NetworkResult.Success -> {
-                    // Reload addresses from server to ensure consistency
+                    // Force refresh from server to ensure UI shows updated default status
                     _uiState.update { 
                         it.copy(
                             settingDefaultId = null,
                             successMessage = "Default address updated"
                         ) 
                     }
-                    loadAddresses()
+                    // Force a fresh load from server (not cache)
+                    forceRefreshAddresses()
                 }
                 is NetworkResult.Error -> {
                     _uiState.update {

@@ -197,28 +197,15 @@ fun ShamBitHeader(
                     }
                     
                     // Cart Icon with Badge
-                    IconButton(
-                        onClick = {
-                            hapticFeedback.performMediumImpact()
-                            onCartClick()
-                        },
+                    Box(
                         modifier = Modifier.size(40.dp)
                     ) {
-                        BadgedBox(
-                            badge = {
-                                if (cartItemCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.error
-                                    ) {
-                                        Text(
-                                            text = if (cartItemCount > 99) "99+" else cartItemCount.toString(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
+                        IconButton(
+                            onClick = {
+                                hapticFeedback.performMediumImpact()
+                                onCartClick()
+                            },
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ShoppingCart,
@@ -226,6 +213,21 @@ fun ShamBitHeader(
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
+                        }
+                        
+                        // Circular Badge positioned at top-right
+                        if (cartItemCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = 2.dp, end = 2.dp)
+                            ) {
+                                CircularBadge(
+                                    count = cartItemCount,
+                                    size = 18.dp,
+                                    fontSize = 9.sp
+                                )
+                            }
                         }
                     }
                     

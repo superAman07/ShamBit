@@ -285,7 +285,7 @@ private fun DeliveryAddressCard(address: com.shambit.customer.data.remote.dto.re
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = address.type.replaceFirstChar { it.uppercase() },
+                        text = (address.type ?: "other").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -435,7 +435,7 @@ private fun PriceBreakdownCard(cart: com.shambit.customer.data.remote.dto.respon
                 PriceRow("Discount", -cart.discountAmount, color = Color(0xFF4CAF50))
             }
             
-            Divider()
+            HorizontalDivider()
             
             Row(
                 modifier = Modifier.fillMaxWidth(),

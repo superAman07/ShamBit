@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -732,7 +733,7 @@ private fun DeliveryAddressCard(address: AddressDto) {
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = address.addressLine1,
+                    text = address.addressLine1 ?: "",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
@@ -867,7 +868,7 @@ private fun OrderActionButtons(
                     containerColor = MaterialTheme.colorScheme.tertiary
                 )
             ) {
-                Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Request Return")
             }

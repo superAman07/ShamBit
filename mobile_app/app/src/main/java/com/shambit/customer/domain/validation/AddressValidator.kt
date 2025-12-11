@@ -125,7 +125,7 @@ object AddressValidator {
         houseStreetArea: String,
         city: String,
         pincode: String,
-        type: AddressType
+        @Suppress("UNUSED_PARAMETER") type: AddressType
     ): ValidationResult {
         val errors = mutableMapOf<String, String>()
         

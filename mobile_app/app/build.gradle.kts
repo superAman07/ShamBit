@@ -7,24 +7,24 @@ plugins {
 
 android {
     namespace = "com.shambit.customer"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.shambit.customer"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
             isMinifyEnabled = false
         }
         release {
@@ -79,7 +79,7 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -115,7 +115,7 @@ dependencies {
     
     implementation("com.google.android.gms:play-services-location:21.1.0")
     
-    // Razorpay Payment Gateway
+    // Razorpay Payment Gateway - Updated to latest version to resolve namespace conflicts
     implementation("com.razorpay:checkout:1.6.40")
 
 
