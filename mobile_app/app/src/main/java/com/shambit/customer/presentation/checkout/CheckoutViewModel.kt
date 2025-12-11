@@ -164,6 +164,9 @@ class CheckoutViewModel @Inject constructor(
                     // Edge case: Address added after no address state - restore functionality
                     handleAddressAdded()
                 }
+                
+                // Update checkout state when address list changes
+                updateCheckoutState()
             }
         }
     }
@@ -217,7 +220,16 @@ class CheckoutViewModel @Inject constructor(
                     is NetworkResult.Success -> {
                         _cartItems.update { cartResult.data }
                         
-                        // Checkout state is automatically updated via observeSharedAddressState()
+                        // Update checkout state with cart data
+                        val currentAddress = selectedAddress.value
+                        val hasAddresses = addressStateManager.getCurrentAddresses().isNotEmpty()
+                        _checkoutState.update { currentState ->
+                            currentState.copy(
+                                hasAddress = hasAddresses,
+                                canProceedToPayment = currentAddress != null && cartResult.data?.items?.isNotEmpty() == true && !currentState.isAddressLocked,
+                                totalAmount = cartResult.data?.totalAmount ?: 0.0
+                            )
+                        }
                     }
                     is NetworkResult.Error -> {
                         // Edge case: Cart API failure - restore previous cart state if available
@@ -266,7 +278,8 @@ class CheckoutViewModel @Inject constructor(
             
             when (val result = selectCheckoutAddressUseCase(address.id)) {
                 is NetworkResult.Success -> {
-                    // State is automatically updated via observeSharedAddressState()
+                    // Update checkout state after address selection
+                    updateCheckoutState()
                 }
                 is NetworkResult.Error -> {
                     _error.update { result.message }
@@ -536,5 +549,35 @@ class CheckoutViewModel @Inject constructor(
     fun handleAddressAdded() {
         // Reload checkout data to get the new address
         loadCheckoutData()
+    }
+    
+    /**
+     * Update checkout state based on current address and cart data
+     * 
+     * Ensures checkout state is always in sync with current data.
+     */
+    private fun updateCheckoutState() {
+        val currentAddress = selectedAddress.value
+        val currentCart = _cartItems.value
+        val hasAddresses = addressStateManager.getCurrentAddresses().isNotEmpty()
+        
+        // Debug logging to understand state
+        println("CheckoutViewModel: updateCheckoutState")
+        println("  - currentAddress: ${currentAddress?.id}")
+        println("  - hasAddresses: $hasAddresses")
+        println("  - cartItems count: ${currentCart?.items?.size}")
+        println("  - cartItems empty: ${currentCart?.items?.isEmpty()}")
+        println("  - isAddressLocked: ${_checkoutState.value.isAddressLocked}")
+        
+        val canProceed = currentAddress != null && currentCart?.items?.isNotEmpty() == true && !_checkoutState.value.isAddressLocked
+        println("  - canProceedToPayment: $canProceed")
+        
+        _checkoutState.update { currentState ->
+            currentState.copy(
+                hasAddress = hasAddresses,
+                canProceedToPayment = canProceed,
+                totalAmount = currentCart?.totalAmount ?: 0.0
+            )
+        }
     }
 }
