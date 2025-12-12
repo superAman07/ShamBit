@@ -148,7 +148,7 @@ class AddressViewModel @Inject constructor(
                     errorStateManager.setError(appError)
                     
                     _addressesState.update { 
-                        AddressListState.Error(ErrorHandler.getErrorMessage(appError, context)) 
+                        AddressListState.Error(ErrorHandler.getErrorMessage(appError)) 
                     }
                 }
                 is NetworkResult.Loading -> {
@@ -202,7 +202,7 @@ class AddressViewModel @Inject constructor(
                     val appError = ErrorHandler.handleNetworkError(result.message, context)
                     errorStateManager.setError(appError)
                     
-                    val errorMessage = ErrorHandler.getErrorMessage(appError, context)
+                    val errorMessage = ErrorHandler.getErrorMessage(appError)
                     _operationState.update { 
                         OperationState.Error(errorMessage) 
                     }
@@ -315,10 +315,65 @@ class AddressViewModel @Inject constructor(
                     val appError = ErrorHandler.handleNetworkError(result.message, context)
                     errorStateManager.setError(appError)
                     
-                    // Edge case: Delete operation failed - rollback UI state
-                    addressStateManager.rollbackAddressRemoval(addressToDelete, wasSelected)
+                    // Handle specific error cases
+                    when (appError) {
+                        is AppError.ApiError -> {
+                            if (appError.code == 404) {
+                                // ADDRESS_NOT_FOUND - address doesn't exist on server
+                                // Don't rollback UI state, keep the address removed from UI
+                                // and refresh the address list to sync with server
+                                refreshAddresses()
+                                
+                                _operationState.update { 
+                                    OperationState.Success("Address removed from your list") 
+                                }
+                                
+                                errorStateManager.showToast(
+                                    ErrorHandler.createSuccessToast("Address removed from your list")
+                                )
+                                
+                                // Confirm optimistic update since address is gone anyway
+                                operationId?.let { optimisticUpdateManager.confirmOperation(it) }
+                                
+                                // Clear operation state after delay
+                                kotlinx.coroutines.delay(2000)
+                                _operationState.update { OperationState.Idle }
+                                return@launch
+                            }
+                        }
+                        is AppError.ConstraintViolationError -> {
+                            // Constraint violation - address cannot be deleted
+                            // Rollback UI state and show specific message
+                            addressStateManager.rollbackAddressRemoval(addressToDelete, wasSelected)
+                            
+                            val constraintMessage = when (appError.constraintType) {
+                                "order_history" -> "This address cannot be deleted because it's linked to your order history. You can edit it instead or add a new address."
+                                else -> appError.message
+                            }
+                            
+                            _operationState.update { 
+                                OperationState.Error(constraintMessage) 
+                            }
+                            
+                            errorStateManager.showToast(
+                                ErrorHandler.createWarningToast(constraintMessage)
+                            )
+                            
+                            // Rollback optimistic update
+                            operationId?.let { optimisticUpdateManager.rollbackOperation(it, constraintMessage) }
+                            
+                            // Clear operation state after delay
+                            kotlinx.coroutines.delay(4000)
+                            _operationState.update { OperationState.Idle }
+                            return@launch
+                        }
+                        else -> {
+                            // Other errors - rollback UI state
+                            addressStateManager.rollbackAddressRemoval(addressToDelete, wasSelected)
+                        }
+                    }
                     
-                    val errorMessage = ErrorHandler.getErrorMessage(appError, context)
+                    val errorMessage = ErrorHandler.getErrorMessage(appError)
                     _operationState.update { 
                         OperationState.Error(errorMessage) 
                     }

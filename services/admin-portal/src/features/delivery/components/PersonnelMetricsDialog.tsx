@@ -60,7 +60,8 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
     }
   };
 
-  const formatTime = (minutes: number) => {
+  const formatTime = (minutes: number | undefined) => {
+    if (minutes == null) return 'N/A';
     if (minutes < 60) {
       return `${Math.round(minutes)} min`;
     }
@@ -92,7 +93,7 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                       Total Deliveries
                     </Typography>
                   </Box>
-                  <Typography variant="h4">{metrics.totalDeliveries}</Typography>
+                  <Typography variant="h4">{metrics.totalDeliveries ?? 0}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -106,9 +107,9 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                       Completed
                     </Typography>
                   </Box>
-                  <Typography variant="h4">{metrics.completedDeliveries}</Typography>
+                  <Typography variant="h4">{metrics.completedDeliveries ?? 0}</Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {metrics.failedDeliveries} failed
+                    {metrics.failedDeliveries ?? 0} failed
                   </Typography>
                 </CardContent>
               </Card>
@@ -140,7 +141,7 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                     </Typography>
                   </Box>
                   <Typography variant="h4">
-                    {(metrics.successRate * 100).toFixed(1)}%
+                    {metrics.successRate != null ? (metrics.successRate * 100).toFixed(1) : '0.0'}%
                   </Typography>
                 </CardContent>
               </Card>
@@ -153,7 +154,7 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                     Average Distance
                   </Typography>
                   <Typography variant="h5">
-                    {metrics.averageDistance.toFixed(1)} km
+                    {metrics.averageDistance != null ? metrics.averageDistance.toFixed(1) : '0.0'} km
                   </Typography>
                 </CardContent>
               </Card>
@@ -166,7 +167,7 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                     On-Time Delivery Rate
                   </Typography>
                   <Typography variant="h5">
-                    {(metrics.onTimeDeliveryRate * 100).toFixed(1)}%
+                    {metrics.onTimeDeliveryRate != null ? (metrics.onTimeDeliveryRate * 100).toFixed(1) : '0.0'}%
                   </Typography>
                 </CardContent>
               </Card>
@@ -180,7 +181,7 @@ export const PersonnelMetricsDialog: React.FC<PersonnelMetricsDialogProps> = ({
                       Customer Rating
                     </Typography>
                     <Typography variant="h5">
-                      {metrics.customerRating.toFixed(1)} / 5.0
+                      {metrics.customerRating != null ? metrics.customerRating.toFixed(1) : 'N/A'} / 5.0
                     </Typography>
                   </CardContent>
                 </Card>

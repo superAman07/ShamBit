@@ -18,13 +18,13 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
             isMinifyEnabled = false
         }
         release {

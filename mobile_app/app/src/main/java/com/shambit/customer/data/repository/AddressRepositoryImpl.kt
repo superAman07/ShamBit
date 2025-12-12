@@ -108,7 +108,22 @@ class AddressRepositoryImpl @Inject constructor(
                 NetworkResult.Success(updatedAddress)
             }
             is NetworkResult.Error -> {
-                NetworkResult.Error(result.message, result.code)
+                // Handle specific error cases
+                val userFriendlyMessage = when {
+                    result.code == "ADDRESS_NOT_FOUND" -> {
+                        // Address doesn't exist on server - remove from cache and refresh
+                        addressCache.removeCachedAddress(id)
+                        "This address no longer exists. Your address list will be refreshed."
+                    }
+                    result.code == "UNAUTHORIZED" -> {
+                        "You don't have permission to update this address."
+                    }
+                    result.message.contains("network", ignoreCase = true) -> {
+                        "Network error occurred. Please check your connection and try again."
+                    }
+                    else -> result.message
+                }
+                NetworkResult.Error(userFriendlyMessage, result.code)
             }
             is NetworkResult.Loading -> {
                 NetworkResult.Loading
@@ -131,9 +146,30 @@ class AddressRepositoryImpl @Inject constructor(
             }
             is NetworkResult.Error -> {
                 // Provide user-friendly error messages for specific error codes
-                val userFriendlyMessage = when (result.code) {
-                    "DATABASE_CONSTRAINT_VIOLATION" -> {
-                        "Cannot delete this address as it's linked to existing orders. Please contact support if you need to remove it."
+                val userFriendlyMessage = when {
+                    result.code == "DATABASE_CONSTRAINT_VIOLATION" -> {
+                        when {
+                            result.message.contains("orders_delivery_address_id_foreign", ignoreCase = true) -> {
+                                "This address cannot be deleted because it's linked to your order history. You can edit the address details instead, or add a new address and set it as default."
+                            }
+                            result.message.contains("constraint", ignoreCase = true) -> {
+                                "This address is currently in use and cannot be deleted. Please try again later or contact support."
+                            }
+                            else -> {
+                                "Cannot delete this address as it's linked to existing data. You can edit it instead or contact support for assistance."
+                            }
+                        }
+                    }
+                    result.code == "ADDRESS_NOT_FOUND" -> {
+                        // Address doesn't exist on server - remove from cache anyway
+                        addressCache.removeCachedAddress(id)
+                        "This address no longer exists. Your address list will be refreshed."
+                    }
+                    result.code == "UNAUTHORIZED" -> {
+                        "You don't have permission to delete this address."
+                    }
+                    result.message.contains("network", ignoreCase = true) -> {
+                        "Network error occurred. Please check your connection and try again."
                     }
                     else -> result.message
                 }

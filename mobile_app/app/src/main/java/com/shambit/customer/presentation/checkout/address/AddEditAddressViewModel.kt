@@ -8,6 +8,7 @@ import com.shambit.customer.data.remote.dto.request.AddAddressRequest
 import com.shambit.customer.data.remote.dto.request.UpdateAddressRequest
 import com.shambit.customer.data.remote.dto.response.AddressDto
 import com.shambit.customer.data.repository.AddressRepository
+import com.shambit.customer.data.repository.ProfileRepository
 import com.shambit.customer.util.LocationHelper
 import com.shambit.customer.util.NetworkResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +26,8 @@ data class AddEditAddressUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val isLoadingLocation: Boolean = false,
+    val name: String = "",
+    val phoneNumber: String = "",
     val addressLine1: String = "",
     val addressLine2: String = "",
     val city: String = "",
@@ -48,6 +51,7 @@ data class AddEditAddressUiState(
 @HiltViewModel
 class AddEditAddressViewModel @Inject constructor(
     private val addressRepository: AddressRepository,
+    private val profileRepository: ProfileRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     
@@ -57,6 +61,7 @@ class AddEditAddressViewModel @Inject constructor(
     val uiState: StateFlow<AddEditAddressUiState> = _uiState.asStateFlow()
     
     init {
+        loadUserProfile()
         if (addressId != null) {
             loadAddress(addressId)
         }
@@ -76,6 +81,8 @@ class AddEditAddressViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                name = address.name ?: it.name, // Keep pre-populated name if address name is null
+                                phoneNumber = address.phoneNumber ?: it.phoneNumber, // Keep pre-populated phone if address phone is null
                                 addressLine1 = address.addressLine1 ?: "",
                                 addressLine2 = address.addressLine2 ?: "",
                                 city = address.city ?: "",
@@ -175,6 +182,47 @@ class AddEditAddressViewModel @Inject constructor(
     }
     
     /**
+     * Update name
+     */
+    fun updateName(value: String) {
+        _uiState.update { it.copy(name = value) }
+        clearValidationError("name")
+    }
+    
+    /**
+     * Update phone number
+     */
+    fun updatePhoneNumber(value: String) {
+        _uiState.update { it.copy(phoneNumber = value) }
+        clearValidationError("phoneNumber")
+    }
+    
+    /**
+     * Load user profile to pre-populate name and phone
+     */
+    private fun loadUserProfile() {
+        viewModelScope.launch {
+            when (val result = profileRepository.getProfile()) {
+                is NetworkResult.Success -> {
+                    val profile = result.data
+                    _uiState.update { 
+                        it.copy(
+                            name = profile.name ?: "",
+                            phoneNumber = profile.mobileNumber
+                        ) 
+                    }
+                }
+                is NetworkResult.Error -> {
+                    // Silently fail - user can still enter manually
+                }
+                is NetworkResult.Loading -> {
+                    // Loading state - do nothing
+                }
+            }
+        }
+    }
+    
+    /**
      * Get current location and reverse geocode
      */
     fun useCurrentLocation(context: Context) {
@@ -247,6 +295,16 @@ class AddEditAddressViewModel @Inject constructor(
         val errors = mutableMapOf<String, String>()
         val state = _uiState.value
         
+        if (state.name.isBlank()) {
+            errors["name"] = "Name is required"
+        }
+        
+        if (state.phoneNumber.isBlank()) {
+            errors["phoneNumber"] = "Phone number is required"
+        } else if (state.phoneNumber.length != 10) {
+            errors["phoneNumber"] = "Phone number must be 10 digits"
+        }
+        
         if (state.addressLine1.isBlank()) {
             errors["addressLine1"] = "Address is required"
         }
@@ -297,8 +355,8 @@ class AddEditAddressViewModel @Inject constructor(
                 addressRepository.updateAddress(
                     addressId = state.addressId,
                     request = UpdateAddressRequest(
-                        name = "Default Name", // TODO: Add name field to UI state in later tasks
-                        phoneNumber = "1234567890", // TODO: Add phone field to UI state in later tasks
+                        name = state.name,
+                        phoneNumber = state.phoneNumber,
                         type = state.addressType,
                         addressLine1 = state.addressLine1,
                         addressLine2 = state.addressLine2.ifBlank { null },
@@ -315,8 +373,8 @@ class AddEditAddressViewModel @Inject constructor(
                 // Add new address
                 addressRepository.addAddress(
                     request = AddAddressRequest(
-                        name = "Default Name", // TODO: Add name field to UI state in later tasks
-                        phoneNumber = "1234567890", // TODO: Add phone field to UI state in later tasks
+                        name = state.name,
+                        phoneNumber = state.phoneNumber,
                         type = state.addressType,
                         addressLine1 = state.addressLine1,
                         addressLine2 = state.addressLine2.ifBlank { null },

@@ -103,7 +103,7 @@ router.post('/addresses', authenticate, authorize('customer'), async (req: Reque
     const data: CreateAddressRequest = req.body;
 
     // Validate required fields
-    if (!data.addressLine1 || !data.city || !data.state || !data.pincode) {
+    if (!data.addressLine1?.trim() || !data.city?.trim() || !data.state?.trim() || !data.pincode?.trim()) {
       throw new ValidationError('Missing required fields: addressLine1, city, state, pincode', 'INVALID_REQUEST');
     }
 

@@ -302,7 +302,7 @@ class AddAddressViewModel @Inject constructor(
                     val appError = ErrorHandler.handleNetworkError(result.message, context)
                     errorStateManager.setError(appError)
                     
-                    val errorMessage = ErrorHandler.getErrorMessage(appError, context)
+                    val errorMessage = ErrorHandler.getErrorMessage(appError)
                     _saveState.update { SaveState.Error(errorMessage) }
                     
                     // Show error toast with retry option

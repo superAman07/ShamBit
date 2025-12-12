@@ -75,8 +75,8 @@ export class OfferAnalyticsService {
       .first();
 
     const totalOrders = parseInt(orderStats?.total_orders || '0', 10);
-    const totalRevenue = parseInt(orderStats?.total_revenue || '0', 10);
-    const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+    const totalRevenue = (parseInt(orderStats?.total_revenue || '0', 10)) / 100; // Convert from paise to rupees
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const conversionRate = parseInt(totalViews as string, 10) > 0 
       ? (totalOrders / parseInt(totalViews as string, 10)) * 100 
       : 0;
@@ -87,7 +87,7 @@ export class OfferAnalyticsService {
     const now = new Date();
     const activeUntil = now < endDate ? now : endDate;
     const daysActive = Math.max(1, Math.ceil((activeUntil.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-    const revenuePerDay = Math.round(totalRevenue / daysActive);
+    const revenuePerDay = totalRevenue / daysActive;
 
     return {
       offerId: offer.id,

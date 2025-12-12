@@ -408,5 +408,6 @@ private fun getErrorMessage(error: AppError): String {
         is AppError.UnknownError -> error.message
         is AppError.ConcurrentModificationError -> error.message
         is AppError.AddressLockError -> error.message
+        is AppError.ConstraintViolationError -> error.message
     }
 }

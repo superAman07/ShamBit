@@ -169,7 +169,7 @@ router.get(
       // Set cache headers for better performance
       res.set({
         'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
-        'ETag': `"${JSON.stringify(query)}"` // Simple ETag based on query
+        'ETag': `"${Buffer.from(JSON.stringify(query)).toString('base64')}"` // Base64 encoded ETag
       });
 
       res.json({

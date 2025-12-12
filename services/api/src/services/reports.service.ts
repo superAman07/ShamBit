@@ -141,7 +141,7 @@ class ReportsService {
         cancelled: parseInt(result?.cancelled_orders || '0'),
         returned: parseInt(result?.returned_orders || '0'),
       },
-      averageOrderValue: parseFloat(result?.avg_order_value || '0') || 0,
+      averageOrderValue: (parseFloat(result?.avg_order_value || '0') || 0) / 100, // Convert from paise to rupees
       uniqueCustomers: parseInt(result?.unique_customers || '0'),
     };
 
@@ -200,22 +200,22 @@ class ReportsService {
       )
       .first();
 
-    // Handle empty results - return zeros
+    // Handle empty results - return zeros (convert from paise to rupees)
     const revenueReport: RevenueReport = {
       dateRange: {
         startDate,
         endDate,
       },
-      totalRevenue: parseFloat(result?.total_revenue || '0') || 0,
-      grossRevenue: parseFloat(result?.gross_revenue || '0') || 0,
-      netRevenue: parseFloat(result?.net_revenue || '0') || 0,
+      totalRevenue: (parseFloat(result?.total_revenue || '0') || 0) / 100,
+      grossRevenue: (parseFloat(result?.gross_revenue || '0') || 0) / 100,
+      netRevenue: (parseFloat(result?.net_revenue || '0') || 0) / 100,
       revenueByPaymentMethod: {
-        cod: parseFloat(result?.cod_revenue || '0') || 0,
-        online: parseFloat(result?.online_revenue || '0') || 0,
+        cod: (parseFloat(result?.cod_revenue || '0') || 0) / 100,
+        online: (parseFloat(result?.online_revenue || '0') || 0) / 100,
       },
-      totalTax: parseFloat(result?.total_tax || '0') || 0,
-      totalDeliveryFees: parseFloat(result?.total_delivery_fees || '0') || 0,
-      totalDiscounts: parseFloat(result?.total_discounts || '0') || 0,
+      totalTax: (parseFloat(result?.total_tax || '0') || 0) / 100,
+      totalDeliveryFees: (parseFloat(result?.total_delivery_fees || '0') || 0) / 100,
+      totalDiscounts: (parseFloat(result?.total_discounts || '0') || 0) / 100,
     };
 
     // Store in cache
@@ -299,13 +299,13 @@ class ReportsService {
         productId: row.productId,
         productName: row.productName,
         quantitySold: parseInt(row.quantitySold || '0'),
-        revenue: parseFloat(row.revenue || '0') || 0,
+        revenue: (parseFloat(row.revenue || '0') || 0) / 100, // Convert from paise to rupees
       })),
       topByRevenue: topByRevenue.map((row: any) => ({
         productId: row.productId,
         productName: row.productName,
         quantitySold: parseInt(row.quantitySold || '0'),
-        revenue: parseFloat(row.revenue || '0') || 0,
+        revenue: (parseFloat(row.revenue || '0') || 0) / 100, // Convert from paise to rupees
       })),
     };
 

@@ -251,6 +251,46 @@ fun AddEditAddressScreen(
                     )
                 }
                 
+                // Name
+                OutlinedTextField(
+                    value = uiState.name,
+                    onValueChange = viewModel::updateName,
+                    label = { Text("Full Name *") },
+                    placeholder = { Text("Enter your full name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = uiState.validationErrors.containsKey("name"),
+                    supportingText = {
+                        uiState.validationErrors["name"]?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors()
+                )
+                
+                // Phone Number
+                OutlinedTextField(
+                    value = uiState.phoneNumber,
+                    onValueChange = viewModel::updatePhoneNumber,
+                    label = { Text("Phone Number *") },
+                    placeholder = { Text("Enter 10-digit phone number") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = uiState.validationErrors.containsKey("phoneNumber"),
+                    supportingText = {
+                        uiState.validationErrors["phoneNumber"]?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Phone
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors()
+                )
+                
                 // Address Line 1
                 OutlinedTextField(
                     value = uiState.addressLine1,

@@ -25,6 +25,7 @@ sealed class AppError {
     data class UnknownError(val message: String, val isRetryable: Boolean = true) : AppError()
     data class ConcurrentModificationError(val message: String) : AppError()
     data class AddressLockError(val message: String, val isRetryable: Boolean = true) : AppError()
+    data class ConstraintViolationError(val message: String, val constraintType: String, val isRetryable: Boolean = false) : AppError()
 }
 
 /**
@@ -45,6 +46,7 @@ data class ErrorState(
                 is AppError.AddressLockError -> it.isRetryable && retryCount < maxRetries
                 is AppError.ValidationError -> false
                 is AppError.ConcurrentModificationError -> retryCount < maxRetries
+                is AppError.ConstraintViolationError -> it.isRetryable && retryCount < maxRetries
             }
         } ?: false
 }
@@ -116,11 +118,31 @@ object ErrorHandler {
                     isRetryable = false
                 )
             }
+            error.contains("ADDRESS_NOT_FOUND", ignoreCase = true) ||
+            error.contains("Address not found", ignoreCase = true) -> {
+                AppError.ApiError(
+                    code = 404,
+                    message = "This address no longer exists. Your address list will be refreshed.",
+                    isRetryable = false
+                )
+            }
             error.contains("not found", ignoreCase = true) ||
             error.contains("404", ignoreCase = true) -> {
                 AppError.ApiError(
                     code = 404,
                     message = context.getString(R.string.error_not_found),
+                    isRetryable = false
+                )
+            }
+            error.contains("DATABASE_CONSTRAINT_VIOLATION", ignoreCase = true) ||
+            error.contains("constraint", ignoreCase = true) -> {
+                val constraintType = when {
+                    error.contains("orders_delivery_address_id_foreign", ignoreCase = true) -> "order_history"
+                    else -> "unknown"
+                }
+                AppError.ConstraintViolationError(
+                    message = "This address cannot be deleted because it's linked to your order history. You can edit it instead.",
+                    constraintType = constraintType,
                     isRetryable = false
                 )
             }
@@ -149,7 +171,7 @@ object ErrorHandler {
     /**
      * Get user-friendly error message
      */
-    fun getErrorMessage(error: AppError, context: Context): String {
+    fun getErrorMessage(error: AppError): String {
         return when (error) {
             is AppError.NetworkError -> error.message
             is AppError.ValidationError -> error.message
@@ -157,6 +179,7 @@ object ErrorHandler {
             is AppError.UnknownError -> error.message
             is AppError.ConcurrentModificationError -> error.message
             is AppError.AddressLockError -> error.message
+            is AppError.ConstraintViolationError -> error.message
         }
     }
     

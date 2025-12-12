@@ -86,7 +86,7 @@ export const SalesMetricsCards: React.FC<SalesMetricsCardsProps> = ({ metrics, l
       <Grid item xs={12} sm={6} md={3}>
         <MetricCard
           title="Total Revenue"
-          value={formatCurrency(metrics.totalRevenue)}
+          value={formatCurrency(metrics.totalRevenue, 'en-IN', '₹', false)}
           icon={<AttachMoney />}
           color={DASHBOARD_CONFIG.METRIC_COLORS.REVENUE}
         />
@@ -94,7 +94,7 @@ export const SalesMetricsCards: React.FC<SalesMetricsCardsProps> = ({ metrics, l
       <Grid item xs={12} sm={6} md={3}>
         <MetricCard
           title="Average Order Value"
-          value={formatCurrency(metrics.averageOrderValue)}
+          value={formatCurrency(metrics.averageOrderValue, 'en-IN', '₹', false)}
           icon={<ShowChart />}
           color={DASHBOARD_CONFIG.METRIC_COLORS.AVERAGE_ORDER}
         />
