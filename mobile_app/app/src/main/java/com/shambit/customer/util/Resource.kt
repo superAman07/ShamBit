@@ -1,5 +1,13 @@
 package com.shambit.customer.util
 
+import android.content.Context
+import retrofit2.Response
+import com.google.gson.JsonSyntaxException
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import kotlin.math.pow
+
 /**
  * A generic class that holds a value with its loading status
  */
@@ -22,33 +30,87 @@ sealed class NetworkResult<out T> {
 }
 
 /**
- * Extension function to handle API responses
+ * Extension function to handle API responses with enhanced error handling
+ * Requirements: 11.4, 11.5
  */
 suspend fun <T> safeApiCall(
-    apiCall: suspend () -> retrofit2.Response<com.shambit.customer.data.remote.dto.ApiResponse<T>>
+    apiCall: suspend () -> Response<com.shambit.customer.data.remote.dto.ApiResponse<T>>
 ): NetworkResult<T> {
     return try {
         val response = apiCall()
         
         if (response.isSuccessful) {
             val body = response.body()
-            if (body != null && body.success && body.data != null) {
-                NetworkResult.Success(body.data)
-            } else {
-                NetworkResult.Error(
-                    message = body?.error?.message ?: "Unknown error occurred",
-                    code = body?.error?.code
-                )
+            
+            // Enhanced malformed response detection (Requirements: 11.5)
+            when {
+                body == null -> {
+                    NetworkResult.Error(
+                        message = "Malformed response: empty body",
+                        code = "MALFORMED_RESPONSE"
+                    )
+                }
+                !body.success -> {
+                    NetworkResult.Error(
+                        message = body.error?.message ?: "API request failed",
+                        code = body.error?.code ?: "API_ERROR"
+                    )
+                }
+                body.data == null -> {
+                    NetworkResult.Error(
+                        message = "Malformed response: missing data",
+                        code = "MISSING_DATA"
+                    )
+                }
+                else -> {
+                    NetworkResult.Success(body.data)
+                }
             }
         } else {
+            // Enhanced HTTP error handling (Requirements: 11.4)
+            val errorMessage = when (response.code()) {
+                408 -> "Request timeout - please check your connection"
+                429 -> "Too many requests - please try again later"
+                500, 502, 503, 504 -> "Server temporarily unavailable"
+                else -> response.message() ?: "An error occurred"
+            }
+            
             NetworkResult.Error(
-                message = response.message() ?: "An error occurred",
+                message = errorMessage,
                 code = response.code().toString()
             )
         }
-    } catch (e: Exception) {
+    } catch (e: UnknownHostException) {
+        // Network connectivity issue (Requirements: 11.4)
         NetworkResult.Error(
-            message = e.message ?: "Network error occurred"
+            message = "No internet connection available",
+            code = "NO_INTERNET"
+        )
+    } catch (e: SocketTimeoutException) {
+        // Timeout issue (Requirements: 11.4)
+        NetworkResult.Error(
+            message = "Connection timeout - please try again",
+            code = "TIMEOUT"
+        )
+    } catch (e: IOException) {
+        // General network issue (Requirements: 11.4)
+        NetworkResult.Error(
+            message = "Network error - please check your connection",
+            code = "NETWORK_ERROR"
+        )
+    } catch (e: JsonSyntaxException) {
+        // JSON parsing error - malformed response (Requirements: 11.5)
+        NetworkResult.Error(
+            message = "Malformed response from server",
+            code = "MALFORMED_JSON"
+        )
+    } catch (e: Exception) {
+        // Catch-all for unexpected errors (Requirements: 11.5)
+        NetworkResult.Error(
+            message = e.message ?: "Unexpected error occurred",
+            code = "UNKNOWN_ERROR"
         )
     }
 }
+
+

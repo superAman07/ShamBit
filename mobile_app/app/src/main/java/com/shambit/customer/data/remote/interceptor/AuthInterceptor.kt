@@ -17,12 +17,16 @@ class AuthInterceptor @Inject constructor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         
-        // Skip auth for login/register endpoints
+        // Skip auth for login/register endpoints and public endpoints
         val url = originalRequest.url.toString()
         if (url.contains("/auth/register") || 
             url.contains("/auth/send-otp") || 
             url.contains("/auth/verify-otp") ||
-            url.contains("/auth/refresh-token")) {
+            url.contains("/auth/refresh-token") ||
+            url.contains("/products") ||
+            url.contains("/categories") ||
+            url.contains("/brands") ||
+            url.contains("/health")) {
             return chain.proceed(originalRequest)
         }
         

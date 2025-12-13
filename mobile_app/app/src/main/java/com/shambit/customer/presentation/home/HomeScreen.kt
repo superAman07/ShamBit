@@ -40,10 +40,11 @@ import com.shambit.customer.R
 import com.shambit.customer.ui.components.AdaptiveHeader
 import com.shambit.customer.ui.components.ErrorState
 import com.shambit.customer.ui.components.ProductCardSkeleton
-import com.shambit.customer.ui.components.shimmer
+
 import kotlinx.coroutines.launch
 import com.shambit.customer.ui.components.LoadingState
 import com.shambit.customer.ui.components.ShamBitPullRefreshIndicator
+import com.shambit.customer.ui.components.shimmer
 import com.shambit.customer.util.rememberHapticFeedback
 
 /**
@@ -70,6 +71,7 @@ fun HomeScreen(
     val cartQuantities by viewModel.displayCartQuantities.collectAsState()
     val defaultAddress by viewModel.defaultAddress.collectAsState()
     val showAddressBottomSheet by viewModel.showAddressBottomSheet.collectAsState()
+    val savedScrollPosition by viewModel.savedScrollPosition.collectAsState()
     val hapticFeedback = rememberHapticFeedback()
     val listState = rememberLazyListState()
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -102,17 +104,102 @@ fun HomeScreen(
         }
     }
     
-    // Update previous scroll offset and notify ViewModel of direction changes only
-    LaunchedEffect(scrollOffset) {
+    // Calculate sticky bar and scroll to top visibility based on scroll position
+    val showStickyBar by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 100
+        }
+    }
+    
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 5 || 
+            (listState.firstVisibleItemIndex > 0 && listState.firstVisibleItemScrollOffset > 500)
+        }
+    }
+    
+    // PERFORMANCE FIX: Combine scroll effects to reduce recompositions
+    LaunchedEffect(scrollOffset, showStickyBar, showScrollToTop) {
+        // Update scroll direction only when it changes
         if (scrollDirection != com.shambit.customer.ui.components.ScrollDirection.None) {
             viewModel.updateScrollDirection(scrollDirection)
         }
         previousScrollOffset = scrollOffset
+        
+        // Batch UI state updates to prevent multiple recompositions
+        viewModel.updateScrollUIState(
+            stickyBarVisible = showStickyBar,
+            scrollToTopVisible = showScrollToTop
+        )
+    }
+    
+    // Scroll position restoration for tab switches (Requirements: 9.5)
+    LaunchedEffect(savedScrollPosition) {
+        savedScrollPosition?.let { position ->
+            if (viewModel.isSavedScrollPositionValid()) {
+                // Restore scroll position when returning to home screen
+                listState.scrollToItem(
+                    index = position.firstVisibleItemIndex,
+                    scrollOffset = position.firstVisibleItemScrollOffset
+                )
+                // Clear the saved position after restoration
+                viewModel.clearSavedScrollPosition()
+            }
+        }
+    }
+    
+    // Save scroll position when navigating away from home screen (Requirements: 9.5)
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> {
+                    // Save current scroll position when leaving home screen
+                    viewModel.saveScrollPosition(
+                        firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                        firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset
+                    )
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    // PERFORMANCE FIX: Throttle scroll tracking to reduce excessive calls
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        // Only track every 5th item to reduce performance overhead
+        if (listState.firstVisibleItemIndex % 5 == 0) {
+            val currentProducts = uiState.verticalProductFeedState.getDataOrNull()?.products
+            if (currentProducts != null && currentProducts.isNotEmpty()) {
+                val totalItems = currentProducts.size
+                val currentIndex = listState.firstVisibleItemIndex
+                
+                // Track scroll performance less frequently
+                viewModel.trackScrollPerformance(
+                    firstVisibleItemIndex = currentIndex,
+                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset
+                )
+                
+                // Trigger prefetch when user is 70% through the current batch
+                if (currentIndex >= (totalItems * 0.7).toInt() && uiState.hasMoreProducts) {
+                    viewModel.prefetchNextBatch()
+                }
+            }
+        }
     }
     
     // Handle pull-to-refresh
+    val refreshingMessage = stringResource(R.string.refreshing_feed)
     if (pullToRefreshState.isRefreshing) {
         LaunchedEffect(true) {
+            // Show refreshing message (Requirements: 7.3, 10.1)
+            snackbarHostState.showSnackbar(
+                message = refreshingMessage,
+                duration = androidx.compose.material3.SnackbarDuration.Short
+            )
             viewModel.refreshHomeData()
         }
     }
@@ -229,41 +316,62 @@ fun HomeScreen(
                     )
                 }
                 else -> {
-                    HomeContent(
-                        uiState = uiState,
-                        wishlistProductIds = wishlistProductIds,
-                        cartQuantities = cartQuantities,
-                        listState = listState,
-                        onBannerClick = { banner ->
-                            when (val action = viewModel.onBannerClick(banner)) {
-                                is BannerAction.NavigateToProduct -> onNavigateToProduct(action.productId)
-                                is BannerAction.NavigateToCategory -> {
-                                    // Try to find the category in the current state
-                                    val category = (uiState.categoriesState as? DataState.Success)?.data?.find { it.id == action.categoryId }
-                                    if (category != null) {
-                                        onNavigateToCategory(category)
+                    Column {
+                        // Show offline banner if offline (Requirements: 11.4, 11.5)
+                        if (uiState.isOffline) {
+                            com.shambit.customer.ui.components.OfflineErrorState(
+                                onRetry = { viewModel.handleNetworkError() },
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                        
+                        HomeContent(
+                            uiState = uiState,
+                            wishlistProductIds = wishlistProductIds,
+                            cartQuantities = cartQuantities,
+                            listState = listState,
+                            onBannerClick = { banner ->
+                                when (val action = viewModel.onBannerClick(banner)) {
+                                    is BannerAction.NavigateToProduct -> onNavigateToProduct(action.productId)
+                                    is BannerAction.NavigateToCategory -> {
+                                        // Try to find the category in the current state
+                                        val category = (uiState.categoriesState as? DataState.Success)?.data?.find { it.id == action.categoryId }
+                                        if (category != null) {
+                                            onNavigateToCategory(category)
+                                        }
+                                        // If category not found in state, we can't determine if it has subcategories
+                                        // This is an edge case that shouldn't happen often
                                     }
-                                    // If category not found in state, we can't determine if it has subcategories
-                                    // This is an edge case that shouldn't happen often
+                                    is BannerAction.OpenUrl -> onOpenUrl(action.url)
+                                    is BannerAction.NavigateToSearch -> onNavigateToSearch()
+                                    BannerAction.None -> {}
                                 }
-                                is BannerAction.OpenUrl -> onOpenUrl(action.url)
-                                is BannerAction.NavigateToSearch -> onNavigateToSearch()
-                                BannerAction.None -> {}
-                            }
-                        },
-                        onCategoryClick = { category ->
-                            viewModel.onCategoryTap(category.id)
-                            onNavigateToCategory(category)
-                        },
-                        onProductClick = { product ->
-                            onNavigateToProduct(product.id)
-                        },
-                        onAddToCart = { productId -> viewModel.addToCart(productId, 1) },
-                        onIncrementCart = { productId -> viewModel.incrementCart(productId) },
-                        onDecrementCart = { productId -> viewModel.decrementCart(productId) },
-                        onToggleWishlist = { product -> viewModel.toggleWishlist(product) },
-                        hapticFeedback = hapticFeedback
-                    )
+                            },
+                            onCategoryClick = { category ->
+                                viewModel.onCategoryTap(category.id)
+                                onNavigateToCategory(category)
+                            },
+                            onProductClick = { product ->
+                                onNavigateToProduct(product.id)
+                            },
+                            onAddToCart = { productId -> viewModel.addToCart(productId, 1) },
+                            onIncrementCart = { productId -> viewModel.incrementCart(productId) },
+                            onDecrementCart = { productId -> viewModel.decrementCart(productId) },
+                            onToggleWishlist = { product -> viewModel.toggleWishlist(product) },
+                            onLoadMoreProducts = { viewModel.loadMoreProducts() },
+                            onRetryFailedOperations = { viewModel.retryFailedOperations() },
+                            onSubcategorySelected = { subcategory -> viewModel.selectSubcategory(subcategory) },
+                            onRetrySubcategoryLoading = { viewModel.retrySubcategoryLoading() },
+                            onRetryProductFeedLoading = { viewModel.retryProductFeedLoading() },
+                            onRetryFilterApplication = { viewModel.retryFilterApplication() },
+                            onRetryPaginationLoading = { viewModel.retryPaginationLoading() },
+                            onClearAllFilters = { viewModel.clearAllFilters() },
+                            onProductImpression = { productId, position, source -> 
+                                viewModel.trackProductImpression(productId, position, source) 
+                            },
+                            hapticFeedback = hapticFeedback
+                        )
+                    }
                 }
             }
             
@@ -271,6 +379,32 @@ fun HomeScreen(
             PullToRefreshContainer(
                 state = pullToRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter)
+            )
+            
+            // NEW: Sticky Filter Bar Overlay (Requirements: 2.1, 2.2)
+            com.shambit.customer.ui.components.StickyFilterBarContainer(
+                visible = uiState.showStickyBar,
+                sortBy = uiState.sortFilterState.sortBy,
+                appliedFilters = uiState.appliedFilters,
+                onSortClick = {
+                    // PERFORMANCE FIX: Implement sort selection
+                    viewModel.showSortBottomSheet()
+                },
+                onFilterClick = {
+                    viewModel.showFilterBottomSheet()
+                },
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+            
+            // NEW: Scroll-to-Top Button Overlay (Requirements: 12.1, 12.2)
+            com.shambit.customer.ui.components.ScrollToTopButtonContainer(
+                visible = uiState.showScrollToTop,
+                onClick = {
+                    coroutineScope.launch {
+                        listState.animateScrollToItem(0)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd)
             )
         }
     }
@@ -297,6 +431,37 @@ fun HomeScreen(
             }
         )
     }
+    
+    // NEW: Filter Bottom Sheet (Requirements: 2.4, 5.4)
+    if (uiState.showFilterBottomSheet) {
+        com.shambit.customer.ui.components.FilterBottomSheet(
+            filterOptions = uiState.availableFilters,
+            appliedFilters = uiState.appliedFilters,
+            onFiltersApplied = { filters ->
+                viewModel.applyFilters(filters)
+            },
+            onClearAllFilters = {
+                viewModel.clearAllFilters()
+            },
+            onDismiss = {
+                viewModel.hideFilterBottomSheet()
+            }
+        )
+    }
+    
+    // NEW: Sort Bottom Sheet (Requirements: 2.4, 2.5)
+    if (uiState.showSortBottomSheet) {
+        com.shambit.customer.ui.components.SortBottomSheet(
+            currentSortOption = uiState.sortFilterState.sortBy,
+            onSortSelected = { sortOption ->
+                viewModel.updateSortOption(sortOption)
+                viewModel.hideSortBottomSheet()
+            },
+            onDismiss = {
+                viewModel.hideSortBottomSheet()
+            }
+        )
+    }
 }
 
 /**
@@ -316,17 +481,30 @@ private fun HomeContent(
     onIncrementCart: (String) -> Unit = {},
     onDecrementCart: (String) -> Unit = {},
     onToggleWishlist: (com.shambit.customer.data.remote.dto.response.ProductDto) -> Unit = {},
+    onLoadMoreProducts: () -> Unit = {},
+    onRetryFailedOperations: () -> Unit = {},
+    onSubcategorySelected: (com.shambit.customer.data.remote.dto.response.SubcategoryDto) -> Unit = {},
+    onRetrySubcategoryLoading: () -> Unit = {},
+    onRetryProductFeedLoading: () -> Unit = {},
+    onRetryFilterApplication: () -> Unit = {},
+    onRetryPaginationLoading: () -> Unit = {},
+    onClearAllFilters: () -> Unit = {},
+    onProductImpression: ((String, Int, String) -> Unit)? = null,
     hapticFeedback: com.shambit.customer.util.HapticFeedbackManager? = null
 ) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        // Optimize LazyColumn recycling for long product lists (Requirements: 9.4)
+        // Note: beyondBoundsItemCount is not available in LazyColumn
+        // Enable content padding to improve scroll performance
+        contentPadding = PaddingValues(bottom = 16.dp)
     ) {
         // Hero Banner Carousel
         when (val state = uiState.heroBannersState) {
             is DataState.Success -> {
                 if (state.data.isNotEmpty()) {
-                    item {
+                    item(key = "hero_banners") {
                         com.shambit.customer.ui.components.HeroBannerCarousel(
                             banners = state.data,
                             onBannerClick = onBannerClick
@@ -338,7 +516,7 @@ private fun HomeContent(
                 // Skip section on error
             }
             is DataState.Loading -> {
-                item {
+                item(key = "hero_banners_loading") {
                     BannerSkeleton()
                 }
             }
@@ -348,7 +526,7 @@ private fun HomeContent(
         when (val state = uiState.categoriesState) {
             is DataState.Success -> {
                 if (state.data.isNotEmpty()) {
-                    item {
+                    item(key = "categories") {
                         com.shambit.customer.ui.components.CategorySection(
                             categories = state.data,
                             onCategoryClick = onCategoryClick,
@@ -361,7 +539,7 @@ private fun HomeContent(
                 // Skip section on error
             }
             is DataState.Loading -> {
-                item {
+                item(key = "categories_loading") {
                     CategorySkeleton()
                 }
             }
@@ -371,7 +549,7 @@ private fun HomeContent(
         when (val state = uiState.promotionalBannersState) {
             is DataState.Success -> {
                 if (state.data.isNotEmpty()) {
-                    item {
+                    item(key = "promotional_banners") {
                         com.shambit.customer.ui.components.PromotionalBannerCarousel(
                             banners = state.data,
                             onBannerClick = onBannerClick
@@ -383,8 +561,43 @@ private fun HomeContent(
                 // Skip section on error
             }
             is DataState.Loading -> {
-                item {
+                item(key = "promotional_banners_loading") {
                     BannerSkeleton()
+                }
+            }
+        }
+        
+        // NEW: Subcategory Chips Section (Requirements: 1.1)
+        when (val state = uiState.subcategoriesState) {
+            is DataState.Success -> {
+                if (state.data.isNotEmpty()) {
+                    item(key = "subcategory_chips") {
+                        com.shambit.customer.ui.components.SubcategoryChipsSection(
+                            subcategories = state.data,
+                            selectedSubcategoryId = uiState.selectedSubcategoryId,
+                            onSubcategorySelected = onSubcategorySelected,
+                            hapticFeedback = hapticFeedback
+                        )
+                    }
+                } else {
+                    // Empty subcategories state (Requirements: 10.5, 11.3)
+                    item(key = "empty_subcategories") {
+                        com.shambit.customer.ui.components.EmptySubcategoriesState()
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Show error state with retry option (Requirements: 10.5, 11.3)
+                item(key = "subcategory_error") {
+                    com.shambit.customer.ui.components.SubcategoryErrorState(
+                        onRetry = onRetrySubcategoryLoading
+                    )
+                }
+            }
+            is DataState.Loading -> {
+                item(key = "subcategory_loading") {
+                    // Show subcategory chips skeleton
+                    com.shambit.customer.ui.components.SubcategoryChipsSkeleton()
                 }
             }
         }
@@ -392,7 +605,7 @@ private fun HomeContent(
         // Featured Products Section
         when (val state = uiState.featuredProductsState) {
             is DataState.Success -> {
-                item {
+                item(key = "featured_products") {
                     if (state.data.isNotEmpty()) {
                         com.shambit.customer.ui.components.FeaturedProductsSection(
                             products = state.data,
@@ -431,7 +644,7 @@ private fun HomeContent(
                 // Skip section on error
             }
             is DataState.Loading -> {
-                item {
+                item(key = "featured_products_loading") {
                     // Show horizontal product skeleton
                     Column(
                         modifier = Modifier
@@ -464,5 +677,177 @@ private fun HomeContent(
                 }
             }
         }
+        
+        // NEW: Vertical Product Feed Section with Infinite Scroll
+        when (val state = uiState.verticalProductFeedState) {
+            is DataState.Success -> {
+                val products = state.data.products
+                if (products.isNotEmpty()) {
+                    // Section title
+                    item(key = "vertical_products_title") {
+                        Text(
+                            text = stringResource(R.string.more_products),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                    
+                    // Vertical product cards with infinite scroll and optimized recycling
+                    items(
+                        count = products.size,
+                        key = { index -> products[index].id },
+                        // Optimize item composition for better recycling (Requirements: 9.4)
+                        contentType = { "vertical_product_card" }
+                    ) { index ->
+                        val product = products[index]
+                        
+                        // Trigger load more at 80% scroll position (Requirements: 4.1)
+                        if (index >= products.size - 5 && !uiState.isLoadingMore && uiState.hasMoreProducts) {
+                            LaunchedEffect(Unit) {
+                                onLoadMoreProducts()
+                            }
+                        }
+                        
+                        com.shambit.customer.ui.components.VerticalProductCard(
+                            product = product,
+                            cartQuantity = cartQuantities[product.id] ?: 0,
+                            isInWishlist = wishlistProductIds.contains(product.id),
+                            onClick = { onProductClick(product) },
+                            onAddToCart = { onAddToCart(product.id) },
+                            onIncrementCart = { onIncrementCart(product.id) },
+                            onDecrementCart = { onDecrementCart(product.id) },
+                            onToggleWishlist = { onToggleWishlist(product) },
+                            onProductImpression = onProductImpression,
+                            hapticFeedback = hapticFeedback,
+                            showFadeInAnimation = index >= products.size - 10, // Show animation for recently loaded items
+                            animationIndex = index, // Staggered animation timing
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                    
+                    // Loading more indicator (Requirements: 4.2)
+                    if (uiState.isLoadingMore) {
+                        items(
+                            count = 3,
+                            key = { index -> "loading_more_$index" },
+                            contentType = { "loading_skeleton" }
+                        ) { index ->
+                            com.shambit.customer.ui.components.VerticalProductCardSkeleton(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    
+                    // Pagination error state (Requirements: 11.2, 4.3)
+                    if (uiState.error != null && uiState.isLoadingMore) {
+                        item {
+                            com.shambit.customer.ui.components.PaginationErrorState(
+                                message = uiState.error!!,
+                                onRetry = onRetryPaginationLoading
+                            )
+                        }
+                    }
+                    
+                    // Polite branding footer when pagination completes (Requirements: 4.4)
+                    if (!uiState.hasMoreProducts) {
+                        item(key = "branding_footer") {
+                            PoliteBrandingFooter(
+                                modifier = Modifier.padding(vertical = 24.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Empty state - check if filters are applied (Requirements: 10.2, 11.1)
+                    if (uiState.appliedFilters.isNotEmpty()) {
+                        item(key = "empty_filtered_products") {
+                            com.shambit.customer.ui.components.EmptyFilteredProductsState(
+                                onClearFilters = onClearAllFilters
+                            )
+                        }
+                    } else {
+                        item(key = "empty_product_feed") {
+                            com.shambit.customer.ui.components.EmptyProductFeedState()
+                        }
+                    }
+                }
+            }
+            is DataState.Error -> {
+                // Enhanced error state with retry button (Requirements: 10.2, 11.1)
+                item(key = "product_feed_error") {
+                    // Check if this is a filter application error
+                    if (uiState.appliedFilters.isNotEmpty()) {
+                        com.shambit.customer.ui.components.FilterApplicationErrorState(
+                            message = state.message,
+                            onRetry = onRetryFilterApplication,
+                            onClearFilters = onClearAllFilters,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        com.shambit.customer.ui.components.ProductFeedErrorState(
+                            message = state.message,
+                            onRetry = onRetryProductFeedLoading,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+            is DataState.Loading -> {
+                // Initial loading state
+                item(key = "product_feed_loading_title") {
+                    Text(
+                        text = stringResource(R.string.more_products),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                items(
+                    count = 3,
+                    key = { index -> "product_feed_loading_$index" },
+                    contentType = { "loading_skeleton" }
+                ) { index ->
+                    com.shambit.customer.ui.components.VerticalProductCardSkeleton(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
     }
+}
+/**
+ * Polite Branding Footer Component
+ * Displays when pagination completes (Requirements: 4.4)
+ */
+@Composable
+private fun PoliteBrandingFooter(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = stringResource(R.string.made_with_love_by_shambit),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+    }
+}
+
+/**
+ * Product Feed Error State Component
+ * Shows error message with retry button (Requirements: 11.2)
+ */
+@Composable
+private fun ProductFeedErrorState(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ErrorState(
+        message = message,
+        onRetry = onRetry,
+        modifier = modifier
+    )
 }

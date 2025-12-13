@@ -52,7 +52,8 @@ object NetworkModule {
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                // Use BASIC to avoid logging sensitive headers like Authorization
+                HttpLoggingInterceptor.Level.BASIC
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
@@ -68,7 +69,8 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         networkInterceptor: NetworkInterceptor,
         loggingInterceptor: HttpLoggingInterceptor,
-        tokenAuthenticator: TokenAuthenticator
+        tokenAuthenticator: TokenAuthenticator,
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(networkInterceptor)
@@ -78,6 +80,11 @@ object NetworkModule {
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            // PERFORMANCE FIX: Enable HTTP caching to work with server cache headers
+            .cache(okhttp3.Cache(
+                directory = java.io.File(context.cacheDir, "http_cache"),
+                maxSize = 50L * 1024L * 1024L // 50 MB cache
+            ))
             .build()
     }
     
@@ -176,5 +183,18 @@ object NetworkModule {
     @Singleton
     fun provideLocationApi(retrofit: Retrofit): LocationApi {
         return retrofit.create(LocationApi::class.java)
+    }
+    
+    /**
+     * PERFORMANCE FIX: Provide optimized ImageLoader
+     */
+    @Provides
+    @Singleton
+    fun provideImageLoader(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+        okHttpClient: OkHttpClient
+    ): coil.ImageLoader {
+        return com.shambit.customer.util.ImageOptimizer(context, okHttpClient)
+            .createOptimizedImageLoader()
     }
 }

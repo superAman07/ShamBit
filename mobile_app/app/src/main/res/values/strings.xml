@@ -44,17 +44,49 @@
     
     <!-- Home Screen -->
     <string name="featured_products">Featured Products</string>
+    <string name="more_products">More Products</string>
     <string name="shop_by_category">Shop by Category</string>
     <string name="view_all">View All</string>
     <string name="no_featured_products">No featured products available. Check logs for details.</string>
+    <string name="made_with_love_by_shambit">Made with ❤️ by ShamBit</string>
     
     <!-- Error Messages -->
     <string name="error_load_content">Unable to load content. Please check your connection.</string>
     <string name="error_load_home_data">Failed to load home data</string>
     <string name="error_load_banners">Failed to load banners</string>
     <string name="error_load_promotional_banners">Failed to load promotional banners</string>
+    <string name="error_load_subcategories">Failed to load subcategories</string>
+    <string name="error_load_products">Failed to load products</string>
+    <string name="error_load_more_products">Failed to load more products</string>
     <string name="error_refresh_data">Failed to refresh data</string>
     <string name="error_update_wishlist">Failed to update wishlist: %s</string>
+    
+    <!-- NEW: Enhanced Error Messages for Premium Features -->
+    <string name="error_subcategory_loading">Failed to load subcategories</string>
+    <string name="error_product_feed_loading">Failed to load product feed</string>
+    <string name="error_filter_application">Failed to apply filters</string>
+    <string name="error_network_offline">You\'re offline. Please check your connection.</string>
+    <string name="error_malformed_response">Something went wrong — tap to retry</string>
+    
+    <!-- NEW: Empty State Messages -->
+    <string name="empty_subcategories">No subcategories available</string>
+    <string name="empty_subcategories_message">No products here yet — explore other categories</string>
+    <string name="empty_filtered_products">Nothing matched — try adjusting filters</string>
+    <string name="empty_product_feed">No products available</string>
+    <string name="empty_product_feed_message">Check back later for new products</string>
+    
+    <!-- NEW: Retry Messages -->
+    <string name="retry_subcategories">Retry loading subcategories</string>
+    <string name="retry_product_feed">Retry loading products</string>
+    <string name="retry_filters">Retry applying filters</string>
+    <string name="retry_pagination">Retry loading more products</string>
+    
+    <!-- NEW: Enhanced Network Error Messages -->
+    <string name="error_server_temporarily_unavailable">Server temporarily unavailable — please wait a moment</string>
+    <string name="error_too_many_requests">Too many requests — please wait before trying again</string>
+    <string name="error_connection_timeout">Connection timeout — please try again</string>
+    <string name="error_check_connection">Please check your internet connection and try again</string>
+    <string name="error_suggest_wifi">Consider connecting to Wi-Fi for better performance</string>
     
     <!-- Wishlist Messages -->
     <string name="wishlist_added">Added to wishlist</string>
@@ -102,6 +134,7 @@
     <string name="setting_default">Setting default address...</string>
     <string name="locking_address">Preparing for payment...</string>
     <string name="refreshing_data">Refreshing data...</string>
+    <string name="refreshing_feed">Refreshing your feed ✨</string>
     <string name="validating_address">Validating address...</string>
     <string name="syncing_changes">Syncing changes...</string>
     

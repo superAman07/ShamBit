@@ -275,7 +275,10 @@ data class SubcategoryDto(
     val imageUrl: String? = null,
     
     @SerializedName("displayOrder")
-    val displayOrder: Int = 0
+    val displayOrder: Int = 0,
+    
+    @SerializedName("interactionCount")
+    val interactionCount: Int = 0
 ) {
     /**
      * Get full image URL
@@ -418,4 +421,82 @@ data class ProductApiResponse(
             pagination = pagination
         )
     }
+}
+
+/**
+ * Product feed response with cursor pagination
+ */
+data class ProductFeedResponse(
+    @SerializedName("products")
+    val products: List<ProductDto>,
+    
+    @SerializedName("cursor")
+    val cursor: String?,
+    
+    @SerializedName("hasMore")
+    val hasMore: Boolean,
+    
+    @SerializedName("totalCount")
+    val totalCount: Int
+)
+
+/**
+ * Type-safe filter values for API consumption
+ */
+sealed interface AppliedFilterValue {
+    data class MultiSelect(val values: List<String>) : AppliedFilterValue
+    data class Range(val min: Int, val max: Int) : AppliedFilterValue
+    data class SingleValue(val value: String) : AppliedFilterValue
+}
+
+/**
+ * Predefined sort options for consistent API communication
+ */
+enum class SortOption(val displayName: String, val apiValue: String) {
+    RELEVANCE("Relevance", "relevance"),
+    PRICE_LOW_TO_HIGH("Price: Low to High", "price_low_to_high"),
+    PRICE_HIGH_TO_LOW("Price: High to Low", "price_high_to_low"),
+    RATING_HIGH_TO_LOW("Rating: High to Low", "rating_high_to_low"),
+    NEWEST_FIRST("Newest First", "newest_first"),
+    POPULARITY("Most Popular", "popularity")
+}
+
+/**
+ * Filter option configuration from API
+ */
+data class FilterOption(
+    @SerializedName("type")
+    val type: String, // "price", "rating", "brand", etc.
+    
+    @SerializedName("displayName")
+    val displayName: String,
+    
+    @SerializedName("options")
+    val options: List<FilterValue>,
+    
+    @SerializedName("selectedValues")
+    val selectedValues: List<String> = emptyList()
+)
+
+/**
+ * Individual filter value option
+ */
+data class FilterValue(
+    @SerializedName("value")
+    val value: String,
+    
+    @SerializedName("displayName")
+    val displayName: String,
+    
+    @SerializedName("count")
+    val count: Int? = null
+)
+
+/**
+ * Extension function to convert AppliedFilterValue to API-friendly format
+ */
+fun AppliedFilterValue.toApiValue(): Any = when (this) {
+    is AppliedFilterValue.MultiSelect -> values
+    is AppliedFilterValue.Range -> mapOf("min" to min, "max" to max)
+    is AppliedFilterValue.SingleValue -> value
 }

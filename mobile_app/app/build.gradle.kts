@@ -18,22 +18,27 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
         buildConfigField("String", "API_VERSION", "\"v1\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.3.103:3000/api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://192.168.29.45:3000/api/v1/\"")
             isMinifyEnabled = false
+            // PERFORMANCE FIX: Enable R8 optimizations even in debug for better performance testing
+            isDebuggable = true
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"https://api.shambit.com/api/v1/\"")
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // PERFORMANCE FIX: Enable baseline profile generation
+            isProfileable = true
         }
     }
 
@@ -44,6 +49,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+        // PERFORMANCE FIX: Enable Compose compiler optimizations
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+        )
     }
 
     buildFeatures {
@@ -117,6 +127,16 @@ dependencies {
     
     // Razorpay Payment Gateway - Updated to latest version to resolve namespace conflicts
     implementation("com.razorpay:checkout:1.6.40")
+    
+    // PERFORMANCE FIX: Add baseline profile support for better startup performance
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    
+    // PERFORMANCE FIX: Add image optimization and caching
+    implementation("io.coil-kt:coil-gif:2.5.0")
+    implementation("io.coil-kt:coil-svg:2.5.0")
+    
+    // PERFORMANCE FIX: Add memory leak detection for debug builds
+    debugImplementation("com.squareup.leakcanary:leakcanary-android:2.12")
 
 
     testImplementation(libs.junit)

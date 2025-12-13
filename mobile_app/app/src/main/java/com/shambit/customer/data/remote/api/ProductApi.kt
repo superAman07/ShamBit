@@ -94,4 +94,35 @@ interface ProductApi {
     suspend fun getBrandById(
         @Path("id") brandId: String
     ): Response<ApiResponse<BrandDto>>
+    
+    /**
+     * Get subcategories for a category
+     * GET /categories/:categoryId/subcategories
+     */
+    @GET("categories/{categoryId}/subcategories")
+    suspend fun getSubcategories(
+        @Path("categoryId") categoryId: String
+    ): Response<ApiResponse<List<com.shambit.customer.data.remote.dto.response.SubcategoryDto>>>
+    
+    /**
+     * Get product feed with cursor pagination and filtering
+     * GET /products/feed
+     */
+    @GET("products/feed")
+    suspend fun getProductFeed(
+        @Query("subcategoryId") subcategoryId: String? = null,
+        @Query("cursor") cursor: String? = null,
+        @Query("pageSize") pageSize: Int = 20,
+        @Query("sortBy") sortBy: String = "relevance",
+        @Query("filters") filters: Map<String, @JvmSuppressWildcards Any> = emptyMap()
+    ): Response<ApiResponse<com.shambit.customer.data.remote.dto.response.ProductFeedResponse>>
+    
+    /**
+     * Get filter options for dynamic filter configuration
+     * GET /products/filters
+     */
+    @GET("products/filters")
+    suspend fun getFilterOptions(
+        @Query("subcategoryId") subcategoryId: String? = null
+    ): Response<ApiResponse<List<com.shambit.customer.data.remote.dto.response.FilterOption>>>
 }

@@ -5,6 +5,7 @@ import { validate, commonValidations, sanitizeInput } from '../middleware/valida
 import { asyncHandler } from '../middleware/errorHandler';
 import { AppError, BadRequestError, createLogger } from '@shambit/shared';
 import { ErrorCodes } from '../utils/errorCodes';
+import { publicRateLimit } from '../middleware/rateLimiting.middleware';
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -233,6 +234,121 @@ router.post(
       data: result,
     });
   })
+);
+
+/**
+ * @route   GET /api/v1/products/filters
+ * @desc    Get available product filters (categories, brands, price ranges)
+ * @access  Public
+ * @performance Optimized with caching and rate limiting to prevent repeated calls
+ */
+router.get(
+  '/filters',
+  publicRateLimit, // PERFORMANCE FIX: Add rate limiting to prevent API spam
+  asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    // Import services dynamically to avoid circular dependencies
+    const { categoryService } = await import('../services/category.service');
+    const { brandService } = await import('../services/brand.service');
+
+    // Get active categories
+    const categoriesResult = await categoryService.getCategories({
+      isActive: true,
+      page: 1,
+      pageSize: 100,
+    });
+
+    // Get active brands
+    const brandsResult = await brandService.getBrands({
+      isActive: true,
+      page: 1,
+      pageSize: 100,
+    });
+
+    // Get price range from products
+    const stats = await productService.getProductStats();
+
+    // PERFORMANCE FIX: Add aggressive caching headers to prevent repeated calls
+    res.set({
+      'Cache-Control': 'public, max-age=1800, stale-while-revalidate=3600', // Cache for 30 minutes, serve stale for 1 hour
+      'ETag': `"filters-${Date.now()}"`, // Simple ETag for cache validation
+      'Vary': 'Accept-Encoding', // Vary by encoding for better caching
+    });
+
+    res.json({
+      success: true,
+      data: {
+        categories: categoriesResult.categories,
+        brands: brandsResult.brands,
+        priceRange: stats.priceRange,
+      },
+    });
+  })
+);
+
+/**
+ * @route   GET /api/v1/products/feed
+ * @desc    Get product feed with cursor pagination and filtering
+ * @access  Public
+ */
+router.get(
+  '/feed',
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const query: ProductListQuery = {
+        page: req.query.page ? parseInt(req.query.page as string, 10) : 1,
+        pageSize: req.query.pageSize
+          ? Math.min(parseInt(req.query.pageSize as string, 10), 100)
+          : 20,
+        categoryId: req.query.subcategoryId as string, // Mobile app uses subcategoryId
+        brandId: req.query.brandId as string,
+        isActive: true, // Only active products in feed
+        isFeatured: req.query.isFeatured === 'true' ? true : undefined,
+        isSellable: req.query.isSellable === 'false' ? false : undefined,
+        search: req.query.search as string,
+        minPrice: req.query.minPrice
+          ? parseFloat(req.query.minPrice as string)
+          : undefined,
+        maxPrice: req.query.maxPrice
+          ? parseFloat(req.query.maxPrice as string)
+          : undefined,
+        brand: req.query.brand as string,
+        sku: req.query.sku as string,
+        barcode: req.query.barcode as string,
+        tags: req.query.tags as string,
+        attributes: req.query.attributes ? JSON.parse(req.query.attributes as string) : undefined,
+      };
+
+      // Parse filters from mobile app (JSON string)
+      let filters = {};
+      if (req.query.filters) {
+        try {
+          filters = JSON.parse(req.query.filters as string);
+        } catch (e) {
+          // Ignore invalid JSON filters
+        }
+      }
+
+      // Apply filters to query
+      Object.assign(query, filters);
+
+      const result = await productService.getProducts(query);
+
+      // Format response for mobile app compatibility
+      res.json({
+        success: true,
+        data: {
+          products: result.products,
+          cursor: result.pagination.page < result.pagination.totalPages 
+            ? `page_${result.pagination.page + 1}` 
+            : null,
+          hasMore: result.pagination.page < result.pagination.totalPages,
+          pagination: result.pagination
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 );
 
 /**

@@ -1,10 +1,16 @@
 package com.shambit.customer.data.repository
 
 import com.shambit.customer.data.remote.api.ProductApi
+import com.shambit.customer.data.remote.dto.response.AppliedFilterValue
 import com.shambit.customer.data.remote.dto.response.BrandDto
 import com.shambit.customer.data.remote.dto.response.CategoryDto
+import com.shambit.customer.data.remote.dto.response.FilterOption
 import com.shambit.customer.data.remote.dto.response.ProductDto
+import com.shambit.customer.data.remote.dto.response.ProductFeedResponse
 import com.shambit.customer.data.remote.dto.response.ProductListResponse
+import com.shambit.customer.data.remote.dto.response.SortOption
+import com.shambit.customer.data.remote.dto.response.SubcategoryDto
+import com.shambit.customer.data.remote.dto.response.toApiValue
 import com.shambit.customer.util.Constants
 import com.shambit.customer.util.NetworkResult
 import com.shambit.customer.util.safeApiCall
@@ -202,6 +208,56 @@ class ProductRepository @Inject constructor(
     suspend fun getFeaturedCategories(): NetworkResult<List<CategoryDto>> {
         return safeApiCall {
             productApi.getFeaturedCategories()
+        }
+    }
+    
+    /**
+     * Get subcategories for a category
+     */
+    suspend fun getSubcategories(categoryId: String): NetworkResult<List<SubcategoryDto>> {
+        return safeApiCall {
+            productApi.getSubcategories(categoryId)
+        }
+    }
+    
+    /**
+     * Get product feed with cursor pagination and filtering support
+     * Enhanced with proper network connectivity handling (Requirements: 11.4, 11.5)
+     */
+    suspend fun getProductFeed(
+        subcategoryId: String? = null,
+        cursor: String? = null,
+        pageSize: Int = Constants.DEFAULT_PAGE_SIZE,
+        sortBy: SortOption = SortOption.RELEVANCE,
+        filters: Map<String, AppliedFilterValue> = emptyMap()
+    ): NetworkResult<ProductFeedResponse> {
+        return safeApiCall {
+            val apiFilters = convertFiltersForApi(filters)
+            productApi.getProductFeed(
+                subcategoryId = subcategoryId,
+                cursor = cursor,
+                pageSize = pageSize,
+                sortBy = sortBy.apiValue,
+                filters = apiFilters
+            )
+        }
+    }
+    
+    /**
+     * Get filter options for dynamic filter configuration
+     */
+    suspend fun getFilterOptions(subcategoryId: String? = null): NetworkResult<List<FilterOption>> {
+        return safeApiCall {
+            productApi.getFilterOptions(subcategoryId)
+        }
+    }
+    
+    /**
+     * Convert type-safe filters to API-friendly format
+     */
+    private fun convertFiltersForApi(filters: Map<String, AppliedFilterValue>): Map<String, Any> {
+        return filters.mapValues { (_, filterValue) ->
+            filterValue.toApiValue()
         }
     }
 }

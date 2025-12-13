@@ -54,6 +54,14 @@ class HomeViewModelTest {
     @Mock
     private lateinit var addressStateManager: com.shambit.customer.domain.manager.AddressStateManager
     @Mock
+    private lateinit var networkConnectivityManager: com.shambit.customer.util.NetworkConnectivityManager
+    @Mock
+    private lateinit var enhancedRetryHandler: com.shambit.customer.util.EnhancedRetryHandler
+    @Mock
+    private lateinit var performanceMonitor: com.shambit.customer.util.PerformanceMonitor
+    @Mock
+    private lateinit var analyticsBatcher: com.shambit.customer.data.analytics.AnalyticsBatcher
+    @Mock
     private lateinit var context: Context
 
     private val testDispatcher = StandardTestDispatcher()
@@ -74,6 +82,10 @@ class HomeViewModelTest {
             getAddressesUseCase = getAddressesUseCase,
             selectCheckoutAddressUseCase = selectCheckoutAddressUseCase,
             addressStateManager = addressStateManager,
+            networkConnectivityManager = networkConnectivityManager,
+            enhancedRetryHandler = enhancedRetryHandler,
+            performanceMonitor = performanceMonitor,
+            analyticsBatcher = analyticsBatcher,
             context = context
         )
     }

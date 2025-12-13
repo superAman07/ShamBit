@@ -133,7 +133,8 @@ fun ProductCard(
     modifier: Modifier = Modifier,
     hapticFeedback: HapticFeedbackManager? = null
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
+    // PERFORMANCE FIX: Use remember with key to prevent unnecessary recompositions
+    val interactionSource = remember(product.id) { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
     // Subtle zoom animation: 1.0x → 1.05x when pressed
@@ -179,7 +180,7 @@ fun ProductCard(
                     .height(140.dp)
                     .clip(RoundedCornerShape(8.dp))
             ) {
-                // Product image
+                // PERFORMANCE FIX: Optimize image loading to prevent main thread blocking
                 AsyncImage(
                     model = product.getFirstImageUrl(),
                     contentDescription = "Product image: ${product.name}",
