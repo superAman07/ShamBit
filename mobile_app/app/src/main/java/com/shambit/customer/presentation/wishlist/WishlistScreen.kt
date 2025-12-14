@@ -73,6 +73,7 @@ fun WishlistScreen(
     onNavigateToProduct: (String) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -131,7 +132,7 @@ fun WishlistScreen(
                 onNavigate = { route ->
                     when (route) {
                         com.shambit.customer.ui.components.NavigationRoutes.HOME -> onNavigateToHome()
-                        com.shambit.customer.ui.components.NavigationRoutes.SEARCH -> onNavigateToSearch()
+                        com.shambit.customer.ui.components.NavigationRoutes.CATEGORIES -> onNavigateToCategories()
                         com.shambit.customer.ui.components.NavigationRoutes.WISHLIST -> {
                             // Already on wishlist
                         }

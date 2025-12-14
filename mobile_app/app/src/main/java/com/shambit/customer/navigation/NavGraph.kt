@@ -73,6 +73,9 @@ fun NavGraph(
                 onNavigateToSearch = {
                     navController.navigate(Screen.Search.route)
                 },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
+                },
                 onNavigateToWishlist = {
                     navController.navigate(Screen.Wishlist.route)
                 },
@@ -83,11 +86,12 @@ fun NavGraph(
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
                 },
                 onNavigateToCategory = { category ->
-                    // Navigate to CategoryDetailScreen if category has subcategories
-                    // Otherwise navigate directly to CategoryProducts
-                    if (category.hasSubcategories && !category.subcategories.isNullOrEmpty()) {
+                    // Navigate to CategoryDetailScreen for parent categories (no parentId)
+                    // This will show subcategories if they exist
+                    if (category.parentId == null) {
                         navController.navigate(Screen.CategoryDetail.createRoute(category.id))
                     } else {
+                        // For subcategories, navigate directly to products
                         navController.navigate(Screen.CategoryProducts.createRoute(category.id))
                     }
                 },
@@ -103,6 +107,30 @@ fun NavGraph(
                 },
                 onOpenUrl = { _ ->
                     // TODO: Open URL in browser
+                }
+            )
+        }
+        
+        // Categories Screen - Shop by Category
+        composable(Screen.Categories.route) {
+            com.shambit.customer.presentation.categories.CategoriesListScreen(
+                onNavigateToSearch = {
+                    navController.navigate(Screen.Search.route)
+                },
+                onNavigateToCategory = { category ->
+                    // Navigate to CategoryDetailScreen for parent categories
+                    navController.navigate(Screen.CategoryDetail.createRoute(category.id))
+                },
+                onNavigateToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
+                },
+                onNavigateToWishlist = {
+                    navController.navigate(Screen.Wishlist.route)
+                },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
                 }
             )
         }
@@ -123,6 +151,9 @@ fun NavGraph(
                 },
                 onNavigateToWishlist = {
                     navController.navigate(Screen.Wishlist.route)
+                },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
@@ -206,6 +237,9 @@ fun NavGraph(
                 onNavigateToSearch = {
                     navController.navigate(Screen.Search.route)
                 },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
+                },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
                 }
@@ -274,6 +308,9 @@ fun NavGraph(
                 },
                 onNavigateToSearch = {
                     navController.navigate(Screen.Search.route)
+                },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
                 }
             )
         }

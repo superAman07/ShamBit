@@ -215,9 +215,12 @@ class ProductRepository @Inject constructor(
      * Get subcategories for a category
      */
     suspend fun getSubcategories(categoryId: String): NetworkResult<List<SubcategoryDto>> {
-        return safeApiCall {
+        android.util.Log.d("ProductRepository", "Getting subcategories for categoryId: $categoryId")
+        val result = safeApiCall {
             productApi.getSubcategories(categoryId)
         }
+        android.util.Log.d("ProductRepository", "Subcategories result: $result")
+        return result
     }
     
     /**

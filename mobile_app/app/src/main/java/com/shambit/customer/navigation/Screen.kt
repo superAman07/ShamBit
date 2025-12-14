@@ -13,6 +13,7 @@ sealed class Screen(val route: String) {
     
     // Main Flow
     object Home : Screen("home")
+    object Categories : Screen("categories")
     object Search : Screen("search")
     object Cart : Screen("cart")
     object Wishlist : Screen("wishlist")

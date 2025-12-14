@@ -10,7 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,7 +36,7 @@ import com.shambit.customer.util.HapticFeedbackManager
  */
 object NavigationRoutes {
     const val HOME = "home"
-    const val SEARCH = "search"
+    const val CATEGORIES = "categories"
     const val WISHLIST = "wishlist"
     const val PROFILE = "profile"
 }
@@ -90,10 +90,10 @@ fun BottomNavigationBar(
                 contentDescription = "Navigate to Home screen"
             ),
             NavItem(
-                route = NavigationRoutes.SEARCH,
-                icon = Icons.Default.Search,
-                label = "Search",
-                contentDescription = "Navigate to Search screen"
+                route = NavigationRoutes.CATEGORIES,
+                icon = Icons.Default.List,
+                label = "Categories",
+                contentDescription = "Navigate to Shop by Category screen"
             ),
             NavItem(
                 route = NavigationRoutes.WISHLIST,

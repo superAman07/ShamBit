@@ -268,14 +268,38 @@ data class SubcategoryDto(
     @SerializedName("name")
     val name: String,
     
+    @SerializedName("parentId")
+    val parentId: String? = null,
+    
     @SerializedName("parentCategoryId")
-    val parentCategoryId: String,
+    val parentCategoryId: String? = null,
+    
+    @SerializedName("slug")
+    val slug: String? = null,
+    
+    @SerializedName("description")
+    val description: String? = null,
     
     @SerializedName("imageUrl")
     val imageUrl: String? = null,
     
+    @SerializedName("bannerUrl")
+    val bannerUrl: String? = null,
+    
+    @SerializedName("iconUrl")
+    val iconUrl: String? = null,
+    
     @SerializedName("displayOrder")
     val displayOrder: Int = 0,
+    
+    @SerializedName("isFeatured")
+    val isFeatured: Boolean = false,
+    
+    @SerializedName("isActive")
+    val isActive: Boolean = true,
+    
+    @SerializedName("productCount")
+    val productCount: Int = 0,
     
     @SerializedName("interactionCount")
     val interactionCount: Int = 0

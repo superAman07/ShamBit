@@ -56,9 +56,17 @@ data class HomeUiState(
     val featuredProductsState: DataState<List<ProductDto>> = DataState.Loading,
     
     // NEW: Post-promotional section state
-    val subcategoriesState: DataState<List<com.shambit.customer.data.remote.dto.response.SubcategoryDto>> = DataState.Loading,
+    val subcategoriesState: DataState<List<com.shambit.customer.data.remote.dto.response.SubcategoryDto>> = DataState.Success(emptyList()),
+    val selectedCategoryId: String? = null, // Track which parent category is selected
     val selectedSubcategoryId: String? = null,
-    val verticalProductFeedState: DataState<com.shambit.customer.data.remote.dto.response.ProductFeedResponse> = DataState.Loading,
+    val verticalProductFeedState: DataState<com.shambit.customer.data.remote.dto.response.ProductFeedResponse> = DataState.Success(
+        com.shambit.customer.data.remote.dto.response.ProductFeedResponse(
+            products = emptyList(),
+            cursor = null,
+            hasMore = false,
+            totalCount = 0
+        )
+    ),
     val sortFilterState: SortFilterState = SortFilterState(),
     val showStickyBar: Boolean = false,
     val showScrollToTop: Boolean = false,
@@ -308,6 +316,7 @@ class HomeViewModel @Inject constructor(
                     launch { loadFeaturedCategories() }
                     launch { loadPromotionalBanners() }
                     launch { loadFeaturedProducts() }
+                    // Don't load product feed initially - wait for user to select subcategory
                 }
                 
                 // Mark loading as complete
@@ -358,10 +367,29 @@ class HomeViewModel @Inject constructor(
         
         when (result) {
             is NetworkResult.Success -> {
+                android.util.Log.d("HomeViewModel", "Raw categories loaded: ${result.data.size} items")
+                result.data.forEach { category ->
+                    android.util.Log.d("HomeViewModel", "  - ${category.name} (parentId: ${category.parentId})")
+                }
+                
+                // Filter to only parent categories (those with parentId == null)
+                val parentCategories = result.data.filter { it.parentId == null }
+                android.util.Log.d("HomeViewModel", "Filtered parent categories: ${parentCategories.size} items")
+                parentCategories.forEach { category ->
+                    android.util.Log.d("HomeViewModel", "  - ${category.name}")
+                }
+                
                 // Reorder categories based on tap frequency if needed
-                val reorderedCategories = reorderCategoriesIfNeeded(result.data)
+                val reorderedCategories = reorderCategoriesIfNeeded(parentCategories)
                 
                 _uiState.update { it.copy(categoriesState = DataState.Success(reorderedCategories)) }
+                
+                // Automatically select and load subcategories for the first parent category
+                if (reorderedCategories.isNotEmpty()) {
+                    val firstCategory = reorderedCategories.first()
+                    android.util.Log.d("HomeViewModel", "Auto-selecting first parent category: ${firstCategory.name} (${firstCategory.id})")
+                    selectCategory(firstCategory.id)
+                }
             }
             is NetworkResult.Error -> {
                 // Don't show error for categories, just use empty list
@@ -413,10 +441,52 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
+     * Select a category and load its subcategories
+     * This method allows dynamic switching between categories
+     * Requirements: 1.1, 1.2
+     */
+    fun selectCategory(categoryId: String) {
+        android.util.Log.d("HomeViewModel", "========================================")
+        android.util.Log.d("HomeViewModel", "Selecting category: $categoryId")
+        
+        // Update selected category in UI state
+        _uiState.update { 
+            it.copy(
+                selectedCategoryId = categoryId,
+                // Reset subcategory selection when changing category
+                selectedSubcategoryId = null,
+                // Clear product feed when changing category - user needs to select subcategory
+                verticalProductFeedState = DataState.Success(
+                    com.shambit.customer.data.remote.dto.response.ProductFeedResponse(
+                        products = emptyList(),
+                        cursor = null,
+                        hasMore = false,
+                        totalCount = 0
+                    )
+                ),
+                currentCursor = null,
+                hasMoreProducts = false,
+                // Clear applied filters when changing category
+                appliedFilters = emptyMap(),
+                // Clear filter cache for new category
+                availableFilters = emptyList()
+            ) 
+        }
+        
+        // Load subcategories for the selected category
+        loadSubcategories(categoryId)
+        
+        android.util.Log.d("HomeViewModel", "========================================")
+    }
+
+    /**
      * Load subcategories for a given category
      * Requirements: 1.1, 1.2
      */
     fun loadSubcategories(categoryId: String) {
+        android.util.Log.d("HomeViewModel", "========================================")
+        android.util.Log.d("HomeViewModel", "Loading subcategories for categoryId: $categoryId")
+        
         viewModelScope.launch {
             _uiState.update { it.copy(subcategoriesState = DataState.Loading) }
             
@@ -427,19 +497,34 @@ class HomeViewModel @Inject constructor(
                     endpointType = "subcategories"
                 )) {
                     is NetworkResult.Success -> {
+                        android.util.Log.d("HomeViewModel", "✅ Subcategories loaded successfully: ${result.data?.size ?: 0} items")
+                        result.data?.forEach { subcategory ->
+                            android.util.Log.d("HomeViewModel", "  - ${subcategory.name} (${subcategory.productCount} products)")
+                        }
+                        
                         // Check for malformed response (Requirements: 11.4, 11.5)
                         if (result.data == null) {
+                            android.util.Log.e("HomeViewModel", "❌ Malformed response: result.data is null")
                             handleMalformedApiResponse("subcategories", result.data)
                             return@launch
                         }
                         
                         // Reorder subcategories based on interaction frequency
                         val reorderedSubcategories = reorderSubcategoriesIfNeeded(result.data)
+                        android.util.Log.d("HomeViewModel", "Reordered subcategories: ${reorderedSubcategories.size} items")
                         _uiState.update { 
                             it.copy(subcategoriesState = DataState.Success(reorderedSubcategories)) 
                         }
+                        
+                        // Auto-select first subcategory and load its products
+                        if (reorderedSubcategories.isNotEmpty()) {
+                            val firstSubcategory = reorderedSubcategories.first()
+                            android.util.Log.d("HomeViewModel", "Auto-selecting first subcategory: ${firstSubcategory.name} (${firstSubcategory.id})")
+                            selectSubcategory(firstSubcategory)
+                        }
                     }
                     is NetworkResult.Error -> {
+                        android.util.Log.e("HomeViewModel", "❌ Failed to load subcategories: ${result.message}")
                         // Enhanced network error handling with graceful degradation (Requirements: 11.4, 11.5)
                         handleApiEndpointFailure("subcategories", result)
                     }
@@ -448,12 +533,14 @@ class HomeViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                android.util.Log.e("HomeViewModel", "❌ Exception while loading subcategories", e)
                 // Handle unexpected exceptions gracefully (Requirements: 11.5)
                 _uiState.update { 
                     it.copy(subcategoriesState = DataState.Error(context.getString(R.string.error_malformed_response))) 
                 }
             }
         }
+        android.util.Log.d("HomeViewModel", "========================================")
     }
     
     /**
@@ -1133,8 +1220,14 @@ class HomeViewModel @Inject constructor(
                     launch { loadPromotionalBanners() }
                     launch { loadFeaturedProducts() }
                     
-                    // NEW: Refresh subcategories and product feed if a category is selected
+                    // Always refresh the vertical product feed
                     val currentState = _uiState.value
+                    launch { 
+                        // Reload product feed (with or without subcategory)
+                        loadProductFeed(subcategoryId = currentState.selectedSubcategoryId)
+                    }
+                    
+                    // Refresh subcategories if a category is selected
                     if (currentState.selectedSubcategoryId != null) {
                         launch { 
                             // Reload subcategories for current category
@@ -1145,10 +1238,6 @@ class HomeViewModel @Inject constructor(
                             if (selectedCategory != null) {
                                 loadSubcategories(selectedCategory.id)
                             }
-                        }
-                        launch { 
-                            // Reload product feed
-                            loadProductFeed(subcategoryId = currentState.selectedSubcategoryId)
                         }
                     }
                 }

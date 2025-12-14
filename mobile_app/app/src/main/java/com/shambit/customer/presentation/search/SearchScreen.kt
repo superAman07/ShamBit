@@ -62,6 +62,7 @@ fun SearchScreen(
     onNavigateToCategory: (String) -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToWishlist: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -81,13 +82,13 @@ fun SearchScreen(
         },
         bottomBar = {
             com.shambit.customer.ui.components.BottomNavigationBar(
-                selectedRoute = com.shambit.customer.ui.components.NavigationRoutes.SEARCH,
+                selectedRoute = "search",
                 scrollOffset = 0f,
                 scrollDirection = com.shambit.customer.ui.components.ScrollDirection.None,
                 onNavigate = { route ->
                     when (route) {
                         com.shambit.customer.ui.components.NavigationRoutes.HOME -> onNavigateToHome()
-                        com.shambit.customer.ui.components.NavigationRoutes.SEARCH -> {}
+                        com.shambit.customer.ui.components.NavigationRoutes.CATEGORIES -> onNavigateToCategories()
                         com.shambit.customer.ui.components.NavigationRoutes.WISHLIST -> onNavigateToWishlist()
                         com.shambit.customer.ui.components.NavigationRoutes.PROFILE -> onNavigateToProfile()
                     }

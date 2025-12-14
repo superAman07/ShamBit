@@ -27,13 +27,15 @@ enum class SortOption(val displayName: String) {
 data class CategoryProductsUiState(
     val isLoading: Boolean = false,
     val category: CategoryDto? = null,
+    val subcategories: List<com.shambit.customer.data.remote.dto.response.SubcategoryDto> = emptyList(),
     val products: List<ProductDto> = emptyList(),
     val error: String? = null,
     val currentPage: Int = 1,
     val hasMorePages: Boolean = true,
     val isLoadingMore: Boolean = false,
     val sortOption: SortOption = SortOption.RELEVANCE,
-    val showSortDialog: Boolean = false
+    val showSortDialog: Boolean = false,
+    val isLoadingSubcategories: Boolean = false
 )
 
 @HiltViewModel
@@ -48,6 +50,7 @@ class CategoryProductsViewModel @Inject constructor(
     val uiState: StateFlow<CategoryProductsUiState> = _uiState.asStateFlow()
     
     init {
+        android.util.Log.d("CategoryViewModel", "ViewModel init - categoryId from savedStateHandle: $categoryId")
         loadCategoryDetails()
         loadProducts()
     }
@@ -57,17 +60,25 @@ class CategoryProductsViewModel @Inject constructor(
      * Public method for CategoryDetailScreen
      */
     fun loadCategory(categoryId: String) {
+        android.util.Log.d("CategoryViewModel", "loadCategory called with categoryId: $categoryId")
+        android.util.Log.d("CategoryViewModel", "ViewModel's categoryId from savedStateHandle: ${this.categoryId}")
+        
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             
+            // Load category details
             when (val result = productRepository.getCategoryById(categoryId)) {
                 is NetworkResult.Success -> {
+                    android.util.Log.d("CategoryViewModel", "Category loaded: ${result.data.name}")
                     _uiState.update { it.copy(
                         isLoading = false,
                         category = result.data
                     ) }
+                    // Load subcategories after category is loaded
+                    loadSubcategories(categoryId)
                 }
                 is NetworkResult.Error -> {
+                    android.util.Log.e("CategoryViewModel", "Failed to load category: ${result.message}")
                     _uiState.update { it.copy(
                         isLoading = false,
                         error = result.message
@@ -78,11 +89,48 @@ class CategoryProductsViewModel @Inject constructor(
         }
     }
     
+    /**
+     * Load subcategories for the category
+     */
+    private fun loadSubcategories(categoryId: String) {
+        viewModelScope.launch {
+            android.util.Log.d("CategoryViewModel", "========================================")
+            android.util.Log.d("CategoryViewModel", "Loading subcategories for categoryId: $categoryId")
+            _uiState.update { it.copy(isLoadingSubcategories = true) }
+            
+            when (val result = productRepository.getSubcategories(categoryId)) {
+                is NetworkResult.Success -> {
+                    android.util.Log.d("CategoryViewModel", "✅ Subcategories loaded successfully: ${result.data.size} items")
+                    result.data.forEach { subcategory ->
+                        android.util.Log.d("CategoryViewModel", "  - ${subcategory.name} (${subcategory.productCount} products)")
+                    }
+                    _uiState.update { it.copy(
+                        isLoadingSubcategories = false,
+                        subcategories = result.data
+                    ) }
+                }
+                is NetworkResult.Error -> {
+                    android.util.Log.e("CategoryViewModel", "❌ Failed to load subcategories: ${result.message}")
+                    _uiState.update { it.copy(
+                        isLoadingSubcategories = false,
+                        subcategories = emptyList()
+                    ) }
+                }
+                is NetworkResult.Loading -> {
+                    android.util.Log.d("CategoryViewModel", "Loading state received")
+                }
+            }
+            android.util.Log.d("CategoryViewModel", "========================================")
+        }
+    }
+    
     private fun loadCategoryDetails() {
         viewModelScope.launch {
             when (val result = productRepository.getCategoryById(categoryId)) {
                 is NetworkResult.Success -> {
                     _uiState.update { it.copy(category = result.data) }
+                    // Load subcategories after category is loaded
+                    loadSubcategories(categoryId)
                 }
                 else -> {}
             }

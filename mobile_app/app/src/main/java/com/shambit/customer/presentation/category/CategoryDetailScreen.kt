@@ -6,18 +6,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -70,6 +73,7 @@ fun CategoryDetailScreen(
     
     // Load category data
     LaunchedEffect(categoryId) {
+        android.util.Log.d("CategoryDetailScreen", "LaunchedEffect triggered for categoryId: $categoryId")
         viewModel.loadCategory(categoryId)
     }
     
@@ -118,6 +122,8 @@ fun CategoryDetailScreen(
                 uiState.category != null -> {
                     CategoryDetailContent(
                         category = uiState.category!!,
+                        subcategories = uiState.subcategories,
+                        isLoadingSubcategories = uiState.isLoadingSubcategories,
                         onSubcategoryClick = { subcategory ->
                             hapticFeedback?.performLightImpact()
                             onNavigateToSubcategory(subcategory.id)
@@ -136,6 +142,8 @@ fun CategoryDetailScreen(
 @Composable
 private fun CategoryDetailContent(
     category: com.shambit.customer.data.remote.dto.response.CategoryDto,
+    subcategories: List<SubcategoryDto>,
+    isLoadingSubcategories: Boolean,
     onSubcategoryClick: (SubcategoryDto) -> Unit
 ) {
     Column(
@@ -172,45 +180,84 @@ private fun CategoryDetailContent(
         }
         
         // Subcategories section
-        val subcategories = category.subcategories
-        if (!subcategories.isNullOrEmpty()) {
-            Text(
-                text = "Subcategories",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-            
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(
-                    items = subcategories,
-                    key = { it.id }
-                ) { subcategory ->
-                    SubcategoryCard(
-                        subcategory = subcategory,
-                        onClick = { onSubcategoryClick(subcategory) }
-                    )
+        android.util.Log.d("CategoryDetailScreen", "Rendering subcategories section:")
+        android.util.Log.d("CategoryDetailScreen", "  - isLoadingSubcategories: $isLoadingSubcategories")
+        android.util.Log.d("CategoryDetailScreen", "  - subcategories.size: ${subcategories.size}")
+        android.util.Log.d("CategoryDetailScreen", "  - subcategories: ${subcategories.map { it.name }}")
+        
+        when {
+            isLoadingSubcategories -> {
+                // Loading subcategories with shimmer effect
+                Text(
+                    text = "Subcategories",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(6) { // Show 6 shimmer placeholders
+                        SubcategoryCardSkeleton()
+                    }
                 }
             }
-        } else {
-            // No subcategories message
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            subcategories.isNotEmpty() -> {
                 Text(
-                    text = "No subcategories available",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
+                    text = "Subcategories",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
+                
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2), // Changed to 2 columns for better display
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = subcategories,
+                        key = { it.id }
+                    ) { subcategory ->
+                        SubcategoryCard(
+                            subcategory = subcategory,
+                            onClick = { onSubcategoryClick(subcategory) }
+                        )
+                    }
+                }
+            }
+            else -> {
+                // No subcategories message
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "No subcategories available",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No products here yet — explore other categories",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
         }
     }
@@ -218,7 +265,7 @@ private fun CategoryDetailContent(
 
 /**
  * SubcategoryCard
- * Card displaying a subcategory with image and name
+ * Beautiful, professional card displaying a subcategory with image, name, and product count
  */
 @Composable
 private fun SubcategoryCard(
@@ -230,38 +277,117 @@ private fun SubcategoryCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 4.dp,
+            pressedElevation = 8.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface),
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Subcategory image
-            AsyncImage(
-                model = subcategory.getFullImageUrl(),
-                contentDescription = "Subcategory: ${subcategory.name}",
+            // Subcategory image with rounded corners
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f),
-                contentScale = ContentScale.Crop,
-                placeholder = painterResource(R.drawable.ic_category_placeholder),
-                error = painterResource(R.drawable.ic_category_placeholder)
-            )
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                AsyncImage(
+                    model = subcategory.getFullImageUrl(),
+                    contentDescription = "Subcategory: ${subcategory.name}",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholder = painterResource(R.drawable.ic_category_placeholder),
+                    error = painterResource(R.drawable.ic_category_placeholder)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
             
             // Subcategory name
             Text(
                 text = subcategory.name,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            // Product count (if available)
+            if (subcategory.productCount > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${subcategory.productCount} products",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+/**
+ * SubcategoryCardSkeleton
+ * Shimmer loading placeholder for subcategory cards
+ */
+@Composable
+private fun SubcategoryCardSkeleton(
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Image placeholder
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Name placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            )
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            // Product count placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
             )
         }
     }

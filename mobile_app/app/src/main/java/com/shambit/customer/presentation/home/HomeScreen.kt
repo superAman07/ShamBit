@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,12 +39,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.shambit.customer.R
 import com.shambit.customer.ui.components.AdaptiveHeader
 import com.shambit.customer.ui.components.ErrorState
+import com.shambit.customer.ui.components.ProductCard
 import com.shambit.customer.ui.components.ProductCardSkeleton
+import com.shambit.customer.ui.components.ProductGridSkeleton
 
 import kotlinx.coroutines.launch
 import com.shambit.customer.ui.components.LoadingState
@@ -56,6 +64,7 @@ import com.shambit.customer.util.rememberHapticFeedback
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
     onNavigateToWishlist: () -> Unit = {},
     onNavigateToCart: () -> Unit = {},
     onNavigateToProduct: (String) -> Unit = {},
@@ -254,7 +263,7 @@ fun HomeScreen(
                     viewModel.openAddressSelection()
                 },
                 onSearchClick = {
-                    viewModel.updateCurrentRoute(com.shambit.customer.ui.components.NavigationRoutes.SEARCH)
+                    viewModel.updateCurrentRoute("search")
                     onNavigateToSearch()
                 },
                 onCartClick = {
@@ -280,8 +289,8 @@ fun HomeScreen(
                                 listState.animateScrollToItem(0)
                             }
                         }
-                        com.shambit.customer.ui.components.NavigationRoutes.SEARCH -> {
-                            onNavigateToSearch()
+                        com.shambit.customer.ui.components.NavigationRoutes.CATEGORIES -> {
+                            onNavigateToCategories()
                         }
                         com.shambit.customer.ui.components.NavigationRoutes.WISHLIST -> {
                             onNavigateToWishlist()
@@ -349,7 +358,8 @@ fun HomeScreen(
                             },
                             onCategoryClick = { category ->
                                 viewModel.onCategoryTap(category.id)
-                                onNavigateToCategory(category)
+                                // Select category to show its subcategories on home screen
+                                viewModel.selectCategory(category.id)
                             },
                             onProductClick = { product ->
                                 onNavigateToProduct(product.id)
@@ -678,72 +688,87 @@ private fun HomeContent(
             }
         }
         
-        // NEW: Vertical Product Feed Section with Infinite Scroll
+        // Product Feed Section with Responsive Grid Layout
         when (val state = uiState.verticalProductFeedState) {
             is DataState.Success -> {
                 val products = state.data.products
                 if (products.isNotEmpty()) {
+
+                    
                     // Section title
-                    item(key = "vertical_products_title") {
+                    item(key = "products_section_title") {
+                        val selectedSubcategory = uiState.selectedSubcategoryId?.let { selectedId ->
+                            (uiState.subcategoriesState as? DataState.Success)?.data?.find { it.id == selectedId }
+                        }
+                        
                         Text(
-                            text = stringResource(R.string.more_products),
+                            text = selectedSubcategory?.name ?: stringResource(R.string.more_products),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
                     
-                    // Vertical product cards with infinite scroll and optimized recycling
+                    // Products grid section - use individual items instead of nested LazyVerticalGrid
+                    val productRows = products.chunked(2)
                     items(
-                        count = products.size,
-                        key = { index -> products[index].id },
-                        // Optimize item composition for better recycling (Requirements: 9.4)
-                        contentType = { "vertical_product_card" }
+                        count = productRows.size,
+                        key = { index -> productRows[index].firstOrNull()?.id ?: "empty_row_$index" }
                     ) { index ->
-                        val product = products[index]
-                        
-                        // Trigger load more at 80% scroll position (Requirements: 4.1)
-                        if (index >= products.size - 5 && !uiState.isLoadingMore && uiState.hasMoreProducts) {
-                            LaunchedEffect(Unit) {
+                        val productRow = productRows[index]
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            productRow.forEach { product ->
+                                ProductCard(
+                                    product = product,
+                                    cartQuantity = cartQuantities[product.id] ?: 0,
+                                    isInWishlist = wishlistProductIds.contains(product.id),
+                                    onClick = { onProductClick(product) },
+                                    onAddToCart = { onAddToCart(product.id) },
+                                    onIncrementCart = { onIncrementCart(product.id) },
+                                    onDecrementCart = { onDecrementCart(product.id) },
+                                    onToggleWishlist = { onToggleWishlist(product) },
+                                    hapticFeedback = hapticFeedback,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            
+                            // Add spacer if odd number of products in last row
+                            if (productRow.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    
+                    // Trigger load more when we're near the end of products
+                    if (!uiState.isLoadingMore && uiState.hasMoreProducts && products.size >= 10) {
+                        item(key = "load_more_trigger") {
+                            LaunchedEffect(products.size) {
                                 onLoadMoreProducts()
                             }
                         }
-                        
-                        com.shambit.customer.ui.components.VerticalProductCard(
-                            product = product,
-                            cartQuantity = cartQuantities[product.id] ?: 0,
-                            isInWishlist = wishlistProductIds.contains(product.id),
-                            onClick = { onProductClick(product) },
-                            onAddToCart = { onAddToCart(product.id) },
-                            onIncrementCart = { onIncrementCart(product.id) },
-                            onDecrementCart = { onDecrementCart(product.id) },
-                            onToggleWishlist = { onToggleWishlist(product) },
-                            onProductImpression = onProductImpression,
-                            hapticFeedback = hapticFeedback,
-                            showFadeInAnimation = index >= products.size - 10, // Show animation for recently loaded items
-                            animationIndex = index, // Staggered animation timing
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
                     }
                     
                     // Loading more indicator (Requirements: 4.2)
                     if (uiState.isLoadingMore) {
-                        items(
-                            count = 3,
-                            key = { index -> "loading_more_$index" },
-                            contentType = { "loading_skeleton" }
-                        ) { index ->
-                            com.shambit.customer.ui.components.VerticalProductCardSkeleton(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        item(key = "loading_more_products") {
+                            ProductGridSkeleton(
+                                modifier = Modifier.padding(16.dp),
+                                itemCount = 4
                             )
                         }
                     }
                     
                     // Pagination error state (Requirements: 11.2, 4.3)
                     if (uiState.error != null && uiState.isLoadingMore) {
-                        item {
+                        item(key = "pagination_error") {
                             com.shambit.customer.ui.components.PaginationErrorState(
-                                message = uiState.error!!,
+                                message = uiState.error,
                                 onRetry = onRetryPaginationLoading
                             )
                         }
@@ -793,22 +818,11 @@ private fun HomeContent(
                 }
             }
             is DataState.Loading -> {
-                // Initial loading state
-                item(key = "product_feed_loading_title") {
-                    Text(
-                        text = stringResource(R.string.more_products),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                items(
-                    count = 3,
-                    key = { index -> "product_feed_loading_$index" },
-                    contentType = { "loading_skeleton" }
-                ) { index ->
-                    com.shambit.customer.ui.components.VerticalProductCardSkeleton(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                // Initial loading state with grid skeleton
+                item(key = "product_feed_loading") {
+                    ProductGridSkeleton(
+                        modifier = Modifier.padding(16.dp),
+                        itemCount = 6
                     )
                 }
             }

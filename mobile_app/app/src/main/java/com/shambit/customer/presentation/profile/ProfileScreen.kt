@@ -35,6 +35,7 @@ fun ProfileScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToHome: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
+    onNavigateToCategories: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -57,7 +58,7 @@ fun ProfileScreen(
                 onNavigate = { route ->
                     when (route) {
                         com.shambit.customer.navigation.Screen.Home.route -> onNavigateToHome()
-                        com.shambit.customer.navigation.Screen.Search.route -> onNavigateToSearch()
+                        com.shambit.customer.ui.components.NavigationRoutes.CATEGORIES -> onNavigateToCategories()
                         com.shambit.customer.navigation.Screen.Wishlist.route -> onNavigateToWishlist()
                         // Profile is already selected, no action needed
                     }

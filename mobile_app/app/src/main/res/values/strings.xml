@@ -48,6 +48,19 @@
     <string name="shop_by_category">Shop by Category</string>
     <string name="view_all">View All</string>
     <string name="no_featured_products">No featured products available. Check logs for details.</string>
+    
+    <!-- Categories Screen -->
+    <string name="discover_categories">Discover Categories</string>
+    <string name="browse_our_wide_selection">Browse our wide selection of quality products</string>
+    <string name="explore_products_in_category">Explore products in this category</string>
+    <string name="subcategories_count">%d subcategories</string>
+    <string name="products_available">Products available</string>
+    <string name="view_category">View category</string>
+    <string name="no_categories_available">No categories available</string>
+    <string name="check_back_later_for_categories">Check back later for new categories</string>
+    <string name="error_load_categories">Failed to load categories</string>
+    <string name="error_refresh_categories">Failed to refresh categories</string>
+    <string name="search">Search</string>
     <string name="made_with_love_by_shambit">Made with ❤️ by ShamBit</string>
     
     <!-- Error Messages -->
