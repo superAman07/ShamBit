@@ -102,6 +102,28 @@ function handleError(error: unknown, res: Response, defaultMessage: string) {
   }
 }
 
+/**
+ * Get customer statistics
+ * GET /api/v1/admin/customers/statistics
+ * Admin only
+ */
+router.get(
+  '/statistics',
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const statistics = await customerService.getCustomerStatistics();
+
+      res.json({
+        success: true,
+        data: statistics,
+      });
+    } catch (error) {
+      handleError(error, res, 'Failed to fetch customer statistics');
+    }
+  })
+);
+
 export default router;
 
 /**

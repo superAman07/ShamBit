@@ -5,19 +5,19 @@ const features = [
     {
         icon: <Leaf className="w-8 h-8 text-green-500" />,
         title: "Farm Fresh",
-        description: "Sourced directly from verified growers who care about quality.",
+        description: "Building connections with verified growers who care about quality.",
         color: "bg-green-50"
     },
     {
         icon: <CheckCircle2 className="w-8 h-8 text-[#FB6F92]" />,
-        title: "Quality Checked",
-        description: "Every item passes a strict quality test before it reaches you.",
+        title: "Quality First",
+        description: "Every seller is personally verified before joining our platform.",
         color: "bg-pink-50"
     },
     {
         icon: <Truck className="w-8 h-8 text-blue-500" />,
-        title: "Swift Delivery",
-        description: "Goodness delivered to your doorstep with care and speed.",
+        title: "Community Focus",
+        description: "Supporting local food vendors and building trust together.",
         color: "bg-blue-50"
     }
 ];

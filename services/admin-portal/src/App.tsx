@@ -25,6 +25,8 @@ import { BrandFormPage } from '@/features/brands/BrandFormPage'
 import SettingsPage from '@/features/settings/SettingsPage'
 import { CustomerListPage } from '@/features/customers/CustomerListPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
+import SellersListPage from '@/features/sellers/SellersListPage'
+import EnhancedDashboard from '@/features/dashboard/EnhancedDashboard'
 
 const theme = createTheme({
   palette: {
@@ -100,6 +102,14 @@ function App() {
               }
             />
             <Route
+              path="/enhanced-dashboard"
+              element={
+                <ProtectedRoute>
+                  <EnhancedDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/reports"
               element={
                 <ProtectedRoute>
@@ -121,6 +131,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CustomerListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sellers"
+              element={
+                <ProtectedRoute>
+                  <SellersListPage />
                 </ProtectedRoute>
               }
             />

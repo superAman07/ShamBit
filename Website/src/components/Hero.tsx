@@ -42,8 +42,8 @@ export const Hero = () => {
                 </h1>
 
                 <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                    A trusted marketplace for verified food sellers. <br />
-                    <span className="font-medium text-[#FB6F92]">Fresh. Verified. Reliable.</span>
+                    A new marketplace dedicated to connecting verified food sellers with conscious buyers. <br />
+                    <span className="font-medium text-[#FB6F92]">Fresh. Verified. Delivered with Care.</span>
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-8">

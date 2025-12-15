@@ -6,7 +6,8 @@ import { Features } from './components/Features';
 import { TrustSection } from './components/TrustSection';
 import { Footer } from './components/Footer';
 import { SellerForm } from './components/Registration/SellerForm';
-import { NotifyMe } from './components/NotifyMe';
+
+import { Statistics } from './components/Statistics';
 
 function App() {
   const sellerFormRef = useRef<HTMLDivElement>(null);
@@ -21,9 +22,8 @@ function App() {
       <Hero />
       <CategoryPreview />
       <Features />
-      <div className="bg-gradient-to-b from-transparent to-white/50 backdrop-blur-sm">
-        <NotifyMe />
-      </div>
+      <Statistics />
+
       <div ref={sellerFormRef} className="scroll-mt-24">
         <SellerForm />
       </div>

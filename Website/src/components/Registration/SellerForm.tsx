@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, CheckCircle, Store, User, MapPin } from 'lucide-react';
+import { API_ENDPOINTS } from '../../config/api';
 
 export const SellerForm = () => {
     const [step, setStep] = useState(1);
@@ -19,15 +20,22 @@ export const SellerForm = () => {
         e.preventDefault();
         setStatus('loading');
         try {
-            const res = await fetch('http://localhost:3000/api/register-seller', {
+            const res = await fetch(API_ENDPOINTS.SELLERS.REGISTER, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
 
-            if (res.ok) setStatus('success');
-            else setStatus('error');
-        } catch {
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                setStatus('success');
+            } else {
+                console.error('Registration failed:', data.message);
+                setStatus('error');
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
             setStatus('error');
         }
     };
@@ -39,8 +47,8 @@ export const SellerForm = () => {
         return (
             <div className="max-w-2xl mx-auto p-12 text-center bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 my-10">
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-800">Registration Received!</h2>
-                <p className="text-gray-600 mt-2">Our team will verify your details and contact you shortly.</p>
+                <h2 className="text-2xl font-bold text-gray-800">Welcome to ShamBit!</h2>
+                <p className="text-gray-600 mt-2">Thank you for joining us as a founding seller. We'll review your application and get back to you within 24 hours.</p>
             </div>
         );
     }
@@ -49,9 +57,9 @@ export const SellerForm = () => {
         <section id="become-seller" className="py-20 px-4">
             <div className="max-w-2xl mx-auto">
                 <div className="text-center mb-10">
-                    <span className="bg-[#FB6F92]/10 text-[#FB6F92] px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wide">Join the Revolution</span>
-                    <h2 className="text-3xl md:text-4xl font-bold text-[#333] mt-3">Become a Verified Seller</h2>
-                    <p className="text-gray-600 mt-2">Zero commission for the first 3 months. Professional onboarding.</p>
+                    <span className="bg-[#FB6F92]/10 text-[#FB6F92] px-4 py-1 rounded-full text-sm font-bold uppercase tracking-wide">Be Among the First</span>
+                    <h2 className="text-3xl md:text-4xl font-bold text-[#333] mt-3">Become a Founding Seller</h2>
+                    <p className="text-gray-600 mt-2">Zero commission for the first 6 months. Be part of our launch journey.</p>
                 </div>
 
                 <div className="bg-white/90 backdrop-blur-xl border border-white rounded-3xl shadow-2xl overflow-hidden p-8">

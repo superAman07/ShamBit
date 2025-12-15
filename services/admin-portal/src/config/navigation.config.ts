@@ -16,6 +16,8 @@ import {
   Settings as SettingsIcon,
   People as CustomersIcon,
   Assessment as ReportsIcon,
+  Store as SellersIcon,
+  Analytics as EnhancedDashboardIcon,
 } from '@mui/icons-material';
 
 export interface NavigationItem {
@@ -41,6 +43,7 @@ export const NAVIGATION_CONFIG = {
       title: 'Overview',
       items: [
         { text: 'Dashboard', icon: DashboardIcon, path: '/dashboard' },
+        { text: 'Enhanced Dashboard', icon: EnhancedDashboardIcon, path: '/enhanced-dashboard' },
         { text: 'Reports', icon: ReportsIcon, path: '/reports' },
       ]
     },
@@ -51,6 +54,7 @@ export const NAVIGATION_CONFIG = {
         { text: 'Orders', icon: OrdersIcon, path: '/orders' },
         { text: 'Delivery', icon: DeliveryIcon, path: '/delivery' },
         { text: 'Customers', icon: CustomersIcon, path: '/customers' },
+        { text: 'Sellers', icon: SellersIcon, path: '/sellers' },
       ]
     },
     {

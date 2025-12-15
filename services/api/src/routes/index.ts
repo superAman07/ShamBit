@@ -23,6 +23,7 @@ import cartRoutes from './cart.routes';
 import customerRoutes from './customer.routes';
 import reportsRoutes from './reports.routes';
 import offerAnalyticsRoutes from './offer-analytics.routes';
+import sellerRoutes from './seller.routes';
 
 const router = Router();
 
@@ -50,5 +51,6 @@ router.use('/cart', cartRoutes);
 router.use('/admin/customers', customerRoutes);
 router.use('/admin/reports', reportsRoutes);
 router.use('/offer-analytics', offerAnalyticsRoutes);
+router.use('/sellers', sellerRoutes);
 
 export default router;

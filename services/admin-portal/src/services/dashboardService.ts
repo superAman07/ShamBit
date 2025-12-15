@@ -27,6 +27,20 @@ class DashboardService {
   }
 
   /**
+   * Get seller statistics for dashboard
+   */
+  async getSellerStatistics(): Promise<any> {
+    return apiService.get<any>('/sellers/statistics/overview');
+  }
+
+  /**
+   * Get buyer statistics for dashboard
+   */
+  async getBuyerStatistics(): Promise<any> {
+    return apiService.get<any>('/admin/customers/statistics');
+  }
+
+  /**
    * Get recent orders
    * @param limit Number of orders to fetch
    */
