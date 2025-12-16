@@ -12,7 +12,7 @@ export const Header = () => {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="fixed top-0 left-0 right-0 z-[9999] bg-white shadow-lg w-full border-0 outline-0"
+            className="fixed top-0 left-0 right-0 z-[9999] bg-white shadow-sm w-full border-0 outline-0"
             role="banner"
             aria-label="Main navigation"
             style={{
@@ -119,6 +119,23 @@ export const Header = () => {
                         >
                             Careers
                         </a>
+                        
+                        {/* Visit Marketplace Button - Prominent */}
+                        <motion.a 
+                            href="https://marketplace.shambit.com" 
+                            className="relative px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                            whileHover={{ scale: 1.08, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            aria-label="Visit ShamBit Marketplace"
+                        >
+                            <span className="relative z-10 flex items-center gap-2">
+                                🛒 Visit Marketplace
+                            </span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-green-700 to-green-800 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full animate-bounce" aria-hidden="true">
+                                <div className="w-2 h-2 bg-yellow-500 rounded-full absolute top-1 left-1"></div>
+                            </div>
+                        </motion.a>
                     </nav>
 
                     {/* Right Side - Enhanced */}
@@ -153,7 +170,7 @@ export const Header = () => {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="lg:hidden bg-white border-t border-gray-200 shadow-lg"
+                    className="lg:hidden bg-white border-t border-gray-100 shadow-sm"
                     id="mobile-menu"
                     role="navigation"
                     aria-label="Mobile navigation menu"
@@ -174,6 +191,11 @@ export const Header = () => {
                             </a>
                             <a href="#careers" className="block py-3 px-4 text-blue-600 hover:text-orange-600 hover:bg-blue-50 font-semibold transition-all rounded-lg">
                                 Careers
+                            </a>
+                            
+                            {/* Visit Marketplace Button - Mobile */}
+                            <a href="https://marketplace.shambit.com" className="block py-4 px-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-xl shadow-md text-center">
+                                🛒 Visit Marketplace
                             </a>
                             
                             {/* Mobile Contact Info */}
