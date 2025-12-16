@@ -1,34 +1,27 @@
-import { useRef } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
-import { CategoryPreview } from './components/CategoryPreview';
-import { Features } from './components/Features';
-import { TrustSection } from './components/TrustSection';
+import { Categories } from './components/Categories';
+import { WhyShamBit } from './components/WhyShamBit';
+import { HowItWorks } from './components/HowItWorks';
+import { SocialProof } from './components/SocialProof';
+import { SellerCTA } from './components/SellerCTA';
+import { Newsletter } from './components/Newsletter';
 import { Footer } from './components/Footer';
-import { SellerForm } from './components/Registration/SellerForm';
-
-import { Statistics } from './components/Statistics';
 
 function App() {
-  const sellerFormRef = useRef<HTMLDivElement>(null);
-
-  const scrollToSellerForm = () => {
-    sellerFormRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <main className="min-h-screen font-sans selection:bg-[#FB6F92] selection:text-white flex flex-col overflow-x-hidden">
-      <Header onJoinClick={scrollToSellerForm} />
-      <Hero />
-      <CategoryPreview />
-      <Features />
-      <Statistics />
-
-      <div ref={sellerFormRef} className="scroll-mt-24">
-        <SellerForm />
+    <main className="min-h-screen font-sans selection:bg-[#FF6F61] selection:text-white flex flex-col overflow-x-hidden">
+      <Header />
+      <div className="pt-0"> {/* Content wrapper to ensure proper spacing */}
+        <Hero />
+        <WhyShamBit />
+        <HowItWorks />
+        <Categories />
+        <SocialProof />
+        <SellerCTA />
+        <Newsletter />
+        <Footer />
       </div>
-      <TrustSection />
-      <Footer />
     </main>
   );
 }

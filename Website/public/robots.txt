@@ -1,0 +1,27 @@
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://shambit.com/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /private/
+Disallow: /*.json$
+Disallow: /*?*
+
+# Allow important pages
+Allow: /
+Allow: /about
+Allow: /categories
+Allow: /sell
+Allow: /careers
+Allow: /contact
+
+# Block specific bots if needed
+# User-agent: BadBot
+# Disallow: /

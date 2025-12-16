@@ -4,20 +4,120 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--production=false"
 
+# Security Headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.google-analytics.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https:; frame-ancestors 'none';"
+
+# Cache Control for Static Assets
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "*.webp"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# HTML Cache Control
+[[headers]]
+  for = "*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# API Redirects
 [[redirects]]
   from = "/api/*"
   to = "https://your-api-domain.com/api/:splat"
   status = 200
   force = true
 
+# SEO Redirects
+[[redirects]]
+  from = "/home"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/index"
+  to = "/"
+  status = 301
+
+# Trailing slash redirects
+[[redirects]]
+  from = "/about/"
+  to = "/about"
+  status = 301
+
+[[redirects]]
+  from = "/categories/"
+  to = "/categories"
+  status = 301
+
+# SPA Fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
+# Environment Variables
 [context.production.environment]
   NODE_ENV = "production"
+  VITE_APP_ENV = "production"
+  VITE_GA_TRACKING_ID = "G-XXXXXXXXXX"
 
 [context.deploy-preview.environment]
   NODE_ENV = "development"
+  VITE_APP_ENV = "staging"
+
+[context.branch-deploy.environment]
+  NODE_ENV = "development"
+  VITE_APP_ENV = "development"
+
+# Build Processing
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
+[build.processing.html]
+  pretty_urls = true
+
+[build.processing.images]
+  compress = true

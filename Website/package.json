@@ -6,10 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:analyze": "npm run build && npx vite-bundle-analyzer dist/stats.html",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "start": "node server/index.js",
-    "start:prod": "NODE_ENV=production node server/index.js"
+    "start:prod": "NODE_ENV=production node server/index.js",
+    "seo:validate": "echo 'Run SEO validation tools after build'",
+    "seo:sitemap": "echo 'Generate sitemap - update dates in public/sitemap.xml'",
+    "security:check": "echo 'Run security audit - check https://securityheaders.com'",
+    "performance:test": "echo 'Test performance - use Lighthouse or PageSpeed Insights'",
+    "accessibility:test": "echo 'Test accessibility - use axe or WAVE tools'",
+    "deploy:staging": "npm run build && echo 'Deploy to staging environment'",
+    "deploy:production": "npm run build && npm run seo:validate && echo 'Deploy to production'"
   },
   "dependencies": {
     "framer-motion": "^12.23.26",
