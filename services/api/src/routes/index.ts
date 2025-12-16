@@ -24,6 +24,7 @@ import customerRoutes from './customer.routes';
 import reportsRoutes from './reports.routes';
 import offerAnalyticsRoutes from './offer-analytics.routes';
 import sellerRoutes from './seller.routes';
+import newsletterRoutes from './newsletter.routes';
 
 const router = Router();
 
@@ -52,5 +53,6 @@ router.use('/admin/customers', customerRoutes);
 router.use('/admin/reports', reportsRoutes);
 router.use('/offer-analytics', offerAnalyticsRoutes);
 router.use('/sellers', sellerRoutes);
+router.use('/newsletter', newsletterRoutes);
 
 export default router;

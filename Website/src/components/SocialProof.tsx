@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Star, Shield, CheckCircle, Leaf, Award } from 'lucide-react';
+import { Star, Shield, CheckCircle, Award } from 'lucide-react';
 
 export const SocialProof = () => {
     const qualityProcesses = [
@@ -29,58 +29,9 @@ export const SocialProof = () => {
         }
     ];
 
-    const trustBadges = [
-        {
-            icon: Shield,
-            title: "SSL Secure",
-            description: "Bank-level encryption"
-        },
-        {
-            icon: CheckCircle,
-            title: "Verified Sellers",
-            description: "Every seller reviewed"
-        },
-        {
-            icon: Award,
-            title: "Buyer Protection",
-            description: "Purchase guarantee"
-        },
-        {
-            icon: Leaf,
-            title: "Eco-Certified",
-            description: "Carbon-neutral shipping"
-        }
-    ];
-
     return (
         <section className="section-padding bg-white">
             <div className="container-max">
-                {/* Trust Badges */}
-                <motion.div
-                    initial={{ opacity: 0, y: 30 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6 }}
-                    viewport={{ once: true }}
-                    className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"
-                >
-                    {trustBadges.map((badge, index) => (
-                        <motion.div
-                            key={index}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            whileInView={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.4, delay: index * 0.1 }}
-                            viewport={{ once: true }}
-                            whileHover={{ y: -2, scale: 1.02 }}
-                            className="text-center p-4 bg-[#F5F7FA] rounded-xl hover:shadow-md transition-all duration-300"
-                        >
-                            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center mx-auto mb-2 shadow-sm">
-                                <badge.icon className="w-5 h-5 text-[#FF6F61]" />
-                            </div>
-                            <h4 className="font-bold text-gray-900 text-sm mb-1">{badge.title}</h4>
-                            <p className="text-xs text-gray-700 font-medium">{badge.description}</p>
-                        </motion.div>
-                    ))}
-                </motion.div>
 
                 {/* How We Ensure Genuine Products */}
                 <motion.div

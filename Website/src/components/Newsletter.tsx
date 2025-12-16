@@ -1,7 +1,59 @@
 import { motion } from 'framer-motion';
-import { Lock } from 'lucide-react';
+import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
 
 export const Newsletter = () => {
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [message, setMessage] = useState('');
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (!email || !email.includes('@')) {
+            setStatus('error');
+            setMessage('Please enter a valid email address');
+            return;
+        }
+
+        setIsLoading(true);
+        setStatus('idle');
+        setMessage('');
+
+        try {
+            const response = await fetch('/api/v1/newsletter/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    source: 'website',
+                    metadata: {
+                        page: 'homepage',
+                        timestamp: new Date().toISOString()
+                    }
+                }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setStatus('success');
+                setMessage('🎉 Welcome aboard! You\'re now subscribed to our newsletter.');
+                setEmail('');
+            } else {
+                setStatus('error');
+                setMessage(data.message || 'Something went wrong. Please try again.');
+            }
+        } catch (error) {
+            setStatus('error');
+            setMessage('Network error. Please check your connection and try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
     return (
         <section className="section-padding bg-gradient-to-br from-violet-100 via-fuchsia-50 to-pink-100 relative overflow-hidden">
             {/* Animated background elements */}
@@ -97,8 +149,9 @@ export const Newsletter = () => {
                                 <span className="bg-gradient-to-r from-purple-600 to-violet-700 bg-clip-text text-transparent font-bold"> sustainability</span>.
                             </motion.p>
                             
-                            {/* Enhanced Email Signup */}
-                            <motion.div
+                            {/* Enhanced Email Signup Form */}
+                            <motion.form
+                                onSubmit={handleSubmit}
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.6, delay: 0.3 }}
@@ -108,36 +161,85 @@ export const Newsletter = () => {
                                 <motion.input
                                     whileFocus={{ scale: 1.02 }}
                                     type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     placeholder="Your email address"
-                                    className="flex-1 px-6 py-4 border-2 border-violet-200 rounded-2xl bg-white/90 backdrop-blur-sm text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-violet-300/50 focus:border-violet-400 transition-all duration-300 font-medium shadow-lg text-lg"
+                                    disabled={isLoading || status === 'success'}
+                                    className="flex-1 px-6 py-4 border-2 border-violet-200 rounded-2xl bg-white/90 backdrop-blur-sm text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-violet-300/50 focus:border-violet-400 transition-all duration-300 font-medium shadow-lg text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                 />
                                 <motion.button
-                                    whileHover={{ 
+                                    type="submit"
+                                    disabled={isLoading || status === 'success'}
+                                    whileHover={!isLoading && status !== 'success' ? { 
                                         scale: 1.05, 
                                         y: -2,
                                         boxShadow: "0 15px 35px rgba(0,0,0,0.2)"
-                                    }}
-                                    whileTap={{ scale: 0.95 }}
-                                    animate={{
+                                    } : {}}
+                                    whileTap={!isLoading && status !== 'success' ? { scale: 0.95 } : {}}
+                                    animate={!isLoading && status !== 'success' ? {
                                         boxShadow: [
                                             "0 8px 25px rgba(139, 92, 246, 0.3)",
                                             "0 12px 35px rgba(139, 92, 246, 0.4)",
                                             "0 8px 25px rgba(139, 92, 246, 0.3)"
                                         ]
-                                    }}
+                                    } : {}}
                                     transition={{ 
                                         boxShadow: { duration: 3, repeat: Infinity }
                                     }}
-                                    className="px-8 py-4 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 text-white font-bold text-lg rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 whitespace-nowrap relative overflow-hidden border-2 border-white/30"
+                                    className={`px-8 py-4 font-bold text-lg rounded-2xl shadow-xl transition-all duration-300 whitespace-nowrap relative overflow-hidden border-2 border-white/30 disabled:cursor-not-allowed ${
+                                        status === 'success' 
+                                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                                            : 'bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 text-white hover:shadow-2xl'
+                                    }`}
                                 >
-                                    <motion.div
-                                        animate={{ rotate: 360 }}
-                                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-2 rounded-xl bg-gradient-to-r from-white/10 to-transparent"
-                                    />
-                                    <span className="relative z-10">Sign Me Up</span>
+                                    {!isLoading && status !== 'success' && (
+                                        <motion.div
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                                            className="absolute inset-2 rounded-xl bg-gradient-to-r from-white/10 to-transparent"
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-2">
+                                        {isLoading ? (
+                                            <>
+                                                <motion.div
+                                                    animate={{ rotate: 360 }}
+                                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                                    className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                                                />
+                                                Signing Up...
+                                            </>
+                                        ) : status === 'success' ? (
+                                            <>
+                                                <CheckCircle className="w-5 h-5" />
+                                                Subscribed!
+                                            </>
+                                        ) : (
+                                            'Sign Me Up'
+                                        )}
+                                    </span>
                                 </motion.button>
-                            </motion.div>
+                            </motion.form>
+
+                            {/* Status Message */}
+                            {message && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className={`mb-6 p-4 rounded-xl flex items-center gap-3 max-w-lg mx-auto ${
+                                        status === 'success' 
+                                            ? 'bg-green-50 border-2 border-green-200 text-green-800' 
+                                            : 'bg-red-50 border-2 border-red-200 text-red-800'
+                                    }`}
+                                >
+                                    {status === 'success' ? (
+                                        <CheckCircle className="w-5 h-5 text-green-600" />
+                                    ) : (
+                                        <AlertCircle className="w-5 h-5 text-red-600" />
+                                    )}
+                                    <span className="font-medium">{message}</span>
+                                </motion.div>
+                            )}
                             
                             {/* Security Badge */}
                             <motion.div 

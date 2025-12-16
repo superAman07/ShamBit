@@ -48,6 +48,14 @@ export default defineConfig({
       'X-XSS-Protection': '1; mode=block',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
     },
+    // Proxy API requests to backend
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   
   preview: {

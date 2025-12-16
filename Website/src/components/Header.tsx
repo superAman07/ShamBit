@@ -59,7 +59,7 @@ export const Header = () => {
                         whileHover={{ scale: 1.02 }}
                     >
                         <a href="/" className="flex items-center gap-4 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 rounded-lg" aria-label="ShamBit homepage">
-                            <div className="flex items-center justify-center w-14 h-14 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-xl shadow-lg">
+                            <div className="flex items-center justify-center w-14 h-14 bg-white rounded-xl shadow-lg">
                                 <img
                                     src={logo}
                                     alt="ShamBit Logo - Premium Food Marketplace"
@@ -72,7 +72,7 @@ export const Header = () => {
                                     <span className="font-bold bg-gradient-to-r from-orange-300 via-yellow-300 to-amber-300 bg-clip-text text-transparent">Sham</span>
                                     <span className="font-bold bg-gradient-to-r from-cyan-300 via-blue-300 to-indigo-300 bg-clip-text text-transparent">Bit</span>
                                 </div>
-                                <div className="text-xs text-cyan-200 font-medium">Commerce Platform</div>
+                                <div className="text-xs text-white font-medium">Commerce Platform</div>
                             </div>
                         </a>
                     </motion.div>
@@ -81,7 +81,7 @@ export const Header = () => {
                     <nav className="hidden lg:flex items-center gap-8" role="navigation" aria-label="Main navigation">
                         <a
                             href="#categories"
-                            className="text-cyan-100 hover:text-orange-300 font-medium transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 rounded px-2 py-1"
+                            className="text-white hover:text-orange-300 font-medium transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 rounded px-2 py-1"
                             aria-label="Browse food categories"
                         >
                             Browse Categories
@@ -101,14 +101,14 @@ export const Header = () => {
 
                         <a
                             href="#about"
-                            className="text-cyan-100 hover:text-blue-300 font-medium transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded px-2 py-1"
+                            className="text-white hover:text-blue-300 font-medium transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded px-2 py-1"
                             aria-label="Learn about ShamBit"
                         >
                             About
                         </a>
                         <a
                             href="#careers"
-                            className="text-blue-200 hover:text-orange-300 font-semibold transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded px-2 py-1"
+                            className="text-white hover:text-orange-300 font-semibold transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 rounded px-2 py-1"
                             aria-label="View career opportunities"
                         >
                             Careers

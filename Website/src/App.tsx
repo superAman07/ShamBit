@@ -1,7 +1,6 @@
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { Categories } from './components/Categories';
-import { WhyShamBit } from './components/WhyShamBit';
 import { HowItWorks } from './components/HowItWorks';
 import { SocialProof } from './components/SocialProof';
 import { SellerCTA } from './components/SellerCTA';
@@ -14,7 +13,6 @@ function App() {
       <Header />
       <div> {/* Content wrapper */}
         <Hero />
-        <WhyShamBit />
         <HowItWorks />
         <Categories />
         <SocialProof />

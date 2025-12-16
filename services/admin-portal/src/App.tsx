@@ -27,6 +27,7 @@ import { CustomerListPage } from '@/features/customers/CustomerListPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
 import SellersListPage from '@/features/sellers/SellersListPage'
 import EnhancedDashboard from '@/features/dashboard/EnhancedDashboard'
+import { NewsletterDashboard } from '@/features/newsletter/NewsletterDashboard'
 
 const theme = createTheme({
   palette: {
@@ -254,7 +255,14 @@ function App() {
                 </ProtectedRoute>
               }
             />
-
+            <Route
+              path="/newsletter"
+              element={
+                <ProtectedRoute>
+                  <NewsletterDashboard />
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

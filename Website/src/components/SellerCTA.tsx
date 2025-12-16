@@ -107,6 +107,97 @@ export const SellerCTA = () => {
                         </motion.div>
                     </motion.button>
                     
+                    {/* Why Choose ShamBit Section */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.6, delay: 0.2 }}
+                        viewport={{ once: true }}
+                        className="mb-12"
+                    >
+                        <h3 className="text-2xl md:text-3xl font-bold text-center mb-8">
+                            <span className="bg-gradient-to-r from-gray-800 to-gray-700 bg-clip-text text-transparent">
+                                Why Sellers Choose 
+                            </span>
+                            <span className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent"> Sham</span>
+                            <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">Bit</span>
+                        </h3>
+                        
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                            {[
+                                {
+                                    icon: CheckCircle,
+                                    title: "No Hidden Charges",
+                                    description: "Transparent pricing with no surprise penalties. What you see is what you pay - always.",
+                                    color: "green"
+                                },
+                                {
+                                    icon: FileText,
+                                    title: "Very Low Commissions",
+                                    description: "Affordable onboarding fees and competitive commission rates designed for small sellers to thrive.",
+                                    color: "blue"
+                                },
+                                {
+                                    icon: Users,
+                                    title: "Simple Dashboard",
+                                    description: "Built specifically for first-time online sellers. Easy to use, no technical expertise required.",
+                                    color: "purple"
+                                },
+                                {
+                                    icon: Shield,
+                                    title: "Human Support",
+                                    description: "Real people, not just automated tickets. Get help when you need it from our dedicated support team.",
+                                    color: "orange"
+                                }
+                            ].map((benefit, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.4, delay: index * 0.1 }}
+                                    viewport={{ once: true }}
+                                    whileHover={{ y: -4, scale: 1.02 }}
+                                    className="group cursor-pointer"
+                                >
+                                    <div className={`
+                                        relative p-4 rounded-2xl h-full text-center
+                                        ${benefit.color === 'green' ? 'bg-gradient-to-br from-green-50/95 via-emerald-50/95 to-teal-50/95 border-green-200/50 shadow-green-200/40 hover:shadow-green-300/60' :
+                                          benefit.color === 'blue' ? 'bg-gradient-to-br from-blue-50/95 via-indigo-50/95 to-cyan-50/95 border-blue-200/50 shadow-blue-200/40 hover:shadow-blue-300/60' :
+                                          benefit.color === 'purple' ? 'bg-gradient-to-br from-purple-50/95 via-violet-50/95 to-fuchsia-50/95 border-purple-200/50 shadow-purple-200/40 hover:shadow-purple-300/60' :
+                                          'bg-gradient-to-br from-orange-50/95 via-amber-50/95 to-yellow-50/95 border-orange-200/50 shadow-orange-200/40 hover:shadow-orange-300/60'
+                                        } backdrop-blur-sm shadow-xl border-2 hover:shadow-2xl transition-all duration-500 transform-gpu
+                                    `}>
+                                        <motion.div 
+                                            whileHover={{ scale: 1.15, rotate: [0, -5, 5, -5, 0] }}
+                                            className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg border-2 border-white/40 transition-all duration-300 transform-gpu relative overflow-hidden z-10
+                                                ${benefit.color === 'green' ? 'bg-gradient-to-br from-green-400 to-emerald-600 shadow-green-400/50' :
+                                                  benefit.color === 'blue' ? 'bg-gradient-to-br from-blue-400 to-indigo-600 shadow-blue-400/50' :
+                                                  benefit.color === 'purple' ? 'bg-gradient-to-br from-purple-400 to-fuchsia-600 shadow-purple-400/50' :
+                                                  'bg-gradient-to-br from-orange-400 to-yellow-600 shadow-orange-400/50'
+                                                }
+                                            `}
+                                        >
+                                            <benefit.icon className="w-6 h-6 text-white drop-shadow-lg relative z-10" />
+                                        </motion.div>
+                                        
+                                        <h4 className={`text-lg font-bold mb-2 relative z-10 ${
+                                            benefit.color === 'green' ? 'bg-gradient-to-r from-green-700 to-emerald-800 bg-clip-text text-transparent' :
+                                            benefit.color === 'blue' ? 'bg-gradient-to-r from-blue-700 to-indigo-800 bg-clip-text text-transparent' :
+                                            benefit.color === 'purple' ? 'bg-gradient-to-r from-purple-700 to-fuchsia-800 bg-clip-text text-transparent' :
+                                            'bg-gradient-to-r from-orange-700 to-amber-800 bg-clip-text text-transparent'
+                                        }`}>
+                                            {benefit.title}
+                                        </h4>
+                                        
+                                        <p className="text-sm text-gray-600 leading-relaxed font-medium relative z-10">
+                                            {benefit.description}
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </motion.div>
+
                     {/* Feature Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                         {[

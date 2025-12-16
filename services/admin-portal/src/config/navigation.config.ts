@@ -18,6 +18,7 @@ import {
   Assessment as ReportsIcon,
   Store as SellersIcon,
   Analytics as EnhancedDashboardIcon,
+  Email as NewsletterIcon,
 } from '@mui/icons-material';
 
 export interface NavigationItem {
@@ -55,6 +56,12 @@ export const NAVIGATION_CONFIG = {
         { text: 'Delivery', icon: DeliveryIcon, path: '/delivery' },
         { text: 'Customers', icon: CustomersIcon, path: '/customers' },
         { text: 'Sellers', icon: SellersIcon, path: '/sellers' },
+      ]
+    },
+    {
+      title: 'Marketing',
+      items: [
+        { text: 'Newsletter', icon: NewsletterIcon, path: '/newsletter' },
       ]
     },
     {

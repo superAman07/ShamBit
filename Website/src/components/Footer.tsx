@@ -9,85 +9,112 @@ export const Footer = () => {
             viewport={{ once: true }}
             className="bg-[#142E60] text-[#F5F5F5]"
         >
-            {/* App Download Section */}
-            <div className="bg-gray-50 py-8">
+            {/* Modern Mobile App Section */}
+            <div className="bg-gradient-to-r from-slate-100 to-blue-100 py-8 border-b border-gray-200">
                 <div className="container-max">
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                        {/* Download App Section */}
-                        <div className="flex flex-col sm:flex-row items-center gap-6">
-                            <h3 className="text-lg font-semibold text-gray-800">
-                                Download App
+                    <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+                        {/* Compact Header */}
+                        <div className="text-center mb-6">
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                Experience ShamBit on Mobile
                             </h3>
-                            <div className="flex gap-4">
+                            <p className="text-gray-600 text-sm">
+                                Shop and sell on the go with our mobile app
+                            </p>
+                        </div>
+                        
+                        {/* Single Row Layout */}
+                        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                            {/* App Store Buttons */}
+                            <div className="flex gap-3">
                                 <motion.a
                                     href="#"
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                     className="block"
                                 >
-                                    <div className="bg-black text-white px-6 py-3 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition-colors">
-                                        <div className="text-2xl">📱</div>
-                                        <div>
-                                            <div className="text-xs text-gray-300">Download on the</div>
-                                            <div className="text-sm font-semibold">App Store</div>
+                                    <div className="bg-black text-white px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 min-w-[130px]">
+                                        <div className="w-6 h-6 bg-white/10 rounded flex items-center justify-center">
+                                            <span className="text-sm">📱</span>
+                                        </div>
+                                        <div className="text-left">
+                                            <div className="text-xs text-gray-300 leading-tight">Download on the</div>
+                                            <div className="text-sm font-semibold leading-tight">App Store</div>
                                         </div>
                                     </div>
                                 </motion.a>
+                                
                                 <motion.a
                                     href="#"
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                     className="block"
                                 >
-                                    <div className="bg-black text-white px-6 py-3 rounded-lg flex items-center gap-3 hover:bg-gray-800 transition-colors">
-                                        <div className="text-2xl">▶️</div>
-                                        <div>
-                                            <div className="text-xs text-gray-300">Get it on</div>
-                                            <div className="text-sm font-semibold">Google Play</div>
+                                    <div className="bg-black text-white px-4 py-2.5 rounded-lg flex items-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 min-w-[130px]">
+                                        <div className="w-6 h-6 bg-white/10 rounded flex items-center justify-center">
+                                            <span className="text-sm">▶️</span>
+                                        </div>
+                                        <div className="text-left">
+                                            <div className="text-xs text-gray-300 leading-tight">Get it on</div>
+                                            <div className="text-sm font-semibold leading-tight">Google Play</div>
                                         </div>
                                     </div>
                                 </motion.a>
                             </div>
-                        </div>
+                            
+                            {/* Features - Inline */}
+                            <div className="flex flex-wrap justify-center gap-4 lg:gap-6">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <span className="text-gray-700 text-sm font-medium">Fast & Secure Shopping</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    <span className="text-gray-700 text-sm font-medium">Easy Selling Tools</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                    <span className="text-gray-700 text-sm font-medium">Instant Notifications</span>
+                                </div>
+                            </div>
 
-                        {/* Social Media Section */}
-                        <div className="flex items-center gap-6">
-                            <h3 className="text-lg font-semibold text-gray-800">
-                                Follow Us
-                            </h3>
-                            <div className="flex gap-3">
-                                <motion.a
-                                    href="#"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
-                                >
-                                    <span className="text-sm font-bold">f</span>
-                                </motion.a>
-                                <motion.a
-                                    href="#"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-black transition-colors"
-                                >
-                                    <span className="text-sm font-bold">𝕏</span>
-                                </motion.a>
-                                <motion.a
-                                    href="#"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-pink-500 transition-colors"
-                                >
-                                    <span className="text-sm font-bold">📷</span>
-                                </motion.a>
-                                <motion.a
-                                    href="#"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors"
-                                >
-                                    <span className="text-sm font-bold">in</span>
-                                </motion.a>
+                            {/* Social Media */}
+                            <div className="flex items-center gap-3">
+                                <span className="text-gray-900 font-semibold text-sm">Follow Us</span>
+                                <div className="flex gap-2">
+                                    <motion.a
+                                        href="#"
+                                        whileHover={{ scale: 1.1, y: -1 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:bg-blue-700 transition-all duration-200"
+                                    >
+                                        <span className="text-xs font-bold">f</span>
+                                    </motion.a>
+                                    <motion.a
+                                        href="#"
+                                        whileHover={{ scale: 1.1, y: -1 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:bg-black transition-all duration-200"
+                                    >
+                                        <span className="text-xs font-bold">𝕏</span>
+                                    </motion.a>
+                                    <motion.a
+                                        href="#"
+                                        whileHover={{ scale: 1.1, y: -1 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 text-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                    >
+                                        <span className="text-xs">📷</span>
+                                    </motion.a>
+                                    <motion.a
+                                        href="#"
+                                        whileHover={{ scale: 1.1, y: -1 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        className="w-8 h-8 bg-blue-700 text-white rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:bg-blue-800 transition-all duration-200"
+                                    >
+                                        <span className="text-xs font-bold">in</span>
+                                    </motion.a>
+                                </div>
                             </div>
                         </div>
                     </div>

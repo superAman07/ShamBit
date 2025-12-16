@@ -105,7 +105,7 @@ export const Categories = () => {
                     </motion.p>
                 </motion.div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
                     {categories.map((category, index) => (
                         <motion.div
                             key={index}
@@ -113,7 +113,7 @@ export const Categories = () => {
                             whileInView={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: index * 0.1 }}
                             viewport={{ once: true }}
-                            whileHover={{ y: -4, scale: 1.02 }}
+                            whileHover={{ y: -8, scale: 1.05 }}
                             className="group cursor-pointer"
                         >
                             <div className={`

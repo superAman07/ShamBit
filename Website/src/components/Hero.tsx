@@ -1,31 +1,22 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Shield, Leaf, Lock, Star, Heart, Zap, Award, Users, Globe, Truck, CreditCard, CheckCircle, Sparkles, Gift } from 'lucide-react';
+import { ArrowRight, Shield, Leaf, Lock, Heart, Zap, Award, Users, Globe } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import logo from '../assets/logo.png';
 
 export const Hero = () => {
-    // 15 ShamBit benefits organized in 3 groups of 5
+    // 8 key ShamBit benefits organized in 2 groups of 4
     const benefitGroups = [
         [
+            { icon: Shield, text: "Verified sellers", color: "text-blue-500" },
             { icon: Lock, text: "Secure payments", color: "text-green-500" },
-            { icon: Shield, text: "Buyer protection", color: "text-blue-500" },
-            { icon: Leaf, text: "Eco-friendly", color: "text-green-500" },
-            { icon: Star, text: "Premium quality", color: "text-yellow-500" },
-            { icon: Heart, text: "Community driven", color: "text-pink-500" }
+            { icon: Award, text: "Quality assured", color: "text-purple-500" },
+            { icon: Leaf, text: "Eco-friendly", color: "text-green-500" }
         ],
         [
             { icon: Zap, text: "Lightning fast", color: "text-orange-500" },
-            { icon: Award, text: "Verified sellers", color: "text-purple-500" },
             { icon: Users, text: "Trusted community", color: "text-blue-500" },
             { icon: Globe, text: "Pan-India delivery", color: "text-green-500" },
-            { icon: Truck, text: "Affordable shipping options", color: "text-orange-500" }
-        ],
-        [
-            { icon: CreditCard, text: "Easy payments", color: "text-blue-500" },
-            { icon: CheckCircle, text: "Quality assured", color: "text-green-500" },
-            { icon: Sparkles, text: "Premium experience", color: "text-purple-500" },
-            { icon: Gift, text: "Special rewards", color: "text-pink-500" },
-            { icon: Heart, text: "Made with love", color: "text-red-500" }
+            { icon: Heart, text: "Community driven", color: "text-pink-500" }
         ]
     ];
 
@@ -39,7 +30,7 @@ export const Hero = () => {
                 setCurrentGroupIndex((prev) => (prev + 1) % benefitGroups.length);
                 setIsAnimating(false);
             }, 2000); // 2 seconds for complete transition
-        }, 8000); // Change every 8 seconds - 6 seconds visible, 2 seconds transition
+        }, 6000); // Change every 6 seconds - 4 seconds visible, 2 seconds transition
 
         return () => clearInterval(interval);
     }, []);
@@ -210,7 +201,7 @@ export const Hero = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6, delay: 1 }}
                     >
-                        <AnimatePresence mode="wait">
+                        <AnimatePresence>
                             {currentBenefits.map((benefit, index) => {
                                 const IconComponent = benefit.icon;
                                 return (
@@ -291,52 +282,32 @@ export const Hero = () => {
                         </AnimatePresence>
                     </motion.div>
 
-                    {/* Get the App Now - Beautiful Android App Download */}
+                    {/* Call to Action Buttons */}
                     <motion.div 
-                        className="mt-6"
+                        className="mt-6 flex flex-col sm:flex-row gap-4 justify-center items-center"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6, delay: 1.2 }}
                     >
-                        <div className="text-center">
-                            <p className="text-sm text-gray-600 mb-3">Experience ShamBit on the go</p>
-                            <motion.a
-                                href="#"
-                                className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all group"
-                                whileHover={{ scale: 1.05, y: -2 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                <div className="flex items-center gap-3">
-                                    {/* Android Icon */}
-                                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                                        <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1518-.5972.416.416 0 00-.5972.1518l-2.0223 3.503C15.5902 8.2439 13.8533 7.8508 12 7.8508s-3.5902.3931-5.1333 1.0989L4.8442 5.4467a.4161.4161 0 00-.5972-.1518.416.416 0 00-.1518.5972L6.0952 9.321C3.7155 10.7605 2.25 13.1043 2.25 15.75h19.5c0-2.6457-1.4655-5.9895-3.8455-7.4295"/>
-                                        </svg>
-                                    </div>
-                                    <div className="text-left">
-                                        <div className="text-xs text-green-100">Get it on</div>
-                                        <div className="text-sm font-bold">Google Play</div>
-                                    </div>
-                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                            </motion.a>
-                            
-                            {/* App Features */}
-                            <div className="flex justify-center gap-6 mt-4 text-xs text-gray-500">
-                                <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span>Fast & Secure</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    <span>Easy Shopping</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                                    <span>Instant Notifications</span>
-                                </div>
-                            </div>
-                        </div>
+                        <motion.a
+                            href="#categories"
+                            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all group font-semibold"
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <span>Start Shopping</span>
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </motion.a>
+                        
+                        <motion.a
+                            href="#sell"
+                            className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all group font-semibold"
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <span>Start Selling</span>
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </motion.a>
                     </motion.div>
                 </div>
             </div>
