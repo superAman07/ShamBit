@@ -12,7 +12,7 @@ function App() {
   return (
     <main className="min-h-screen font-sans selection:bg-[#FF6F61] selection:text-white flex flex-col overflow-x-hidden">
       <Header />
-      <div className="pt-0"> {/* Content wrapper to ensure proper spacing */}
+      <div> {/* Content wrapper */}
         <Hero />
         <WhyShamBit />
         <HowItWorks />

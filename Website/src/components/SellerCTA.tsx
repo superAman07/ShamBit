@@ -89,7 +89,7 @@ export const SellerCTA = () => {
                         }}
                         transition={{ 
                             boxShadow: { duration: 3, repeat: Infinity },
-                            hover: { type: "spring", stiffness: 400, damping: 10 }
+                            type: "spring", stiffness: 400, damping: 10
                         }}
                         className="inline-flex items-center gap-4 px-10 py-5 bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-3xl transition-all duration-300 mb-12 relative overflow-hidden border-2 border-white/30"
                     >

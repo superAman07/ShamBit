@@ -181,7 +181,7 @@ export const Categories = () => {
                                     }}
                                     transition={{ 
                                         boxShadow: { duration: 4, repeat: Infinity },
-                                        hover: { type: "spring", stiffness: 400, damping: 10 }
+                                        type: "spring", stiffness: 400, damping: 10
                                     }}
                                     className={`w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2 
                                         shadow-xl border-2 border-white/40

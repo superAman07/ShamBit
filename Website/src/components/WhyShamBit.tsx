@@ -154,7 +154,7 @@ export const WhyShamBit = () => {
                                     }}
                                     transition={{ 
                                         boxShadow: { duration: 3, repeat: Infinity },
-                                        hover: { type: "spring", stiffness: 400, damping: 10 }
+                                        type: "spring", stiffness: 400, damping: 10
                                     }}
                                     className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-2 
                                         shadow-2xl border-2 border-white/40

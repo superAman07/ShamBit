@@ -12,12 +12,12 @@
   --color-accent-coral-light: #FCD34D;
   --color-accent-eco: #10B981;
   --color-accent-amber: #F59E0B;
-  
+
   /* Background colors */
   --color-bg-main: #FFFFFF;
   --color-bg-section: #F5F7FA;
   --color-border: #E5E7EB;
-  
+
   /* Text colors */
   --color-text-heading: #333333;
   --color-text-body: #334155;
@@ -31,7 +31,8 @@ body {
   font-family: var(--font-family-sans);
   font-display: swap;
   /* Compensate for fixed header */
-  padding-top: 120px; /* Approximate header height */
+  padding-top: 116px;
+  /* Approximate header height */
 }
 
 /* Fixed header styles to prevent address bar conflicts */
@@ -42,23 +43,30 @@ body {
   right: 0 !important;
   width: 100% !important;
   z-index: 9999 !important;
-  transform: translateZ(0); /* Force hardware acceleration */
-  backface-visibility: hidden; /* Prevent flickering */
+  transform: translateZ(0);
+  /* Force hardware acceleration */
+  backface-visibility: hidden;
+  /* Prevent flickering */
   border: none !important;
   outline: none !important;
 }
 
-/* Prevent black lines on header */
+/* Clean header styling - no borders or lines */
 header {
   border: none !important;
   outline: none !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: #ffffff !important;
 }
 
 /* Remove any default browser styling that might cause black lines */
-header * {
+header *,
+header *::before,
+header *::after {
   border-top: none !important;
   border-bottom: none !important;
+  box-shadow: none !important;
 }
 
 /* Specific fix for potential black line at top */
@@ -74,10 +82,13 @@ html {
   padding: 0 !important;
   border: none !important;
   outline: none !important;
+  background-color: var(--color-bg-main);
+  /* Ensure no dark canvas shows through */
 }
 
 /* Mobile viewport handling */
 @supports (-webkit-touch-callout: none) {
+
   /* iOS Safari specific fixes */
   .fixed-header {
     position: -webkit-sticky !important;
@@ -89,51 +100,62 @@ html {
 /* Responsive header compensation */
 @media (max-width: 768px) {
   body {
-    padding-top: 140px; /* More space on mobile for contact bar */
+    padding-top: 140px;
+    /* More space on mobile for contact bar */
   }
 }
 
 /* Typography System - Blueprint Specifications */
 .text-hero {
-  font-size: 2rem; /* 32px mobile */
-  font-weight: 700; /* Inter Bold */
+  font-size: 2rem;
+  /* 32px mobile */
+  font-weight: 700;
+  /* Inter Bold */
   line-height: 1.1;
   color: var(--color-text-heading);
 }
 
 @media (min-width: 768px) {
   .text-hero {
-    font-size: 3rem; /* 48px desktop */
+    font-size: 3rem;
+    /* 48px desktop */
   }
 }
 
 .text-section-heading {
-  font-size: 1.5rem; /* 24px mobile */
-  font-weight: 600; /* Inter SemiBold */
+  font-size: 1.5rem;
+  /* 24px mobile */
+  font-weight: 600;
+  /* Inter SemiBold */
   color: var(--color-text-heading);
 }
 
 @media (min-width: 768px) {
   .text-section-heading {
-    font-size: 2rem; /* 32px desktop */
+    font-size: 2rem;
+    /* 32px desktop */
   }
 }
 
 .text-subheading {
-  font-size: 1.125rem; /* 18px mobile */
-  font-weight: 400; /* Inter Regular */
+  font-size: 1.125rem;
+  /* 18px mobile */
+  font-weight: 400;
+  /* Inter Regular */
   color: var(--color-text-body);
   line-height: 1.5;
 }
 
 @media (min-width: 768px) {
   .text-subheading {
-    font-size: 1.25rem; /* 20px desktop */
+    font-size: 1.25rem;
+    /* 20px desktop */
   }
 }
 
 .text-body {
-  font-size: 1rem; /* 16px minimum */
+  font-size: 1rem;
+  /* 16px minimum */
   font-weight: 400;
   color: var(--color-text-body);
   line-height: 1.5;
@@ -164,8 +186,10 @@ html {
   color: white;
   padding: 0.75rem 1.5rem;
   border-radius: 0.75rem;
-  font-weight: 600; /* Inter SemiBold */
-  font-size: 1rem; /* 16px */
+  font-weight: 600;
+  /* Inter SemiBold */
+  font-size: 1rem;
+  /* 16px */
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
   transition: all 0.2s ease;
   border: none;
@@ -183,8 +207,10 @@ html {
   border: 2px solid var(--color-border);
   padding: 0.75rem 1.5rem;
   border-radius: 0.75rem;
-  font-weight: 500; /* Inter Medium */
-  font-size: 1rem; /* 16px */
+  font-weight: 500;
+  /* Inter Medium */
+  font-size: 1rem;
+  /* 16px */
   transition: all 0.2s ease;
   cursor: pointer;
 }
@@ -215,7 +241,8 @@ html {
   background-color: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 0.75rem;
-  font-size: 0.875rem; /* 14px */
+  font-size: 0.875rem;
+  /* 14px */
   font-weight: 500;
   color: var(--color-text-body);
   backdrop-filter: blur(15px);
@@ -243,6 +270,7 @@ html {
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -254,13 +282,15 @@ html {
 }
 
 /* Accessibility - Blueprint: 44×44px tap targets */
-button, a {
+button,
+a {
   min-height: 44px;
   min-width: 44px;
 }
 
 /* Focus styles for accessibility */
-button:focus-visible, a:focus-visible {
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--color-accent-coral);
   outline-offset: 2px;
 }
@@ -279,6 +309,7 @@ button:focus-visible, a:focus-visible {
   font-family: 'Playfair Display', serif;
   font-weight: 900;
 }
+
 /* ===== ACCESSIBILITY STYLES ===== */
 
 /* Screen reader only content */
@@ -319,13 +350,13 @@ button:focus-visible, a:focus-visible {
     --color-bg-main: #ffffff;
     --color-border: #000000;
   }
-  
+
   .btn-primary {
     background: #000000;
     color: #ffffff;
     border: 2px solid #000000;
   }
-  
+
   .btn-secondary {
     background: #ffffff;
     color: #000000;
@@ -335,6 +366,7 @@ button:focus-visible, a:focus-visible {
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -343,7 +375,7 @@ button:focus-visible, a:focus-visible {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  
+
   .animate-fade-in-up {
     animation: none;
   }
@@ -405,8 +437,13 @@ select[aria-invalid="true"] {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* ===== SEO & PERFORMANCE STYLES ===== */
@@ -426,8 +463,13 @@ img {
 }
 
 @keyframes loading {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Print styles */
@@ -435,13 +477,13 @@ img {
   .no-print {
     display: none !important;
   }
-  
+
   body {
     padding-top: 0;
     background: white;
     color: black;
   }
-  
+
   a[href]:after {
     content: " (" attr(href) ")";
   }
@@ -457,7 +499,7 @@ img {
     --color-text-muted: #a3a3a3;
     --color-border: #404040;
   }
-  
+
   .trust-badge {
     background-color: rgba(42, 42, 42, 0.95);
     border-color: rgba(64, 64, 64, 0.5);
@@ -509,6 +551,7 @@ img {
   content-visibility: auto;
   contain-intrinsic-size: 0 500px;
 }
+
 /* Text shadow utilities for better contrast */
 .text-shadow-sm {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);

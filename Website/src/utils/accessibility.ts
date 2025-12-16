@@ -167,7 +167,7 @@ export const reducedMotion = {
   },
   
   // Apply animation only if motion is not reduced
-  conditionalAnimation: (element: HTMLElement, animation: () => void) => {
+  conditionalAnimation: (_element: HTMLElement, animation: () => void) => {
     if (!reducedMotion.prefersReducedMotion()) {
       animation();
     }

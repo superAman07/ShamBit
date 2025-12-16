@@ -73,7 +73,7 @@ export const SEOHead = ({
 // Hook for dynamic SEO updates
 export const useSEO = (seoData: SEOHeadProps) => {
   useEffect(() => {
-    const seoComponent = SEOHead(seoData);
+    SEOHead(seoData);
     return () => {
       // Cleanup if needed
     };
