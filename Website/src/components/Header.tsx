@@ -23,7 +23,7 @@ export const Header = () => {
             aria-label="Main navigation"
         >
             {/* Top Contact Bar */}
-            <div className="bg-gradient-to-r from-teal-600 to-cyan-600 py-2">
+            <div className="bg-gradient-to-r from-teal-500 via-emerald-500 to-cyan-500 py-2">
                 <div className="max-w-7xl mx-auto px-4">
                     <div className="flex items-center justify-center md:justify-between text-white text-sm font-medium">
                         {/* Contact Information */}
@@ -90,8 +90,8 @@ export const Header = () => {
                         <motion.a
                             href="#sell"
                             className="relative px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             aria-label="Start selling with ShamBit"
                         >
                             <span className="relative z-10">Sell With Us</span>
@@ -116,17 +116,17 @@ export const Header = () => {
 
                         <motion.a
                             href="https://marketplace.shambit.com"
-                            className="relative px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2"
-                            whileHover={{ scale: 1.08, y: -2 }}
-                            whileTap={{ scale: 0.95 }}
+                            className="relative px-6 py-3 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 group focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-2"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             aria-label="Visit ShamBit Marketplace"
                         >
                             <span className="relative z-10 flex items-center gap-2">
                                 🛒 Visit Marketplace
                             </span>
-                            <div className="absolute inset-0 bg-gradient-to-r from-emerald-700 to-teal-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-300 rounded-full animate-bounce" aria-hidden="true">
-                                <div className="w-2 h-2 bg-yellow-400 rounded-full absolute top-1 left-1"></div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-pink-600 via-rose-600 to-orange-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-yellow-300 to-amber-300 rounded-full animate-bounce shadow-md" aria-hidden="true">
+                                <div className="w-2 h-2 bg-gradient-to-r from-yellow-400 to-amber-400 rounded-full absolute top-1 left-1"></div>
                             </div>
                         </motion.a>
                     </nav>
@@ -135,8 +135,8 @@ export const Header = () => {
                     <div className="flex items-center gap-4">
                         <motion.button
                             className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
                             aria-label="Login to your account"
                         >
                             Login
@@ -184,7 +184,7 @@ export const Header = () => {
                                 Careers
                             </a>
 
-                            <a href="https://marketplace.shambit.com" className="block py-4 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl shadow-md text-center">
+                            <a href="https://marketplace.shambit.com" className="block py-4 px-4 bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 text-white font-bold rounded-xl shadow-lg text-center">
                                 🛒 Visit Marketplace
                             </a>
 

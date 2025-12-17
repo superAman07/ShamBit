@@ -100,7 +100,7 @@ html {
 /* Responsive header compensation */
 @media (max-width: 768px) {
   body {
-    padding-top: 140px;
+    padding-top: 160px;
     /* More space on mobile for contact bar */
   }
 }
