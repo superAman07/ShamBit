@@ -22,8 +22,23 @@ export const API_BASE_URL = getApiBaseUrl();
 export const API_ENDPOINTS = {
   SELLERS: {
     REGISTER: `${API_BASE_URL}/sellers/register`,
+    VERIFY_MOBILE: `${API_BASE_URL}/sellers/verify-mobile`,
+    VERIFY_MOBILE_OTP: `${API_BASE_URL}/sellers/verify-mobile-otp`,
     LIST: `${API_BASE_URL}/sellers`,
     STATISTICS: `${API_BASE_URL}/sellers/statistics/overview`,
+  },
+  SMS: {
+    SEND_OTP: `${API_BASE_URL}/sms/send-otp`,
+    VERIFY_OTP: `${API_BASE_URL}/sms/verify-otp`,
+    SEND_NOTIFICATION: `${API_BASE_URL}/sms/send-notification`,
+  },
+  SELLER_AUTH: {
+    LOGIN: `${API_BASE_URL}/seller-auth/login`,
+    VERIFY_OTP: `${API_BASE_URL}/seller-auth/verify-otp`,
+    CAPTCHA: `${API_BASE_URL}/seller-auth/captcha`,
+    FORGOT_PASSWORD: `${API_BASE_URL}/seller-auth/forgot-password`,
+    RESET_PASSWORD: `${API_BASE_URL}/seller-auth/reset-password`,
+    RESEND_OTP: `${API_BASE_URL}/seller-auth/resend-otp`,
   },
   HEALTH: `${API_BASE_URL.replace('/api/v1', '')}/health`,
 } as const;
