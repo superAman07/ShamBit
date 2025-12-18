@@ -942,6 +942,64 @@ export class InventoryService {
 
 
   /**
+   * Get inventory for a specific seller
+   */
+  async getSellerInventory(sellerId: string, query: any): Promise<any> {
+    try {
+      let baseQuery = getDb()('inventory')
+        .join('products', 'inventory.product_id', 'products.id')
+        .leftJoin('categories', 'products.category_id', 'categories.id')
+        .where('products.seller_id', sellerId);
+
+      // Apply filters
+      if (query.search) {
+        baseQuery = baseQuery.where(function(this: any) {
+          this.where('products.name', 'ilike', `%${query.search}%`)
+              .orWhere('products.sku', 'ilike', `%${query.search}%`);
+        });
+      }
+
+      if (query.stockLevel) {
+        baseQuery = baseQuery.where('inventory.stock_level', query.stockLevel);
+      }
+
+      // Get total count
+      const [{ count }] = await baseQuery.clone().count('inventory.id as count');
+      const total = parseInt(count as string);
+
+      // Get paginated results
+      const offset = (query.page - 1) * query.pageSize;
+      const inventory = await baseQuery
+        .select(
+          'inventory.*',
+          'products.id as product_id',
+          'products.name as product_name',
+          'products.sku as product_sku',
+          'products.unit_size as product_unit_size',
+          'products.image_urls as product_image_urls',
+          'categories.id as category_id',
+          'categories.name as category_name'
+        )
+        .orderBy('products.name', 'asc')
+        .limit(query.pageSize)
+        .offset(offset);
+
+      return {
+        inventory: inventory.map(this.mapToInventory.bind(this)),
+        pagination: {
+          page: query.page,
+          pageSize: query.pageSize,
+          totalItems: total,
+          totalPages: Math.ceil(total / query.pageSize)
+        }
+      };
+    } catch (error) {
+      logger.error('Error getting seller inventory', { error, sellerId });
+      throw new AppError('Failed to get seller inventory', 500, 'SELLER_INVENTORY_ERROR');
+    }
+  }
+
+  /**
    * Map database row to InventoryHistory object
    */
   private mapToInventoryHistory(row: any): InventoryHistory {

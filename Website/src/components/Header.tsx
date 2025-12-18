@@ -88,7 +88,7 @@ export const Header = () => {
                         </a>
 
                         <motion.a
-                            href="#sell"
+                            href="/seller/register"
                             className="relative px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -133,14 +133,15 @@ export const Header = () => {
 
                     {/* Right Side */}
                     <div className="flex items-center gap-4">
-                        <motion.button
-                            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                        <motion.a
+                            href="/seller/login"
+                            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 inline-block"
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             aria-label="Login to your account"
                         >
-                            Login
-                        </motion.button>
+                            Seller Login
+                        </motion.a>
 
                         <button
                             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -173,7 +174,7 @@ export const Header = () => {
                                 Browse Categories
                             </a>
 
-                            <a href="#sell" className="block py-3 px-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md">
+                            <a href="/seller/register" className="block py-3 px-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md">
                                 Sell With Us ⭐
                             </a>
 

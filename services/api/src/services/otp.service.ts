@@ -1,113 +1,43 @@
-import { createLogger, RateLimitError, UnauthorizedError } from '@shambit/shared';
-import { getConfig } from '@shambit/config';
+import { getDatabase } from '@shambit/database';
 
-const logger = createLogger('otp-service');
-
-/**
- * Generate a 6-digit OTP
- */
-const generateOTP = (): string => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-interface OTPData {
+interface OTPRecord {
+  identifier: string;
   otp: string;
-  expiresAt: number;
+  purpose: string;
+  expiresAt: Date;
+  attempts: number;
 }
 
-interface AttemptData {
-  count: number;
-  expiresAt: number;
-}
-
-/**
- * OTP Service for managing OTP generation, storage, and verification
- * Uses in-memory storage (suitable for single-server startup deployment)
- */
-export class OTPService {
-  private otpStore = new Map<string, OTPData>();
-  private attemptStore = new Map<string, AttemptData>();
-  private OTP_TTL = 300000; // 5 minutes in milliseconds
-  private MAX_ATTEMPTS = 3;
-  private ATTEMPT_WINDOW = 600000; // 10 minutes in milliseconds
-
-  /**
-   * Clean up expired entries
-   */
-  private cleanupExpired(): void {
-    const now = Date.now();
-    
-    // Clean OTPs
-    for (const [key, data] of this.otpStore.entries()) {
-      if (data.expiresAt < now) {
-        this.otpStore.delete(key);
-      }
-    }
-    
-    // Clean attempts
-    for (const [key, data] of this.attemptStore.entries()) {
-      if (data.expiresAt < now) {
-        this.attemptStore.delete(key);
-      }
-    }
-  }
-
-  /**
-   * Check rate limiting for OTP requests
-   */
-  async checkRateLimit(mobileNumber: string): Promise<void> {
-    this.cleanupExpired();
-    
-    const attemptData = this.attemptStore.get(mobileNumber);
-    
-    if (attemptData && attemptData.count >= this.MAX_ATTEMPTS) {
-      throw new RateLimitError(
-        'Too many OTP requests. Please try again after 10 minutes',
-        'OTP_RATE_LIMIT_EXCEEDED'
-      );
-    }
-  }
-
-  /**
-   * Increment OTP request attempts
-   */
-  async incrementAttempts(mobileNumber: string): Promise<void> {
-    const now = Date.now();
-    const attemptData = this.attemptStore.get(mobileNumber);
-    
-    if (attemptData) {
-      attemptData.count++;
-    } else {
-      this.attemptStore.set(mobileNumber, {
-        count: 1,
-        expiresAt: now + this.ATTEMPT_WINDOW,
-      });
-    }
-  }
+class OTPService {
+  private readonly MAX_ATTEMPTS = 3;
+  private readonly OTP_LENGTH = 6;
 
   /**
    * Generate and store OTP
    */
-  async generateAndStoreOTP(mobileNumber: string): Promise<string> {
-    // Check rate limiting
-    await this.checkRateLimit(mobileNumber);
+  async generateOTP(identifier: string, purpose: string, expirySeconds: number = 300): Promise<string> {
+    const db = getDatabase();
     
-    // Generate OTP
-    const otp = generateOTP();
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Store OTP in memory with expiry
-    const now = Date.now();
-    this.otpStore.set(mobileNumber, {
+    // Calculate expiry time
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + expirySeconds);
+    
+    // Delete any existing OTP for this identifier and purpose
+    await db('otp_records')
+      .where({ identifier, purpose })
+      .delete();
+    
+    // Store new OTP
+    await db('otp_records').insert({
+      identifier,
       otp,
-      expiresAt: now + this.OTP_TTL,
-    });
-    
-    // Increment attempts
-    await this.incrementAttempts(mobileNumber);
-    
-    logger.info('OTP generated and stored', {
-      mobileNumber,
-      expiresIn: this.OTP_TTL / 1000,
+      purpose,
+      expires_at: expiresAt,
+      attempts: 0,
+      created_at: new Date(),
     });
     
     return otp;
@@ -116,46 +46,96 @@ export class OTPService {
   /**
    * Verify OTP
    */
-  async verifyOTP(mobileNumber: string, otp: string): Promise<boolean> {
-    this.cleanupExpired();
+  async verifyOTP(identifier: string, otp: string, purpose: string): Promise<boolean> {
+    const db = getDatabase();
     
-    const otpData = this.otpStore.get(mobileNumber);
+    // Get OTP record
+    const record = await db('otp_records')
+      .where({ identifier, purpose })
+      .first();
     
-    if (!otpData) {
-      throw new UnauthorizedError(
-        'OTP expired or not found. Please request a new OTP',
-        'OTP_EXPIRED'
-      );
+    if (!record) {
+      return false;
     }
     
-    const now = Date.now();
-    if (otpData.expiresAt < now) {
-      this.otpStore.delete(mobileNumber);
-      throw new UnauthorizedError(
-        'OTP expired. Please request a new OTP',
-        'OTP_EXPIRED'
-      );
+    // Check if expired
+    if (new Date() > new Date(record.expires_at)) {
+      await db('otp_records').where({ id: record.id }).delete();
+      return false;
     }
     
-    if (otpData.otp !== otp) {
-      throw new UnauthorizedError('Invalid OTP', 'INVALID_OTP');
+    // Check attempts
+    if (record.attempts >= this.MAX_ATTEMPTS) {
+      await db('otp_records').where({ id: record.id }).delete();
+      return false;
     }
     
-    // Delete OTP after successful verification
-    this.otpStore.delete(mobileNumber);
+    // Increment attempts
+    await db('otp_records')
+      .where({ id: record.id })
+      .update({ attempts: record.attempts + 1 });
     
-    // Clear rate limit attempts
-    this.attemptStore.delete(mobileNumber);
+    // Verify OTP
+    if (record.otp === otp) {
+      // Delete OTP after successful verification
+      await db('otp_records').where({ id: record.id }).delete();
+      return true;
+    }
     
-    logger.info('OTP verified successfully', { mobileNumber });
-    
-    return true;
+    return false;
   }
 
   /**
-   * Delete OTP (for cleanup)
+   * Check if OTP can be resent (rate limiting)
    */
-  async deleteOTP(mobileNumber: string): Promise<void> {
-    this.otpStore.delete(mobileNumber);
+  async canResendOTP(identifier: string, purpose: string): Promise<boolean> {
+    const db = getDatabase();
+    
+    const record = await db('otp_records')
+      .where({ identifier, purpose })
+      .first();
+    
+    if (!record) {
+      return true;
+    }
+    
+    // Allow resend only after 60 seconds
+    const createdAt = new Date(record.created_at);
+    const now = new Date();
+    const secondsSinceCreation = (now.getTime() - createdAt.getTime()) / 1000;
+    
+    return secondsSinceCreation >= 60;
+  }
+
+  /**
+   * Clean up expired OTPs (should be run periodically)
+   */
+  async cleanupExpiredOTPs(): Promise<number> {
+    const db = getDatabase();
+    
+    const result = await db('otp_records')
+      .where('expires_at', '<', new Date())
+      .delete();
+    
+    return result;
+  }
+
+  /**
+   * Get remaining attempts for an OTP
+   */
+  async getRemainingAttempts(identifier: string, purpose: string): Promise<number> {
+    const db = getDatabase();
+    
+    const record = await db('otp_records')
+      .where({ identifier, purpose })
+      .first();
+    
+    if (!record) {
+      return 0;
+    }
+    
+    return Math.max(0, this.MAX_ATTEMPTS - record.attempts);
   }
 }
+
+export const otpService = new OTPService();

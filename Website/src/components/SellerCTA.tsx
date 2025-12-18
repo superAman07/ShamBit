@@ -73,7 +73,8 @@ export const SellerCTA = () => {
                     </motion.p>
                     
                     {/* Main CTA Button */}
-                    <motion.button
+                    <motion.a
+                        href="/seller/register"
                         whileHover={{ 
                             scale: 1.08, 
                             y: -5,
@@ -105,7 +106,7 @@ export const SellerCTA = () => {
                         >
                             <ArrowRight className="w-7 h-7" />
                         </motion.div>
-                    </motion.button>
+                    </motion.a>
                     
                     {/* Why Choose ShamBit Section */}
                     <motion.div

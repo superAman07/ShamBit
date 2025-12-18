@@ -1,16 +1,77 @@
 import { apiService } from './api';
+import { normalizeSellerData } from '../utils/sellerDataMigration';
 
 export interface Seller {
   id: string;
-  businessName: string;
-  businessType: string;
-  gstin?: string;
-  ownerName: string;
-  phone: string;
+  // Personal Details
+  fullName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  mobile?: string;
   email: string;
-  city: string;
+  
+  // Seller Type & Business Information
+  sellerType?: 'individual' | 'business';
+  businessType?: string;
+  businessName?: string;
+  natureOfBusiness?: string;
+  yearOfEstablishment?: number;
+  businessPhone?: string;
+  businessEmail?: string;
+  
+  // Product & Operational Information
+  primaryProductCategories?: string;
+  estimatedMonthlyOrderVolume?: string;
+  preferredPickupTimeSlots?: string;
+  maxOrderProcessingTime?: number;
+  
+  // Address Information
+  homeAddress?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    pinCode: string;
+  };
+  businessAddress?: {
+    sameAsHome: boolean;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    pinCode?: string;
+  };
+  warehouseAddress?: {
+    sameAsBusiness: boolean;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    pinCode?: string;
+  };
+  
+  // Tax & Compliance Details
+  gstRegistered?: boolean;
+  gstNumber?: string;
+  gstin?: string;
+  panNumber?: string;
+  panHolderName?: string;
+  tdsApplicable?: boolean;
+  aadhaarNumber?: string;
+  
+  // Bank Account Details
+  bankDetails?: {
+    accountHolderName: string;
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+    accountType: 'savings' | 'current';
+  };
+  
+  // System Fields
   status: 'pending' | 'approved' | 'rejected' | 'suspended';
   verificationNotes?: string;
+  documentsUploaded?: { [key: string]: string }; // Document type -> URL mapping
   createdAt: string;
   updatedAt: string;
   approvedAt?: string;
@@ -67,7 +128,13 @@ class SellerService {
     if (filters.businessType) params.businessType = filters.businessType;
 
     const response = await apiService.getAxiosInstance().get('/sellers', { params });
-    return response.data.data;
+    const data = response.data.data;
+    
+    // Normalize seller data for backward compatibility
+    return {
+      ...data,
+      sellers: data.sellers.map((seller: any) => normalizeSellerData(seller))
+    };
   }
 
   /**
@@ -75,11 +142,11 @@ class SellerService {
    */
   async getSellerById(id: string): Promise<Seller> {
     const response = await apiService.getAxiosInstance().get(`/sellers/${id}`);
-    return response.data.data;
+    return normalizeSellerData(response.data.data);
   }
 
   /**
-   * Update seller status
+   * Update seller status (legacy method - kept for compatibility)
    */
   async updateSellerStatus(
     id: string, 
@@ -89,6 +156,38 @@ class SellerService {
     const response = await apiService.getAxiosInstance().put(`/sellers/${id}/status`, {
       status,
       notes
+    });
+    return response.data.data;
+  }
+
+  /**
+   * Verify seller documents and update status (new comprehensive method)
+   */
+  async verifySellerDocuments(
+    id: string, 
+    action: 'approve' | 'reject' | 'hold', 
+    notes?: string,
+    adminId?: string
+  ): Promise<Seller> {
+    const response = await apiService.getAxiosInstance().put(`/sellers/${id}/verify`, {
+      action,
+      notes,
+      adminId
+    });
+    return response.data.data;
+  }
+
+  /**
+   * Upload seller document
+   */
+  async uploadSellerDocument(
+    sellerId: string, 
+    documentType: string, 
+    documentUrl: string
+  ): Promise<{ success: boolean }> {
+    const response = await apiService.getAxiosInstance().post(`/sellers/${sellerId}/documents`, {
+      documentType,
+      documentUrl
     });
     return response.data.data;
   }

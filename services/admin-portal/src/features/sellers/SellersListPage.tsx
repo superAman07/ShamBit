@@ -18,30 +18,22 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Grid,
-  Card,
-  CardContent,
   LinearProgress,
+  Tooltip,
 } from '@mui/material';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import {
   Search as SearchIcon,
   Visibility as ViewIcon,
-  CheckCircle as ApproveIcon,
-  Cancel as RejectIcon,
-  Block as SuspendIcon,
-  Store as StoreIcon,
-  TrendingUp as TrendingUpIcon,
-  People as PeopleIcon,
-  Schedule as PendingIcon,
+  Business as BusinessIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material';
 import { sellerService, Seller, SellerStatistics } from '../../services/sellerService';
 import { format } from 'date-fns';
+import SellerDetailsDialog from './SellerDetailsDialog';
+import SellerStatsDashboard from './SellerStatsDashboard';
+import SellerErrorBoundary from './SellerErrorBoundary';
 
 const SellersListPage: React.FC = () => {
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -54,9 +46,6 @@ const SellersListPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
-  const [actionType, setActionType] = useState<'approved' | 'rejected' | 'suspended'>('approved');
-  const [actionNotes, setActionNotes] = useState('');
 
   useEffect(() => {
     loadSellers();
@@ -90,21 +79,20 @@ const SellersListPage: React.FC = () => {
     }
   };
 
-  const handleStatusUpdate = async () => {
+  const handleVerification = async (action: 'approve' | 'reject' | 'hold', notes?: string) => {
     if (!selectedSeller) return;
 
     try {
-      await sellerService.updateSellerStatus(
+      await sellerService.verifySellerDocuments(
         selectedSeller.id,
-        actionType,
-        actionNotes || undefined
+        action,
+        notes
       );
-      setActionDialogOpen(false);
-      setActionNotes('');
       loadSellers();
       loadStatistics();
     } catch (error) {
-      console.error('Failed to update seller status:', error);
+      console.error('Failed to verify seller:', error);
+      throw error;
     }
   };
 
@@ -118,83 +106,24 @@ const SellersListPage: React.FC = () => {
     }
   };
 
-  const openActionDialog = (seller: Seller, action: 'approved' | 'rejected' | 'suspended') => {
+  const openSellerDetails = (seller: Seller) => {
     setSelectedSeller(seller);
-    setActionType(action);
-    setActionDialogOpen(true);
+    setViewDialogOpen(true);
   };
 
   return (
     <DashboardLayout>
+      <SellerErrorBoundary>
       <Box sx={{ p: 3 }}>
         <Typography variant="h4" gutterBottom>
           Seller Management
         </Typography>
 
-      {/* Statistics Cards */}
+      {/* Statistics Dashboard */}
       {statistics && (
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <StoreIcon sx={{ mr: 2, color: 'primary.main' }} />
-                  <Box>
-                    <Typography variant="h4">{statistics.total}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Sellers
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <PendingIcon sx={{ mr: 2, color: 'info.main' }} />
-                  <Box>
-                    <Typography variant="h4">{statistics.pending}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Pending Approval
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <PeopleIcon sx={{ mr: 2, color: 'success.main' }} />
-                  <Box>
-                    <Typography variant="h4">{statistics.approved}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Approved Sellers
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <TrendingUpIcon sx={{ mr: 2, color: 'warning.main' }} />
-                  <Box>
-                    <Typography variant="h4">{statistics.recentRegistrations}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      New This Month
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+        <Box sx={{ mb: 3 }}>
+          <SellerStatsDashboard statistics={statistics} />
+        </Box>
       )}
 
       {/* Filters */}
@@ -241,11 +170,11 @@ const SellersListPage: React.FC = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Business Name</TableCell>
-                <TableCell>Owner</TableCell>
+                <TableCell>Seller Info</TableCell>
                 <TableCell>Contact</TableCell>
-                <TableCell>City</TableCell>
-                <TableCell>Type</TableCell>
+                <TableCell>Business Details</TableCell>
+                <TableCell>Location</TableCell>
+                <TableCell>Product Categories</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Registration Date</TableCell>
                 <TableCell>Actions</TableCell>
@@ -253,29 +182,77 @@ const SellersListPage: React.FC = () => {
             </TableHead>
             <TableBody>
               {sellers.map((seller) => (
-                <TableRow key={seller.id}>
+                <TableRow key={seller.id} hover>
                   <TableCell>
-                    <Typography variant="subtitle2">{seller.businessName}</Typography>
-                    {seller.gstin && (
-                      <Typography variant="caption" color="text.secondary">
-                        GSTIN: {seller.gstin}
-                      </Typography>
-                    )}
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {(seller.sellerType === 'business' || seller.businessName) ? <BusinessIcon sx={{ mr: 1 }} /> : <PersonIcon sx={{ mr: 1 }} />}
+                      <Box>
+                        <Typography variant="subtitle2">
+                          {seller.businessName || seller.fullName || 'N/A'}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {seller.sellerType ? (seller.sellerType === 'business' ? 'Business' : 'Individual') : 'Legacy'}
+                          {seller.businessType && ` • ${seller.businessType}`}
+                        </Typography>
+                      </Box>
+                    </Box>
                   </TableCell>
-                  <TableCell>{seller.ownerName}</TableCell>
                   <TableCell>
                     <Typography variant="body2">{seller.email}</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {seller.phone}
+                      {seller.mobile || 'N/A'}
                     </Typography>
                   </TableCell>
-                  <TableCell>{seller.city}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={seller.businessType} 
-                      size="small" 
-                      variant="outlined"
-                    />
+                    <Box>
+                      {seller.gstRegistered && (
+                        <Chip label="GST Registered" size="small" color="success" sx={{ mb: 0.5 }} />
+                      )}
+                      {seller.yearOfEstablishment && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Est. {seller.yearOfEstablishment}
+                        </Typography>
+                      )}
+                      {seller.estimatedMonthlyOrderVolume && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Volume: {seller.estimatedMonthlyOrderVolume}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {seller.homeAddress ? (
+                      <>
+                        <Typography variant="body2">
+                          {seller.homeAddress.city}, {seller.homeAddress.state}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {seller.homeAddress.pinCode}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Address not available
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {seller.primaryProductCategories ? (
+                      <Tooltip title={seller.primaryProductCategories}>
+                        <Typography variant="body2" sx={{ 
+                          maxWidth: 150, 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {seller.primaryProductCategories}
+                        </Typography>
+                      </Tooltip>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Not specified
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -288,42 +265,14 @@ const SellersListPage: React.FC = () => {
                     {format(new Date(seller.createdAt), 'MMM dd, yyyy')}
                   </TableCell>
                   <TableCell>
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        setSelectedSeller(seller);
-                        setViewDialogOpen(true);
-                      }}
-                    >
-                      <ViewIcon />
-                    </IconButton>
-                    {seller.status === 'pending' && (
-                      <>
-                        <IconButton
-                          size="small"
-                          color="success"
-                          onClick={() => openActionDialog(seller, 'approved')}
-                        >
-                          <ApproveIcon />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => openActionDialog(seller, 'rejected')}
-                        >
-                          <RejectIcon />
-                        </IconButton>
-                      </>
-                    )}
-                    {seller.status === 'approved' && (
+                    <Tooltip title="View Details">
                       <IconButton
                         size="small"
-                        color="warning"
-                        onClick={() => openActionDialog(seller, 'suspended')}
+                        onClick={() => openSellerDetails(seller)}
                       >
-                        <SuspendIcon />
+                        <ViewIcon />
                       </IconButton>
-                    )}
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -343,82 +292,18 @@ const SellersListPage: React.FC = () => {
         />
       </Paper>
 
-      {/* View Seller Dialog */}
-      <Dialog open={viewDialogOpen} onClose={() => setViewDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Seller Details</DialogTitle>
-        <DialogContent>
-          {selectedSeller && (
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">Business Name</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.businessName}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">Owner Name</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.ownerName}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">Email</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.email}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">Phone</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.phone}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">City</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.city}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2">Business Type</Typography>
-                <Typography variant="body1" gutterBottom>{selectedSeller.businessType}</Typography>
-              </Grid>
-              {selectedSeller.gstin && (
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">GSTIN</Typography>
-                  <Typography variant="body1" gutterBottom>{selectedSeller.gstin}</Typography>
-                </Grid>
-              )}
-              {selectedSeller.verificationNotes && (
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Verification Notes</Typography>
-                  <Typography variant="body1" gutterBottom>{selectedSeller.verificationNotes}</Typography>
-                </Grid>
-              )}
-            </Grid>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Action Dialog */}
-      <Dialog open={actionDialogOpen} onClose={() => setActionDialogOpen(false)}>
-        <DialogTitle>
-          {actionType === 'approved' && 'Approve Seller'}
-          {actionType === 'rejected' && 'Reject Seller'}
-          {actionType === 'suspended' && 'Suspend Seller'}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Notes (optional)"
-            value={actionNotes}
-            onChange={(e) => setActionNotes(e.target.value)}
-            sx={{ mt: 2 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setActionDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleStatusUpdate} variant="contained">
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Seller Details Dialog */}
+      <SellerDetailsDialog
+        open={viewDialogOpen}
+        seller={selectedSeller}
+        onClose={() => {
+          setViewDialogOpen(false);
+          setSelectedSeller(null);
+        }}
+        onVerify={handleVerification}
+      />
       </Box>
+      </SellerErrorBoundary>
     </DashboardLayout>
   );
 };

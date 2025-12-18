@@ -38,6 +38,14 @@ export interface Product {
   isActive: boolean;
   isAvailable?: boolean; // Real-time stock availability
   stockQuantity?: number; // Aggregated available stock across all warehouses
+  
+  // Seller and verification fields
+  sellerId?: string;
+  verificationStatus?: 'pending' | 'approved' | 'rejected' | 'hold';
+  verificationNotes?: string;
+  verifiedBy?: string;
+  verifiedAt?: Date;
+  
   createdAt: Date;
   updatedAt: Date;
   
@@ -142,6 +150,13 @@ export interface UpdateProductDto {
   isFeatured?: boolean;
   isReturnable?: boolean;
   isSellable?: boolean;
+  
+  // Seller and verification fields
+  sellerId?: string;
+  verificationStatus?: 'pending' | 'approved' | 'rejected' | 'hold';
+  verificationNotes?: string;
+  verifiedBy?: string;
+  verifiedAt?: Date;
   
   imageUrls?: string[];
   isActive?: boolean;

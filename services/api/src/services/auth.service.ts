@@ -1,7 +1,7 @@
 import { createLogger, UnauthorizedError, BadRequestError } from '@shambit/shared';
 import { UserService } from './user.service';
-import { OTPService } from './otp.service';
-import { SMSService } from './sms.service';
+import { otpService } from './otp.service';
+import { smsService } from './sms.service';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { validateMobileNumber, validateOTP } from '../utils/validation';
 import { AuthTokens, User } from '../types/auth.types';
@@ -13,8 +13,8 @@ const logger = createLogger('auth-service');
  */
 export class AuthService {
   private userService = new UserService();
-  private otpService = new OTPService();
-  private smsService = new SMSService();
+  private otpService = otpService;
+  private smsService = smsService;
 
   /**
    * Register new user and send OTP
@@ -41,8 +41,8 @@ export class AuthService {
     }
 
     // Generate and send OTP
-    const otp = await this.otpService.generateAndStoreOTP(mobileNumber);
-    await this.smsService.sendOTP(mobileNumber, otp);
+    const otp = await this.otpService.generateOTP(mobileNumber, 'user_registration', 300);
+    await this.smsService.sendOTP({ to: mobileNumber, otp, purpose: 'registration' });
 
     logger.info('Registration OTP sent', { mobileNumber });
   }
@@ -55,8 +55,8 @@ export class AuthService {
     validateMobileNumber(mobileNumber);
 
     // Generate and send OTP
-    const otp = await this.otpService.generateAndStoreOTP(mobileNumber);
-    await this.smsService.sendOTP(mobileNumber, otp);
+    const otp = await this.otpService.generateOTP(mobileNumber, 'user_login', 300);
+    await this.smsService.sendOTP({ to: mobileNumber, otp, purpose: 'login' });
 
     logger.info('Login OTP sent', { mobileNumber });
   }
@@ -70,7 +70,10 @@ export class AuthService {
     validateOTP(otp);
 
     // Verify OTP
-    await this.otpService.verifyOTP(mobileNumber, otp);
+    const isValidOTP = await this.otpService.verifyOTP(mobileNumber, otp, 'user_login');
+    if (!isValidOTP) {
+      throw new UnauthorizedError('Invalid or expired OTP');
+    }
 
     // Find or create user
     let user = await this.userService.findByMobileNumber(mobileNumber);

@@ -1257,6 +1257,14 @@ export class ProductService {
       isSellable: row.is_sellable !== false, // Default to true
       imageUrls: row.image_urls || [],
       isActive: row.is_active,
+      
+      // Seller and verification fields
+      sellerId: row.seller_id,
+      verificationStatus: row.verification_status,
+      verificationNotes: row.verification_notes,
+      verifiedBy: row.verified_by,
+      verifiedAt: row.verified_at ? new Date(row.verified_at) : undefined,
+      
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -1489,6 +1497,179 @@ export class ProductService {
     } catch (error: any) {
       logger.error('Failed to parse CSV file:', error);
       throw new AppError('Failed to parse CSV file: ' + error.message, 400, 'CSV_PARSE_ERROR');
+    }
+  }
+
+  /**
+   * Get products by seller ID
+   */
+  async getSellerProducts(sellerId: string, filters: any): Promise<ProductListResponse> {
+    try {
+      let query = this.db('products')
+        .where('seller_id', sellerId);
+
+      // Apply filters
+      if (filters.verificationStatus) {
+        query = query.where('verification_status', filters.verificationStatus);
+      }
+
+      if (filters.isActive !== undefined) {
+        query = query.where('is_active', filters.isActive);
+      }
+
+      if (filters.search) {
+        query = query.where(function(this: any) {
+          this.where('name', 'ilike', `%${filters.search}%`)
+              .orWhere('description', 'ilike', `%${filters.search}%`)
+              .orWhere('sku', 'ilike', `%${filters.search}%`);
+        });
+      }
+
+      // Get total count
+      const [{ count }] = await query.clone().count('* as count');
+      const total = parseInt(count as string);
+
+      // Get paginated results
+      const offset = (filters.page - 1) * filters.pageSize;
+      const products = await query
+        .select('*')
+        .orderBy('created_at', 'desc')
+        .limit(filters.pageSize)
+        .offset(offset);
+
+      return {
+        products: products.map(this.mapToProduct.bind(this)),
+        pagination: {
+          page: filters.page,
+          pageSize: filters.pageSize,
+          totalItems: total,
+          totalPages: Math.ceil(total / filters.pageSize)
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to get seller products', { error, sellerId, filters });
+      throw error;
+    }
+  }
+
+  /**
+   * Get single product by seller ID and product ID
+   */
+  async getSellerProduct(sellerId: string, productId: string): Promise<Product | null> {
+    try {
+      const product = await this.db('products')
+        .where('id', productId)
+        .where('seller_id', sellerId)
+        .first();
+
+      return product ? this.mapToProduct(product) : null;
+    } catch (error) {
+      logger.error('Failed to get seller product', { error, sellerId, productId });
+      throw error;
+    }
+  }
+
+  /**
+   * Verify seller product (admin action)
+   */
+  async verifySellerProduct(
+    productId: string, 
+    action: 'approve' | 'reject' | 'hold', 
+    notes?: string, 
+    adminId?: string
+  ): Promise<Product> {
+    try {
+      const updateData: any = {
+        verification_notes: notes || null,
+        verified_by: adminId || null,
+        verified_at: new Date(),
+        updated_at: new Date()
+      };
+
+      if (action === 'approve') {
+        updateData.verification_status = 'approved';
+        updateData.is_active = true;
+        updateData.is_sellable = true;
+      } else if (action === 'reject') {
+        updateData.verification_status = 'rejected';
+        updateData.is_active = false;
+        updateData.is_sellable = false;
+      } else if (action === 'hold') {
+        updateData.verification_status = 'hold';
+        updateData.is_active = false;
+        updateData.is_sellable = false;
+      }
+
+      await this.db('products')
+        .where('id', productId)
+        .update(updateData);
+
+      const updatedProduct = await this.getProductById(productId);
+      if (!updatedProduct) {
+        throw createNotFoundError('Product', productId, ErrorCodes.PRODUCT_NOT_FOUND);
+      }
+
+      // Create notification for seller
+      const { sellerService } = await import('./seller.service');
+      await sellerService.createSellerNotification(updatedProduct.sellerId!, {
+        type: `product_${action}d`,
+        title: `Product ${action.charAt(0).toUpperCase() + action.slice(1)}d`,
+        message: `Your product "${updatedProduct.name}" has been ${action}d.`,
+        data: { productId, action, notes }
+      });
+
+      return updatedProduct;
+    } catch (error) {
+      logger.error('Failed to verify seller product', { error, productId, action });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all pending products for admin verification
+   */
+  async getPendingProducts(filters: any): Promise<ProductListResponse> {
+    try {
+      let query = this.db('products')
+        .join('sellers', 'products.seller_id', 'sellers.id')
+        .where('products.verification_status', 'pending')
+        .select(
+          'products.*',
+          'sellers.full_name as seller_name',
+          'sellers.email as seller_email',
+          'sellers.business_name as seller_business_name'
+        );
+
+      // Get total count
+      const [{ count }] = await query.clone().count('products.id as count');
+      const total = parseInt(count as string);
+
+      // Get paginated results
+      const offset = (filters.page - 1) * filters.pageSize;
+      const products = await query
+        .orderBy('products.created_at', 'asc') // Oldest first for FIFO processing
+        .limit(filters.pageSize)
+        .offset(offset);
+
+      return {
+        products: products.map((row: any) => ({
+          ...this.mapToProduct(row),
+          sellerInfo: {
+            name: row.seller_name,
+            email: row.seller_email,
+            businessName: row.seller_business_name
+          }
+        })),
+        pagination: {
+          page: filters.page,
+          pageSize: filters.pageSize,
+          totalItems: total,
+          totalPages: Math.ceil(total / filters.pageSize)
+        }
+      };
+    } catch (error) {
+      logger.error('Failed to get pending products', { error, filters });
+      throw error;
     }
   }
 }

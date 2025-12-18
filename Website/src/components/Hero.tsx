@@ -171,45 +171,43 @@ export const Hero = () => {
                         transition={{ duration: 0.6, delay: 1 }}
                     >
                         <AnimatePresence mode="wait">
-                            {currentBenefits.map((benefit, index) => {
-                                const IconComponent = benefit.icon;
-                                return (
-                                    <motion.div
-                                        key={`${currentGroupIndex}-${index}`}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white/90 rounded-full text-sm font-medium text-gray-700 shadow-lg backdrop-blur-sm border border-white/50"
-                                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                                        animate={{ 
-                                            opacity: 1, 
-                                            scale: 1, 
-                                            y: 0,
-                                            transition: { 
-                                                duration: 0.4, 
-                                                delay: index * 0.1,
-                                                ease: "easeOut"
-                                            }
-                                        }}
-                                        exit={{ 
-                                            opacity: 0, 
-                                            scale: 0.8, 
-                                            y: -10,
-                                            transition: { 
-                                                duration: 0.3, 
-                                                delay: index * 0.05,
-                                                ease: "easeIn"
-                                            }
-                                        }}
-                                        whileHover={{ 
-                                            scale: 1.05, 
-                                            y: -2,
-                                            boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
-                                            transition: { duration: 0.2 }
-                                        }}
-                                    >
-                                        <IconComponent className={`w-4 h-4 ${benefit.color}`} />
-                                        <span>{benefit.text}</span>
-                                    </motion.div>
-                                );
-                            })}
+                            <motion.div
+                                key={currentGroupIndex}
+                                className="flex flex-wrap justify-center gap-3"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.4 }}
+                            >
+                                {currentBenefits.map((benefit, index) => {
+                                    const IconComponent = benefit.icon;
+                                    return (
+                                        <motion.div
+                                            key={index}
+                                            className="flex items-center gap-2 px-4 py-2 bg-white/90 rounded-full text-sm font-medium text-gray-700 shadow-lg backdrop-blur-sm border border-white/50"
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ 
+                                                opacity: 1, 
+                                                scale: 1,
+                                                transition: { 
+                                                    duration: 0.4, 
+                                                    delay: index * 0.1,
+                                                    ease: "easeOut"
+                                                }
+                                            }}
+                                            whileHover={{ 
+                                                scale: 1.05, 
+                                                y: -2,
+                                                boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
+                                                transition: { duration: 0.2 }
+                                            }}
+                                        >
+                                            <IconComponent className={`w-4 h-4 ${benefit.color}`} />
+                                            <span>{benefit.text}</span>
+                                        </motion.div>
+                                    );
+                                })}
+                            </motion.div>
                         </AnimatePresence>
                     </motion.div>
 
@@ -231,7 +229,7 @@ export const Hero = () => {
                         </motion.a>
                         
                         <motion.a
-                            href="#sell"
+                            href="/seller/register"
                             className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all group font-semibold"
                             whileHover={{ scale: 1.05, y: -2 }}
                             whileTap={{ scale: 0.95 }}
