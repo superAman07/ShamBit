@@ -863,23 +863,19 @@ class SellerService {
   }
 
   /**
-   * Verify CAPTCHA
-   */
-  async verifyCaptcha(captcha: string): Promise<boolean> {
-    const { captchaService } = await import('./captcha.service');
-    return await captchaService.verifyCaptcha(captcha);
-  }
-
-  /**
    * Generate CAPTCHA
    */
   async generateCaptcha(): Promise<any> {
-    // TODO: Implement CAPTCHA generation
-    return {
-      captchaId: 'captcha_' + Date.now(),
-      imageUrl: 'data:image/png;base64,placeholder',
-      expiresIn: 300
-    };
+    const { captchaService } = await import('./captcha.service');
+    return await captchaService.generateCaptcha();
+  }
+
+  /**
+   * Verify CAPTCHA
+   */
+  async verifyCaptcha(captchaId: string, captchaText: string): Promise<boolean> {
+    const { captchaService } = await import('./captcha.service');
+    return await captchaService.verifyCaptcha(captchaId, captchaText);
   }
 
   /**

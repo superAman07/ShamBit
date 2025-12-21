@@ -14,6 +14,7 @@ const sellerLoginSchema = z.object({
   email: z.string().email('Invalid email format'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   captcha: z.string().min(1, 'CAPTCHA is required'),
+  captchaId: z.string().min(1, 'CAPTCHA ID is required'),
 });
 
 const sendOTPSchema = z.object({
@@ -45,13 +46,19 @@ router.post(
       { field: 'email', required: true, type: 'email' },
       { field: 'password', required: true, type: 'string', minLength: 6 },
       { field: 'captcha', required: true, type: 'string', minLength: 1 },
+      { field: 'captchaId', required: true, type: 'string', minLength: 1 },
     ]
   }),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, password, captcha } = req.body;
 
     // Verify CAPTCHA first
-    const captchaValid = await sellerService.verifyCaptcha(captcha);
+    const { captchaId } = req.body;
+    if (!captchaId) {
+      throw new AppError('CAPTCHA ID is required', 400, 'MISSING_CAPTCHA_ID');
+    }
+    
+    const captchaValid = await sellerService.verifyCaptcha(captchaId, captcha);
     if (!captchaValid) {
       throw new AppError('Invalid CAPTCHA', 400, 'INVALID_CAPTCHA');
     }

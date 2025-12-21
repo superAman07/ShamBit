@@ -10,6 +10,8 @@ import { Footer } from './components/Footer';
 import SellerRegistration from './pages/SellerRegistration';
 import SellerLogin from './pages/SellerLogin';
 import SellerForgotPassword from './pages/SellerForgotPassword';
+import SellerDashboard from './pages/SellerDashboard';
+import SellerProfileCompletion from './pages/SellerProfileCompletion';
 
 // Home Page Component
 const HomePage = () => (
@@ -41,6 +43,8 @@ function App() {
           <Route path="/seller/register" element={<SellerRegistration />} />
           <Route path="/seller/login" element={<SellerLogin />} />
           <Route path="/seller/forgot-password" element={<SellerForgotPassword />} />
+          <Route path="/seller/dashboard" element={<SellerDashboard />} />
+          <Route path="/seller/profile/:section" element={<SellerProfileCompletion />} />
         </Routes>
       </main>
     </Router>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Seller Registration - Mobile OTP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: linear-gradient(to right, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: linear-gradient(to right, #1d4ed8, #1e40af);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .success {
+            color: green;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .debug {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Debug: Seller Registration Mobile OTP</h1>
+        <p>This page tests the mobile OTP functionality directly.</p>
+        
+        <div class="form-group">
+            <label for="mobile">Mobile Number:</label>
+            <input type="tel" id="mobile" placeholder="Enter 10-digit mobile number" maxlength="10">
+            <div id="mobileError" class="error"></div>
+        </div>
+        
+        <button id="sendOtpBtn" onclick="sendOTP()">Send OTP</button>
+        
+        <div class="form-group" style="margin-top: 30px;">
+            <label for="otp">Enter OTP:</label>
+            <input type="text" id="otp" placeholder="Enter 6-digit OTP" maxlength="6">
+            <div id="otpError" class="error"></div>
+        </div>
+        
+        <button id="verifyOtpBtn" onclick="verifyOTP()">Verify OTP</button>
+        
+        <div class="debug">
+            <h3>Debug Information:</h3>
+            <div id="debugInfo">Ready to test...</div>
+        </div>
+        
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000/api/v1';
+        
+        function log(message) {
+            const debugInfo = document.getElementById('debugInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.innerHTML += `<br>[${timestamp}] ${message}`;
+        }
+        
+        function showMessage(message, type = 'info') {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            messages.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+        
+        function validateMobile(mobile) {
+            const pattern = /^[6-9]\d{9}$/;
+            return pattern.test(mobile);
+        }
+        
+        async function sendOTP() {
+            const mobileInput = document.getElementById('mobile');
+            const sendBtn = document.getElementById('sendOtpBtn');
+            const errorDiv = document.getElementById('mobileError');
+            
+            const mobile = mobileInput.value.trim();
+            
+            // Clear previous errors
+            errorDiv.textContent = '';
+            
+            // Validate mobile number
+            if (!mobile) {
+                errorDiv.textContent = 'Mobile number is required';
+                return;
+            }
+            
+            if (!validateMobile(mobile)) {
+                errorDiv.textContent = 'Enter a valid 10-digit mobile number starting with 6-9';
+                return;
+            }
+            
+            // Disable button and show loading
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending OTP...';
+            
+            log(`Attempting to send OTP to: ${mobile}`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/sellers/verify-mobile`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ mobile: mobile })
+                });
+                
+                const result = await response.json();
+                
+                log(`Response Status: ${response.status}`);
+                log(`Response Body: ${JSON.stringify(result, null, 2)}`);
+                
+                if (response.ok) {
+                    showMessage('OTP sent successfully! Check console for actual OTP (development mode)', 'success');
+                    log('✅ OTP sent successfully');
+                } else {
+                    errorDiv.textContent = result.message || 'Failed to send OTP';
+                    log(`❌ Failed to send OTP: ${result.message}`);
+                }
+                
+            } catch (error) {
+                errorDiv.textContent = 'Network error. Please check if API server is running.';
+                log(`❌ Network error: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send OTP';
+            }
+        }
+        
+        async function verifyOTP() {
+            const mobileInput = document.getElementById('mobile');
+            const otpInput = document.getElementById('otp');
+            const verifyBtn = document.getElementById('verifyOtpBtn');
+            const errorDiv = document.getElementById('otpError');
+            
+            const mobile = mobileInput.value.trim();
+            const otp = otpInput.value.trim();
+            
+            // Clear previous errors
+            errorDiv.textContent = '';
+            
+            // Validate inputs
+            if (!mobile || !validateMobile(mobile)) {
+                errorDiv.textContent = 'Valid mobile number is required';
+                return;
+            }
+            
+            if (!otp || otp.length !== 6) {
+                errorDiv.textContent = 'Enter a valid 6-digit OTP';
+                return;
+            }
+            
+            // Disable button and show loading
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
+            
+            log(`Attempting to verify OTP: ${otp} for mobile: ${mobile}`);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/sellers/verify-mobile-otp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ mobile: mobile, otp: otp })
+                });
+                
+                const result = await response.json();
+                
+                log(`Response Status: ${response.status}`);
+                log(`Response Body: ${JSON.stringify(result, null, 2)}`);
+                
+                if (response.ok && result.data.verified) {
+                    showMessage('Mobile number verified successfully!', 'success');
+                    log('✅ Mobile number verified successfully');
+                } else {
+                    errorDiv.textContent = result.message || 'Invalid OTP';
+                    log(`❌ OTP verification failed: ${result.message}`);
+                }
+                
+            } catch (error) {
+                errorDiv.textContent = 'Network error. Please check if API server is running.';
+                log(`❌ Network error: ${error.message}`);
+            } finally {
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify OTP';
+            }
+        }
+        
+        // Auto-format mobile number input
+        document.getElementById('mobile').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 10) value = value.slice(0, 10);
+            e.target.value = value;
+        });
+        
+        // Auto-format OTP input
+        document.getElementById('otp').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 6) value = value.slice(0, 6);
+            e.target.value = value;
+        });
+        
+        log('Debug page loaded successfully');
+        log('API Base URL: ' + API_BASE_URL);
+    </script>
+</body>
+</html>

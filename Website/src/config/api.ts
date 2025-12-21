@@ -20,11 +20,19 @@ const getApiBaseUrl = () => {
 export const API_BASE_URL = getApiBaseUrl();
 
 export const API_ENDPOINTS = {
+  SELLER_REGISTRATION: {
+    REGISTER: `${API_BASE_URL}/seller-registration/register`,
+    VERIFY_OTP: `${API_BASE_URL}/seller-registration/verify-otp`,
+    RESEND_OTP: `${API_BASE_URL}/seller-registration/resend-otp`,
+    LOGIN: `${API_BASE_URL}/seller-registration/login`,
+    REFRESH_TOKEN: `${API_BASE_URL}/seller-registration/refresh-token`,
+    LOGOUT: `${API_BASE_URL}/seller-registration/logout`,
+    PROFILE_UPDATE: `${API_BASE_URL}/seller-registration/profile`,
+    PROFILE_STATUS: `${API_BASE_URL}/seller-registration/profile/status`,
+    CHECK_ACCOUNT: `${API_BASE_URL}/seller-registration/check-account`,
+  },
+  // Keep existing endpoints for backward compatibility
   SELLERS: {
-    REGISTER: `${API_BASE_URL}/sellers/register`,
-    VERIFY_MOBILE: `${API_BASE_URL}/sellers/verify-mobile`,
-    VERIFY_MOBILE_OTP: `${API_BASE_URL}/sellers/verify-mobile-otp`,
-    LIST: `${API_BASE_URL}/sellers`,
     STATISTICS: `${API_BASE_URL}/sellers/statistics/overview`,
   },
   SMS: {

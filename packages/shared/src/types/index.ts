@@ -1,5 +1,8 @@
 // Common types used across services
 
+// Export seller registration types
+export * from './seller-registration.types';
+
 export type OrderStatus =
   | 'pending'
   | 'payment_processing'

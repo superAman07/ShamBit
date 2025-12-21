@@ -34,8 +34,10 @@ import { format } from 'date-fns';
 import SellerDetailsDialog from './SellerDetailsDialog';
 import SellerStatsDashboard from './SellerStatsDashboard';
 import SellerErrorBoundary from './SellerErrorBoundary';
+import { useAuth } from '@/hooks/useAuth';
 
 const SellersListPage: React.FC = () => {
+  const { admin } = useAuth();
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [statistics, setStatistics] = useState<SellerStatistics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,10 +85,14 @@ const SellersListPage: React.FC = () => {
     if (!selectedSeller) return;
 
     try {
+      // Get admin ID from auth context
+      const adminId = admin?.id || admin?.email || 'admin_user';
+      
       await sellerService.verifySellerDocuments(
         selectedSeller.id,
         action,
-        notes
+        notes,
+        adminId
       );
       loadSellers();
       loadStatistics();

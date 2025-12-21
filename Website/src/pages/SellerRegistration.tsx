@@ -217,23 +217,74 @@ const SellerRegistration: React.FC = () => {
   const [sellerId, setSellerId] = useState<string>('');
   const [otpSending, setOtpSending] = useState(false);
 
-  // Fix body padding and overflow for this page
+  // Add CSS reset styles to remove the black space at top
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.id = 'seller-registration-styles';
+    style.textContent = `
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        padding-top: 0 !important;
+        background-color: #f8fafc !important;
+        overflow-x: hidden !important;
+      }
+      
+      /* Remove any potential black bars or spaces */
+      body::before,
+      body::after,
+      html::before,
+      html::after {
+        display: none !important;
+      }
+      
+      /* Ensure no browser default margins */
+      * {
+        box-sizing: border-box;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      const existingStyle = document.getElementById('seller-registration-styles');
+      if (existingStyle) {
+        document.head.removeChild(existingStyle);
+      }
+    };
+  }, []);
+
+  // Fix body padding and overflow for this page - remove the 120px padding that causes black space
   React.useEffect(() => {
     // Store original styles
     const originalBodyPadding = document.body.style.paddingTop;
     const originalBodyMargin = document.body.style.marginTop;
     const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyBackground = document.body.style.backgroundColor;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalHtmlBackground = document.documentElement.style.backgroundColor;
+    const originalHtmlPadding = document.documentElement.style.paddingTop;
+    const originalHtmlMargin = document.documentElement.style.marginTop;
     
-    // Apply fixes
-    document.body.style.paddingTop = '0px';
-    document.body.style.marginTop = '0px';
-    document.body.style.overflow = 'hidden';
+    // Apply fixes - completely remove the 120px padding that causes black space
+    document.body.style.setProperty('padding-top', '0px', 'important');
+    document.body.style.setProperty('margin-top', '0px', 'important');
+    document.body.style.setProperty('overflow', 'auto', 'important');
+    document.body.style.setProperty('background-color', '#f8fafc', 'important');
+    document.documentElement.style.setProperty('overflow', 'auto', 'important');
+    document.documentElement.style.setProperty('background-color', '#f8fafc', 'important');
+    document.documentElement.style.setProperty('padding-top', '0px', 'important');
+    document.documentElement.style.setProperty('margin-top', '0px', 'important');
     
     return () => {
       // Restore original styles
       document.body.style.paddingTop = originalBodyPadding || '120px';
       document.body.style.marginTop = originalBodyMargin || '';
-      document.body.style.overflow = originalBodyOverflow || '';
+      document.body.style.overflow = originalBodyOverflow || 'auto';
+      document.body.style.backgroundColor = originalBodyBackground || '';
+      document.documentElement.style.overflow = originalHtmlOverflow || 'auto';
+      document.documentElement.style.backgroundColor = originalHtmlBackground || '';
+      document.documentElement.style.paddingTop = originalHtmlPadding || '';
+      document.documentElement.style.marginTop = originalHtmlMargin || '';
     };
   }, []);
 
@@ -627,20 +678,28 @@ const SellerRegistration: React.FC = () => {
 
     setOtpSending(true);
     try {
-      const response = await fetch(API_ENDPOINTS.SELLERS.VERIFY_MOBILE, {
+      console.log('Sending OTP to mobile:', formData.mobile);
+      
+      const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.VERIFY_OTP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mobile: formData.mobile }),
       });
 
-      if (response.ok) {
-        alert('OTP sent to your mobile number');
+      const result = await response.json();
+      console.log('Send OTP response:', { status: response.status, result });
+
+      if (response.ok && result.success) {
+        setErrors({ mobile: '' }); // Clear any previous errors
+        alert('OTP sent to your mobile number. Please check your SMS.');
       } else {
-        const result = await response.json();
-        setErrors({ mobile: result.message || 'Failed to send OTP' });
+        const errorMessage = result.message || 'Failed to send OTP. Please try again.';
+        setErrors({ mobile: errorMessage });
+        console.error('Failed to send OTP:', result);
       }
     } catch (error) {
-      setErrors({ mobile: 'Network error. Please try again.' });
+      console.error('Send OTP error:', error);
+      setErrors({ mobile: 'Network error. Please check your connection and try again.' });
     } finally {
       setOtpSending(false);
     }
@@ -653,20 +712,29 @@ const SellerRegistration: React.FC = () => {
     }
 
     try {
-      const response = await fetch(API_ENDPOINTS.SELLERS.VERIFY_MOBILE_OTP, {
+      console.log('Verifying OTP:', { mobile: formData.mobile, otp: formData.mobileOtp });
+      
+      const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.VERIFY_OTP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mobile: formData.mobile, otp: formData.mobileOtp }),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+      console.log('OTP verification response:', { status: response.status, result });
+
+      if (response.ok && result.success && result.data?.verified === true) {
         updateFormData('mobileVerified', true);
+        setErrors({ mobileOtp: '' }); // Clear any previous errors
         alert('Mobile number verified successfully!');
       } else {
-        const result = await response.json();
-        setErrors({ mobileOtp: result.message || 'Invalid OTP' });
+        // Handle both HTTP errors and verification failures
+        const errorMessage = result.message || 'Invalid OTP. Please check and try again.';
+        setErrors({ mobileOtp: errorMessage });
+        console.error('OTP verification failed:', result);
       }
     } catch (error) {
+      console.error('OTP verification error:', error);
       setErrors({ mobileOtp: 'Network error. Please try again.' });
     }
   };
@@ -718,7 +786,7 @@ const SellerRegistration: React.FC = () => {
   const handleSubmit = async () => {
     if (!validateStep(currentStep)) return;
 
-    // Check if mobile is verified
+    // CRITICAL SECURITY CHECK: Ensure mobile is actually verified
     if (!formData.mobileVerified) {
       setErrors({ 
         verification: 'Please verify your mobile number before submitting registration' 
@@ -729,46 +797,76 @@ const SellerRegistration: React.FC = () => {
     setIsSubmitting(true);
     try {
       // Prepare the data according to the API schema
+      // Fix warehouse addresses - copy registered address when sameAsRegistered is true
+      const processedWarehouseAddresses = formData.warehouseAddresses.map(warehouse => {
+        if (warehouse.sameAsRegistered) {
+          return {
+            ...warehouse,
+            addressLine1: formData.registeredBusinessAddress.addressLine1,
+            addressLine2: formData.registeredBusinessAddress.addressLine2 || '',
+            city: formData.registeredBusinessAddress.city,
+            state: formData.registeredBusinessAddress.state,
+            pinCode: formData.registeredBusinessAddress.pinCode
+          };
+        }
+        return warehouse;
+      });
+
       const registrationData = {
         // Part A: Personal Details
-        fullName: formData.fullName,
+        fullName: formData.fullName.trim(),
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
-        mobile: formData.mobile,
-        email: formData.email,
+        mobile: formData.mobile.trim(),
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         confirmPassword: formData.confirmPassword,
         
         // Part B: Business Information
         sellerType: formData.sellerType,
-        businessType: formData.businessType,
-        businessName: formData.businessName,
-        natureOfBusiness: formData.natureOfBusiness,
-        primaryBusinessActivity: formData.primaryBusinessActivity,
-        yearOfEstablishment: formData.yearOfEstablishment,
-        businessPhone: formData.businessPhone,
-        businessEmail: formData.businessEmail,
+        businessType: formData.sellerType === 'business' ? formData.businessType : undefined,
+        businessName: formData.sellerType === 'business' ? formData.businessName?.trim() : undefined,
+        natureOfBusiness: formData.sellerType === 'business' ? formData.natureOfBusiness?.trim() : undefined,
+        primaryBusinessActivity: formData.primaryBusinessActivity?.trim() || undefined,
+        yearOfEstablishment: formData.yearOfEstablishment || undefined,
+        businessPhone: formData.businessPhone?.trim() || undefined,
+        businessEmail: formData.businessEmail?.trim().toLowerCase() || undefined,
         
         // Part C: Address Information
-        registeredBusinessAddress: formData.registeredBusinessAddress,
-        warehouseAddresses: formData.warehouseAddresses,
+        registeredBusinessAddress: {
+          addressLine1: formData.registeredBusinessAddress.addressLine1.trim(),
+          addressLine2: formData.registeredBusinessAddress.addressLine2?.trim() || undefined,
+          city: formData.registeredBusinessAddress.city.trim(),
+          state: formData.registeredBusinessAddress.state.trim(),
+          pinCode: formData.registeredBusinessAddress.pinCode.trim()
+        },
+        warehouseAddresses: processedWarehouseAddresses,
         
         // Part D: Tax & Compliance Details
         gstRegistered: formData.gstRegistered,
-        gstNumber: formData.gstNumber,
-        gstin: formData.gstin,
-        panNumber: formData.panNumber,
-        panHolderName: formData.panHolderName,
+        gstNumber: formData.gstRegistered ? formData.gstNumber?.trim().toUpperCase() : undefined,
+        gstin: formData.gstRegistered ? formData.gstin?.trim().toUpperCase() : undefined,
+        panNumber: formData.panNumber.trim().toUpperCase(),
+        panHolderName: formData.panHolderName.trim(),
         tdsApplicable: formData.tdsApplicable,
-        aadhaarNumber: formData.aadhaarNumber,
+        aadhaarNumber: formData.aadhaarNumber?.trim() || undefined,
         
         // Part E: Bank Account Details
-        bankDetails: formData.bankDetails,
+        bankDetails: {
+          accountHolderName: formData.bankDetails.accountHolderName.trim(),
+          bankName: formData.bankDetails.bankName.trim(),
+          accountNumber: formData.bankDetails.accountNumber.trim(),
+          confirmAccountNumber: formData.bankDetails.confirmAccountNumber.trim(),
+          ifscCode: formData.bankDetails.ifscCode.trim().toUpperCase(),
+          accountType: formData.bankDetails.accountType,
+          branchName: formData.bankDetails.branchName?.trim() || undefined,
+          branchAddress: formData.bankDetails.branchAddress?.trim() || undefined
+        },
         
         // Operational Information
-        primaryProductCategories: formData.primaryProductCategories,
+        primaryProductCategories: formData.primaryProductCategories.trim(),
         estimatedMonthlyOrderVolume: formData.estimatedMonthlyOrderVolume,
-        preferredPickupTimeSlots: formData.preferredPickupTimeSlots,
+        preferredPickupTimeSlots: formData.preferredPickupTimeSlots.trim(),
         maxOrderProcessingTime: formData.maxOrderProcessingTime,
         
         // Verification Status
@@ -785,19 +883,24 @@ const SellerRegistration: React.FC = () => {
         privacyPolicyAccepted: formData.privacyPolicyAccepted
       };
 
-      const response = await fetch(API_ENDPOINTS.SELLERS.REGISTER, {
+      console.log('Submitting registration data:', registrationData);
+      console.log('API Endpoint:', API_ENDPOINTS.SELLER_REGISTRATION.REGISTER);
+
+      const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.REGISTER, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registrationData),
       });
 
       const result = await response.json();
+      console.log('Registration response:', { status: response.status, result });
 
       if (response.ok) {
         setSellerId(result.data?.sellerId || '');
         setSubmitSuccess(true);
       } else {
-        setErrors({ submit: result.message || 'Registration failed' });
+        console.error('Registration failed:', result);
+        setErrors({ submit: result.message || `Registration failed (${response.status})` });
       }
     } catch (error) {
       setErrors({ submit: 'Network error. Please try again.' });
@@ -886,21 +989,25 @@ const SellerRegistration: React.FC = () => {
 
   return (
     <div 
-      className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 overflow-y-auto"
+      className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100"
       style={{ 
         backgroundColor: '#f8fafc',
+        paddingTop: '0',
+        marginTop: '0',
+        position: 'absolute',
         top: '0',
         left: '0',
         right: '0',
-        bottom: '0',
-        zIndex: 1000
+        width: '100%',
+        minHeight: '100vh',
+        zIndex: 1
       }}
     >
-      {/* Header Section */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+      {/* Header Section - Compact */}
+      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-2">
+            <h1 className="text-xl sm:text-2xl font-bold mb-1">
               Become a{' '}
               <span 
                 className="bg-gradient-to-r from-orange-600 via-orange-500 to-yellow-400 bg-clip-text text-transparent"
@@ -922,16 +1029,16 @@ const SellerRegistration: React.FC = () => {
               </span>
               {' '}Seller
             </h1>
-            <p className="text-gray-600 text-lg">Join thousands of sellers and grow your business</p>
+            <p className="text-gray-600 text-xs sm:text-sm">Join thousands of sellers and grow your business</p>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="py-8 px-4">
+      <div className="py-3 sm:py-4 md:py-6 px-4">
         <div className="max-w-6xl mx-auto">
           {/* Progress Steps */}
-          <div className="mb-8">
+          <div className="mb-4 sm:mb-6 md:mb-8">
             {/* Desktop Progress Bar */}
             <div className="hidden md:block">
               <div className="flex items-center justify-between mb-6">
@@ -997,14 +1104,14 @@ const SellerRegistration: React.FC = () => {
             </div>
             
             {/* Current Step Info */}
-            <div className="text-center bg-white rounded-lg p-4 shadow-sm border-l-4 border-blue-600">
-              <h3 className="text-xl font-semibold text-gray-900 mb-1">
+            <div className="text-center bg-white rounded-lg p-3 sm:p-4 shadow-sm border-l-4 border-blue-600">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">
                 {steps[currentStep - 1]?.title}
               </h3>
-              <p className="text-gray-600 mb-2">
+              <p className="text-sm sm:text-base text-gray-600 mb-2">
                 {steps[currentStep - 1]?.description}
               </p>
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+              <div className="flex items-center justify-center space-x-2 text-xs sm:text-sm text-gray-500">
                 <span>Step {currentStep} of {steps.length}</span>
                 <span>•</span>
                 <span>{Math.round((currentStep / steps.length) * 100)}% Complete</span>
@@ -1013,25 +1120,26 @@ const SellerRegistration: React.FC = () => {
           </div>
 
           {/* Form Container */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="p-6 md:p-8">
+          <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl shadow-xl overflow-hidden">
+            <form onSubmit={(e) => e.preventDefault()}>
+              <div className="p-4 sm:p-6 md:p-8">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentStep}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="min-h-[500px]"
+                  className="min-h-[400px]"
                 >
                   {/* Step 1: Personal Details */}
                   {currentStep === 1 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Personal Details</h2>
-                        <p className="text-gray-600">Provide your personal information as per official documents</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Personal Details</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Provide your personal information as per official documents</p>
                       </div>
                       
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Full Name (as per Aadhaar) *</label>
                       <input
@@ -1132,6 +1240,7 @@ const SellerRegistration: React.FC = () => {
                             errors.password ? 'border-red-500' : 'border-gray-300'
                           }`}
                           placeholder="Create a password"
+                          autoComplete="new-password"
                         />
                         <button
                           type="button"
@@ -1155,6 +1264,7 @@ const SellerRegistration: React.FC = () => {
                           errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Confirm your password"
+                        autoComplete="new-password"
                       />
                       {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
                     </div>
@@ -1164,13 +1274,13 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 2: Business Information */}
                   {currentStep === 2 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Business Information</h2>
-                        <p className="text-gray-600">Tell us about your business and products</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Business Information</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Tell us about your business and products</p>
                       </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {formData.sellerType === 'business' && (
                       <>
                         <div>
@@ -1324,10 +1434,10 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 3: Address & Warehouses */}
                   {currentStep === 3 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Address & Warehouses</h2>
-                        <p className="text-gray-600">Provide your business address and warehouse/pickup locations</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Address & Warehouses</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Provide your business address and warehouse/pickup locations</p>
                       </div>
 
                   {/* Registered Business Address */}
@@ -1568,13 +1678,13 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 4: Tax & Compliance */}
                   {currentStep === 4 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Tax & Compliance Details</h2>
-                        <p className="text-gray-600">Provide your tax registration and compliance information</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Tax & Compliance Details</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Provide your tax registration and compliance information</p>
                       </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">PAN Number *</label>
                       <input
@@ -1680,13 +1790,13 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 5: Bank Details */}
                   {currentStep === 5 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Bank Account Details</h2>
-                        <p className="text-gray-600">Provide your bank account information for payments</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Bank Account Details</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Provide your bank account information for payments</p>
                       </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Account Holder Name *</label>
                       <input
@@ -1811,20 +1921,20 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 6: Mobile Verification */}
                   {currentStep === 6 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Mobile Verification</h2>
-                        <p className="text-gray-600">Verify your mobile number to secure your account</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Mobile Verification</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Verify your mobile number to secure your account</p>
                       </div>
 
                       <div className="max-w-md mx-auto">
-                        <div className="bg-blue-50 p-6 rounded-lg">
-                          <div className="text-center mb-6">
-                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <Phone className="w-8 h-8 text-blue-600" />
+                        <div className="bg-blue-50 p-4 sm:p-6 rounded-lg">
+                          <div className="text-center mb-4 sm:mb-6">
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                              <Phone className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Verify Mobile Number</h3>
-                            <p className="text-gray-600 text-sm">We'll send an OTP to your registered mobile number</p>
+                            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Verify Mobile Number</h3>
+                            <p className="text-gray-600 text-xs sm:text-sm">We'll send an OTP to your registered mobile number</p>
                           </div>
 
                           <div className="space-y-4">
@@ -1836,6 +1946,11 @@ const SellerRegistration: React.FC = () => {
                                 readOnly
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 text-center font-mono"
                               />
+                              {!formData.mobile && (
+                                <p className="text-amber-600 text-sm mt-1">
+                                  ⚠️ Please enter your mobile number from Step 1 first
+                                </p>
+                              )}
                             </div>
                             
                             {!formData.mobileVerified ? (
@@ -1902,10 +2017,10 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 7: Documents */}
                   {currentStep === 7 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Document Upload</h2>
-                        <p className="text-gray-600">Upload required documents for verification</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Document Upload</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Upload required documents for verification</p>
                       </div>
 
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
@@ -1920,7 +2035,7 @@ const SellerRegistration: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     {[
                       { key: 'panCard', label: 'PAN Card', required: true },
                       { key: 'aadhaarCard', label: 'Aadhaar Card', required: true },
@@ -1930,14 +2045,14 @@ const SellerRegistration: React.FC = () => {
                       ...(formData.sellerType === 'business' ? [{ key: 'businessCertificate', label: 'Business Certificate', required: true }] : []),
                       ...(formData.gstRegistered ? [{ key: 'gstCertificate', label: 'GST Certificate', required: true }] : [])
                     ].map((doc) => (
-                      <div key={doc.key} className="bg-gray-50 p-4 rounded-lg">
+                      <div key={doc.key} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-medium text-gray-900">{doc.label}</h3>
-                          {doc.required && <span className="text-red-500 text-sm">Required</span>}
+                          <h3 className="font-medium text-gray-900 text-sm sm:text-base">{doc.label}</h3>
+                          {doc.required && <span className="text-red-500 text-xs sm:text-sm">Required</span>}
                         </div>
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-gray-500 text-sm">Upload after registration</p>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center">
+                          <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 text-xs sm:text-sm">Upload after registration</p>
                         </div>
                       </div>
                     ))}
@@ -1947,10 +2062,10 @@ const SellerRegistration: React.FC = () => {
 
                   {/* Step 8: Terms & Agreements */}
                   {currentStep === 8 && (
-                    <div className="space-y-8">
-                      <div className="border-b border-gray-200 pb-4">
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Terms & Agreements</h2>
-                        <p className="text-gray-600">Please read and accept all terms and policies</p>
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="border-b border-gray-200 pb-3 sm:pb-4">
+                        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Terms & Agreements</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Please read and accept all terms and policies</p>
                       </div>
 
                   <div className="space-y-4">
@@ -2020,43 +2135,43 @@ const SellerRegistration: React.FC = () => {
               )}
 
               {/* Navigation Buttons */}
-              <div className="flex flex-col sm:flex-row justify-between gap-4 mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
                   onClick={prevStep}
                   disabled={currentStep === 1}
-                  className={`flex items-center justify-center px-6 py-3 rounded-lg transition-colors w-full sm:w-auto ${
+                  className={`flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-colors w-full sm:w-auto text-sm sm:text-base ${
                     currentStep === 1
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   }`}
                 >
-                  <ArrowLeft className="w-5 h-5 mr-2" />
+                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   Previous
                 </button>
 
                 {currentStep < steps.length ? (
                   <button
                     onClick={nextStep}
-                    className="flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto"
+                    className="flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors w-full sm:w-auto text-sm sm:text-base"
                   >
                     Next
-                    <ArrowRight className="w-5 h-5 ml-2" />
+                    <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                   </button>
                 ) : (
                   <button
                     onClick={handleSubmit}
                     disabled={isSubmitting || !formData.mobileVerified}
-                    className="flex items-center justify-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 w-full sm:w-auto"
+                    className="flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 w-full sm:w-auto text-sm sm:text-base"
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Submitting Registration...
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                        Submitting...
                       </>
                     ) : (
                       <>
                         Submit Registration
-                        <CheckCircle className="w-5 h-5 ml-2" />
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
                       </>
                     )}
                   </button>
@@ -2077,7 +2192,8 @@ const SellerRegistration: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       </div>

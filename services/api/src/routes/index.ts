@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import healthRoutes from './health';
 import authRoutes from './auth.routes';
+import v1Routes from './v1';
 import adminAuthRoutes from './admin-auth.routes';
 import adminRoutes from './admin.routes';
 import profileRoutes from './profile.routes';
@@ -30,9 +31,15 @@ import newsletterRoutes from './newsletter.routes';
 
 const router = Router();
 
+console.log('Main routes: Mounting all routes...');
+
 // Mount routes
 router.use('/', healthRoutes);
 router.use('/auth', authRoutes);
+
+// V1 API routes
+console.log('Main routes: Mounting v1 routes...');
+router.use('/v1', v1Routes);
 router.use('/auth/admin', adminAuthRoutes);
 router.use('/admins', adminRoutes);
 router.use('/profile', profileRoutes);
@@ -58,5 +65,7 @@ router.use('/sellers', sellerRoutes);
 router.use('/seller-auth', sellerAuthRoutes);
 router.use('/seller-portal', sellerPortalRoutes);
 router.use('/newsletter', newsletterRoutes);
+
+console.log('Main routes: All routes mounted successfully');
 
 export default router;

@@ -16,7 +16,7 @@ const startServer = async (): Promise<void> => {
     const config = loadConfig();
 
     // Initialize database
-    initializeDatabase({
+    const database = initializeDatabase({
       host: config.DB_HOST,
       port: config.DB_PORT,
       database: config.DB_NAME,
@@ -25,6 +25,10 @@ const startServer = async (): Promise<void> => {
       poolMin: config.DB_POOL_MIN,
       poolMax: config.DB_POOL_MAX,
     });
+
+    // Test database connection
+    await database.raw('SELECT 1');
+    logger.info('Database connection verified');
 
     // Create Express app
     const app = createApp();

@@ -128,11 +128,21 @@ router.post('/verify-mobile-otp', async (req, res) => {
     const { mobile, otp } = validationResult.data;
     const result = await sellerService.verifyMobileOtp(mobile, otp);
     
-    res.json({
-      success: true,
-      message: 'Mobile number verified successfully',
-      data: result
-    });
+    // CRITICAL FIX: Check if verification actually succeeded
+    if (result.verified) {
+      res.json({
+        success: true,
+        message: 'Mobile number verified successfully',
+        data: result
+      });
+    } else {
+      // Return 400 status for invalid OTP
+      res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please check your OTP and try again.',
+        data: result
+      });
+    }
   } catch (error) {
     console.error('Mobile OTP verification error:', error);
     res.status(500).json({

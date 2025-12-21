@@ -91,15 +91,21 @@ const SellerLogin: React.FC = () => {
 
   const generateCaptcha = async () => {
     try {
+      console.log('Fetching CAPTCHA from:', API_ENDPOINTS.SELLER_AUTH.CAPTCHA);
       const response = await fetch(API_ENDPOINTS.SELLER_AUTH.CAPTCHA);
       const data = await response.json();
       
-      if (response.ok) {
-        setCaptchaData(data);
+      console.log('CAPTCHA response:', { status: response.status, data });
+      
+      if (response.ok && data.success) {
+        setCaptchaData(data.data);
+        setErrors({ captcha: '' }); // Clear any previous errors
       } else {
-        setErrors({ captcha: 'Failed to load CAPTCHA. Please try again.' });
+        console.error('CAPTCHA generation failed:', data);
+        setErrors({ captcha: data.message || 'Failed to load CAPTCHA. Please try again.' });
       }
     } catch (error) {
+      console.error('CAPTCHA fetch error:', error);
       setErrors({ captcha: 'Failed to load CAPTCHA. Please check your connection.' });
     }
   };
@@ -127,6 +133,12 @@ const SellerLogin: React.FC = () => {
 
     setIsLoading(true);
     try {
+      console.log('Submitting login with CAPTCHA:', {
+        email: formData.email,
+        captcha: formData.captcha,
+        captchaId: captchaData?.captchaId
+      });
+
       const response = await fetch(API_ENDPOINTS.SELLER_AUTH.LOGIN, {
         method: 'POST',
         headers: {
@@ -141,19 +153,34 @@ const SellerLogin: React.FC = () => {
       });
 
       const result = await response.json();
+      console.log('Login response:', { status: response.status, result });
 
-      if (response.ok) {
+      if (response.ok && result.success) {
         // Store seller info temporarily
         sessionStorage.setItem('sellerLoginData', JSON.stringify({
-          sellerId: result.sellerId,
-          mobile: result.mobile
+          sellerId: result.data.sellerId,
+          mobile: result.data.mobile || 'N/A'
         }));
         
         setStep('otp');
         setOtpTimer(300); // 5 minutes
         setCanResendOTP(false);
+        setErrors({ submit: '' }); // Clear any previous errors
       } else {
-        setErrors({ submit: result.message || 'Login failed. Please check your credentials.' });
+        // Handle specific error cases
+        let errorMessage = result.message || 'Login failed. Please check your credentials.';
+        
+        if (response.status === 403 && result.code === 'ACCOUNT_NOT_APPROVED') {
+          errorMessage = 'Your seller account is pending approval. Please wait for admin verification or contact support.';
+        } else if (response.status === 400 && result.code === 'INVALID_CAPTCHA') {
+          errorMessage = 'Invalid CAPTCHA. Please try again.';
+        } else if (response.status === 401) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        }
+        
+        setErrors({ submit: errorMessage });
+        console.error('Login failed:', result);
+        
         // Regenerate CAPTCHA on failure
         await generateCaptcha();
         setFormData(prev => ({ ...prev, captcha: '' }));

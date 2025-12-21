@@ -169,11 +169,25 @@ class SellerService {
     notes?: string,
     adminId?: string
   ): Promise<Seller> {
-    const response = await apiService.getAxiosInstance().put(`/sellers/${id}/verify`, {
-      action,
-      notes,
-      adminId
+    // Map action to status for API compatibility
+    const statusMap = {
+      'approve': 'approved',
+      'reject': 'rejected', 
+      'hold': 'pending'
+    };
+    
+    const requestData = {
+      status: statusMap[action],
+      verificationNotes: notes || '',
+      adminId: adminId || 'admin_user' // Provide default admin ID if not provided
+    };
+    
+    console.log('Sending seller verification request:', {
+      url: `/sellers/${id}/verify`,
+      data: requestData
     });
+    
+    const response = await apiService.getAxiosInstance().put(`/sellers/${id}/verify`, requestData);
     return response.data.data;
   }
 
