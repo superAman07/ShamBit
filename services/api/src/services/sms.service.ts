@@ -63,7 +63,9 @@ class SMSService {
       }
 
       // Different SMS providers can be integrated here
-      if (process.env.SMS_PROVIDER === 'textlocal') {
+      if (process.env.SMS_PROVIDER === 'fast2sms') {
+        await this.sendViaFast2SMS(cleanNumber, message);
+      } else if (process.env.SMS_PROVIDER === 'textlocal') {
         await this.sendViaTextLocal(cleanNumber, message);
       } else if (process.env.SMS_PROVIDER === 'twilio') {
         await this.sendViaTwilio(cleanNumber, message);
@@ -72,9 +74,12 @@ class SMSService {
       } else {
         // Development mode - log instead of sending
         if (process.env.NODE_ENV === 'development') {
-          const { createLogger } = await import('@shambit/shared');
-          const logger = createLogger('sms-service');
-          logger.info('SMS would be sent in production', { to: cleanNumber, message });
+          console.log('📱 SMS MESSAGE (Development Mode)');
+          console.log('=================================');
+          console.log(`To: +91${cleanNumber}`);
+          console.log(`Message: ${message}`);
+          console.log(`Timestamp: ${new Date().toISOString()}`);
+          console.log('=================================');
         } else {
           throw new Error('SMS provider not configured');
         }
@@ -82,6 +87,57 @@ class SMSService {
     } catch (error) {
       console.error('SMS sending failed:', error);
       throw new Error('Failed to send SMS');
+    }
+  }
+
+  /**
+   * Send SMS via Fast2SMS
+   */
+  private async sendViaFast2SMS(to: string, message: string): Promise<void> {
+    const apiKey = process.env.FAST2SMS_API_KEY;
+    const apiUrl = 'https://www.fast2sms.com/dev/bulkV2';
+
+    // Console log for testing (always show regardless of API key)
+    console.log('📱 SMS MESSAGE (Fast2SMS)');
+    console.log('========================');
+    console.log(`To: +91${to}`);
+    console.log(`Message: ${message}`);
+    console.log(`Sender ID: ${this.senderId}`);
+    console.log(`Timestamp: ${new Date().toISOString()}`);
+    console.log('========================');
+
+    if (!apiKey) {
+      console.log('⚠️  Fast2SMS API key not configured - SMS logged only');
+      return; // Don't throw error, just log and return
+    }
+
+    try {
+      const response = await axios.post(
+        apiUrl,
+        {
+          route: 'v3',
+          sender_id: this.senderId,
+          message: message,
+          language: 'english',
+          flash: 0,
+          numbers: to,
+        },
+        {
+          headers: {
+            'authorization': apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.data.return || response.data.return === false) {
+        throw new Error(`Fast2SMS API error: ${response.data.message || 'Unknown error'}`);
+      }
+      
+      console.log('✅ SMS sent successfully via Fast2SMS');
+    } catch (error) {
+      console.log('❌ Fast2SMS API call failed:', error);
+      throw error;
     }
   }
 
@@ -181,6 +237,34 @@ class SMSService {
     }
     
     await this.sendSMS(to, message);
+  }
+
+  /**
+   * Send bulk SMS (for notifications)
+   */
+  async sendBulkSMS(recipients: string[], message: string): Promise<{ success: number; failed: number; errors: string[] }> {
+    const results = { success: 0, failed: 0, errors: [] as string[] };
+    
+    for (const recipient of recipients) {
+      try {
+        await this.sendSMS(recipient, message);
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`${recipient}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * Get SMS delivery status (if supported by provider)
+   */
+  async getDeliveryStatus(messageId: string): Promise<{ status: string; delivered_at?: Date }> {
+    // Implementation depends on SMS provider
+    // Fast2SMS provides delivery reports via webhook or API
+    return { status: 'unknown' };
   }
 
   /**

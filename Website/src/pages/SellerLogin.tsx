@@ -1,84 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  CheckCircle, 
-  AlertCircle,
+  Eye,
+  EyeOff,
   Loader2,
-  ArrowRight,
-  RefreshCw
+  AlertCircle,
+  Phone
 } from 'lucide-react';
 import { API_ENDPOINTS } from '../config/api';
 
 interface LoginFormData {
-  email: string;
+  identifier: string; // email or mobile
   password: string;
-  otp: string;
-  captcha: string;
-}
-
-interface CaptchaData {
-  captchaId: string;
-  imageUrl: string;
-  expiresIn: number;
 }
 
 const SellerLogin: React.FC = () => {
-  const [step, setStep] = useState<'credentials' | 'otp' | 'captcha'>('credentials');
   const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
-    password: '',
-    otp: '',
-    captcha: ''
+    identifier: '',
+    password: ''
   });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
-  const [otpTimer, setOtpTimer] = useState(0);
-  const [canResendOTP, setCanResendOTP] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // OTP Timer
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (otpTimer > 0) {
-      interval = setInterval(() => {
-        setOtpTimer(prev => {
-          if (prev <= 1) {
-            setCanResendOTP(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [otpTimer]);
-
-  const updateFormData = (field: keyof LoginFormData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleInputChange = (field: keyof LoginFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
     // Clear error when user starts typing
     if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
-  const validateCredentials = (): boolean => {
+  const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Invalid email format';
+    if (!formData.identifier.trim()) {
+      newErrors.identifier = 'Email or mobile number is required';
     }
 
     if (!formData.password) {
@@ -89,542 +49,202 @@ const SellerLogin: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const generateCaptcha = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
     try {
-      console.log('Fetching CAPTCHA from:', API_ENDPOINTS.SELLER_AUTH.CAPTCHA);
-      const response = await fetch(API_ENDPOINTS.SELLER_AUTH.CAPTCHA);
-      const data = await response.json();
-      
-      console.log('CAPTCHA response:', { status: response.status, data });
-      
-      if (response.ok && data.success) {
-        setCaptchaData(data.data);
-        setErrors({ captcha: '' }); // Clear any previous errors
-      } else {
-        console.error('CAPTCHA generation failed:', data);
-        setErrors({ captcha: data.message || 'Failed to load CAPTCHA. Please try again.' });
-      }
-    } catch (error) {
-      console.error('CAPTCHA fetch error:', error);
-      setErrors({ captcha: 'Failed to load CAPTCHA. Please check your connection.' });
-    }
-  };
-
-  const handleCredentialsSubmit = async () => {
-    if (!validateCredentials()) return;
-
-    setIsLoading(true);
-    try {
-      // Generate CAPTCHA first
-      await generateCaptcha();
-      setStep('captcha');
-    } catch (error) {
-      setErrors({ submit: 'Failed to proceed. Please try again.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCaptchaSubmit = async () => {
-    if (!formData.captcha.trim()) {
-      setErrors({ captcha: 'Please enter the CAPTCHA' });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      console.log('Submitting login with CAPTCHA:', {
-        email: formData.email,
-        captcha: formData.captcha,
-        captchaId: captchaData?.captchaId
-      });
-
-      const response = await fetch(API_ENDPOINTS.SELLER_AUTH.LOGIN, {
+      const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.LOGIN, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: formData.email,
+          identifier: formData.identifier.trim(),
           password: formData.password,
-          captcha: formData.captcha,
-          captchaId: captchaData?.captchaId
+          deviceFingerprint: 'web_' + Date.now(),
+          ipAddress: 'unknown'
         }),
       });
 
       const result = await response.json();
-      console.log('Login response:', { status: response.status, result });
 
       if (response.ok && result.success) {
-        // Store seller info temporarily
-        sessionStorage.setItem('sellerLoginData', JSON.stringify({
-          sellerId: result.data.sellerId,
-          mobile: result.data.mobile || 'N/A'
-        }));
-        
-        setStep('otp');
-        setOtpTimer(300); // 5 minutes
-        setCanResendOTP(false);
-        setErrors({ submit: '' }); // Clear any previous errors
-      } else {
-        // Handle specific error cases
-        let errorMessage = result.message || 'Login failed. Please check your credentials.';
-        
-        if (response.status === 403 && result.code === 'ACCOUNT_NOT_APPROVED') {
-          errorMessage = 'Your seller account is pending approval. Please wait for admin verification or contact support.';
-        } else if (response.status === 400 && result.code === 'INVALID_CAPTCHA') {
-          errorMessage = 'Invalid CAPTCHA. Please try again.';
-        } else if (response.status === 401) {
-          errorMessage = 'Invalid email or password. Please check your credentials.';
+        // Store tokens
+        if (result.data.tokens) {
+          localStorage.setItem('accessToken', result.data.tokens.accessToken);
+          localStorage.setItem('refreshToken', result.data.tokens.refreshToken);
         }
         
-        setErrors({ submit: errorMessage });
-        console.error('Login failed:', result);
-        
-        // Regenerate CAPTCHA on failure
-        await generateCaptcha();
-        setFormData(prev => ({ ...prev, captcha: '' }));
+        // Redirect to dashboard
+        window.location.href = '/seller/dashboard';
+      } else {
+        if (response.status === 401) {
+          setErrors({ submit: 'Invalid email/mobile or password' });
+        } else if (response.status === 404) {
+          setErrors({ 
+            submit: 'Account not found with this email/mobile',
+            suggestion: 'New to ShamBit? Create your seller account now!'
+          });
+        } else if (response.status === 423) {
+          setErrors({ submit: 'Account temporarily locked due to multiple failed attempts' });
+        } else if (response.status === 429) {
+          setErrors({ submit: 'Too many login attempts. Please try again later.' });
+        } else {
+          setErrors({ submit: result.error?.message || 'Login failed' });
+        }
       }
     } catch (error) {
       setErrors({ submit: 'Network error. Please check your connection and try again.' });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleOTPSubmit = async () => {
-    if (!formData.otp.trim()) {
-      setErrors({ otp: 'Please enter the OTP' });
-      return;
-    }
-
-    if (formData.otp.length !== 6) {
-      setErrors({ otp: 'OTP must be 6 digits' });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const loginData = JSON.parse(sessionStorage.getItem('sellerLoginData') || '{}');
-      
-      const response = await fetch(API_ENDPOINTS.SELLER_AUTH.VERIFY_OTP, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sellerId: loginData.sellerId,
-          otp: formData.otp
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        // Store tokens
-        localStorage.setItem('sellerAccessToken', result.tokens.accessToken);
-        localStorage.setItem('sellerRefreshToken', result.tokens.refreshToken);
-        localStorage.setItem('sellerData', JSON.stringify(result.seller));
-        
-        // Clear session data
-        sessionStorage.removeItem('sellerLoginData');
-        
-        // Redirect to seller portal
-        window.location.href = '/seller/dashboard';
-      } else {
-        setErrors({ otp: result.message || 'Invalid OTP. Please try again.' });
-      }
-    } catch (error) {
-      setErrors({ otp: 'Network error. Please check your connection and try again.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resendOTP = async () => {
-    if (!canResendOTP) return;
-
-    setIsLoading(true);
-    try {
-      const loginData = JSON.parse(sessionStorage.getItem('sellerLoginData') || '{}');
-      
-      const response = await fetch(API_ENDPOINTS.SELLER_AUTH.RESEND_OTP, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mobile: loginData.mobile
-        }),
-      });
-
-      if (response.ok) {
-        setOtpTimer(300);
-        setCanResendOTP(false);
-        setErrors({ otp: '' });
-      } else {
-        const result = await response.json();
-        setErrors({ otp: result.message || 'Failed to resend OTP' });
-      }
-    } catch (error) {
-      setErrors({ otp: 'Failed to resend OTP. Please try again.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   return (
-    <div 
-      className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col"
-      style={{ 
-        backgroundColor: '#f8fafc',
-        top: '0',
-        left: '0',
-        right: '0',
-        bottom: '0',
-        zIndex: 1000
-      }}
-    >
-      {/* Header Section */}
-      <div className="bg-white shadow-sm border-b flex-shrink-0">
-        <div className="max-w-6xl mx-auto px-4 py-3">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold mb-1">
-              Access Your{' '}
-              <span 
-                className="bg-gradient-to-r from-orange-600 via-orange-500 to-yellow-400 bg-clip-text text-transparent"
-                style={{ 
-                  backgroundSize: '300% 300%',
-                  filter: 'drop-shadow(0 0 10px rgba(255, 140, 0, 0.3))'
-                }}
-              >
-                Sham
-              </span>
-              <span 
-                className="bg-gradient-to-r from-blue-800 via-blue-600 to-blue-400 bg-clip-text text-transparent"
-                style={{ 
-                  backgroundSize: '300% 300%',
-                  filter: 'drop-shadow(0 0 10px rgba(30, 64, 175, 0.3))'
-                }}
-              >
-                Bit
-              </span>
-              {' '}Portal
-            </h1>
+    <div className="auth-page min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" style={{ margin: 0, padding: '1rem', minHeight: '100vh' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-2xl shadow-xl overflow-hidden max-w-md w-full" style={{ margin: 0 }}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#FF6F61] to-[#E55A4F] p-6 text-white text-center">
+          <div className="flex items-center justify-center mb-2">
+            <div className="text-2xl font-bold leading-none">
+              <span className="bg-gradient-to-r from-orange-200 via-yellow-200 to-amber-200 bg-clip-text text-transparent">Sham</span>
+              <span className="bg-gradient-to-r from-cyan-200 via-blue-200 to-indigo-200 bg-clip-text text-transparent">Bit</span>
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Welcome Back</h1>
+          <p className="text-orange-100">Sign in to your seller account</p>
+        </div>
 
+        <div className="p-6">
+          <form onSubmit={handleLogin} className="space-y-4">
+            {errors.submit && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex">
+                  <AlertCircle className="w-5 h-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-red-800 text-sm">{errors.submit}</p>
+                    {errors.suggestion && (
+                      <div className="mt-2">
+                        <p className="text-blue-600 text-xs">{errors.suggestion}</p>
+                        <a 
+                          href="/seller/register" 
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium underline"
+                        >
+                          Create Account →
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email or Mobile Number <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                {isEmail(formData.identifier) ? (
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                ) : (
+                  <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                )}
+                <input
+                  type="text"
+                  value={formData.identifier}
+                  onChange={(e) => handleInputChange('identifier', e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#FF6F61] focus:border-transparent transition-colors ${
+                    errors.identifier ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter email or mobile number"
+                />
+              </div>
+              {errors.identifier && <p className="text-red-500 text-sm mt-1">{errors.identifier}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-[#FF6F61] focus:border-transparent transition-colors ${
+                    errors.password ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  className="rounded border-gray-300 text-[#FF6F61] focus:ring-[#FF6F61]"
+                />
+                <span className="ml-2 text-sm text-gray-600">Remember me</span>
+              </label>
+              <a 
+                href="/seller/forgot-password" 
+                className="text-sm text-[#FF6F61] hover:text-[#E55A4F] font-medium"
+              >
+                Forgot password?
+              </a>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-[#FF6F61] text-white py-3 px-4 rounded-lg hover:bg-[#E55A4F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+
+            <div className="text-center text-sm text-gray-600">
+              Don't have an account?{' '}
+              <a href="/seller/register" className="text-[#FF6F61] hover:text-[#E55A4F] font-medium">
+                Register now
+              </a>
+            </div>
+          </form>
+
+          {/* Quick Login Help */}
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-900 mb-2">Quick Login Help</h4>
+            <ul className="text-xs text-gray-600 space-y-1">
+              <li>• Use your registered email or mobile number</li>
+              <li>• Password is case-sensitive</li>
+              <li>• Account gets locked after 5 failed attempts</li>
+              <li>• Contact support if you need help</li>
+            </ul>
           </div>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-2">
-        <div className="w-full max-w-md">
-
-
-          {/* Login Form */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-xl overflow-hidden"
-          >
-            <div className="p-4">
-              {/* Step 1: Credentials */}
-              {step === 'credentials' && (
-                <div className="space-y-6">
-                  <div className="text-center pb-3 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">Seller Login</h2>
-                    <p className="text-gray-600 text-sm">Enter your credentials</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Email Address *
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                        <input
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => updateFormData('email', e.target.value)}
-                          className={`w-full pl-12 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                            errors.email ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          }`}
-                          placeholder="Enter your registered email address"
-                        />
-                      </div>
-                      {errors.email && <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.email}
-                      </p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Password *
-                      </label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          value={formData.password}
-                          onChange={(e) => updateFormData('password', e.target.value)}
-                          className={`w-full pl-12 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                            errors.password ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          }`}
-                          placeholder="Enter your secure password"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                      </div>
-                      {errors.password && <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.password}
-                      </p>}
-                    </div>
-
-                    <div className="text-right">
-                      <a href="/seller/forgot-password" className="text-sm text-blue-600 hover:text-blue-700 hover:underline transition-colors">
-                        Forgot Password?
-                      </a>
-                    </div>
-                  </div>
-
-                  {errors.submit && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-start">
-                        <AlertCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                        <div>
-                          <p className="text-red-800 font-medium">Authentication Failed</p>
-                          <p className="text-red-700 text-sm mt-1">{errors.submit}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <button
-                    onClick={handleCredentialsSubmit}
-                    disabled={isLoading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 px-6 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        <span className="font-medium">Authenticating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium">Continue to Security Check</span>
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* Step 2: CAPTCHA */}
-              {step === 'captcha' && (
-                <div className="space-y-6">
-                  <div className="text-center pb-3 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">Security Check</h2>
-                    <p className="text-gray-600 text-sm">Complete CAPTCHA verification</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    {captchaData && (
-                      <div className="text-center">
-                        <div className="inline-block border-2 border-gray-300 rounded-lg p-4 bg-gray-50">
-                          <img 
-                            src={captchaData.imageUrl} 
-                            alt="CAPTCHA" 
-                            className="mx-auto"
-                          />
-                        </div>
-                        <button
-                          onClick={generateCaptcha}
-                          className="mt-2 flex items-center gap-1 px-3 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all text-sm mx-auto"
-                          title="Refresh CAPTCHA"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          <span>Refresh</span>
-                        </button>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Enter CAPTCHA *
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.captcha}
-                        onChange={(e) => updateFormData('captcha', e.target.value)}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center transition-all ${
-                          errors.captcha ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        }`}
-                        placeholder="Enter CAPTCHA text"
-                      />
-                      {errors.captcha && <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errors.captcha}
-                      </p>}
-                    </div>
-
-
-                  </div>
-
-                  {errors.submit && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-start">
-                        <AlertCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
-                        <div>
-                          <p className="text-red-800 font-medium">Verification Failed</p>
-                          <p className="text-red-700 text-sm mt-1">{errors.submit}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex space-x-4">
-                    <button
-                      onClick={() => setStep('credentials')}
-                      className="flex-1 bg-gray-100 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-200 transition-all duration-200 font-medium"
-                    >
-                      ← Back
-                    </button>
-                    <button
-                      onClick={handleCaptchaSubmit}
-                      disabled={isLoading}
-                      className="flex-2 bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-6 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          <span className="font-medium">Verifying...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-medium">Verify & Continue</span>
-                          <CheckCircle className="w-5 h-5 ml-2" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: OTP */}
-              {step === 'otp' && (
-                <div className="space-y-6">
-                  <div className="text-center pb-3 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-900">OTP Verification</h2>
-                    <p className="text-gray-600 text-sm">Enter the code sent to your mobile</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      6-Digit OTP *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.otp}
-                      onChange={(e) => updateFormData('otp', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-2xl tracking-widest font-mono transition-all ${
-                        errors.otp ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                      placeholder="000000"
-                      maxLength={6}
-                    />
-                    {errors.otp && <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errors.otp}
-                    </p>}
-                  </div>
-
-                  <div className="text-center">
-                    {otpTimer > 0 ? (
-                      <p className="text-gray-600 text-sm">
-                        Resend in <span className="font-mono font-medium text-blue-600">{formatTime(otpTimer)}</span>
-                      </p>
-                    ) : (
-                      <button
-                        onClick={resendOTP}
-                        disabled={isLoading}
-                        className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 text-sm"
-                      >
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleOTPSubmit}
-                    disabled={isLoading || formData.otp.length !== 6}
-                    className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-4 px-6 rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        <span className="font-medium">Authenticating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-medium">Access Seller Portal</span>
-                        <ArrowRight className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {/* Footer */}
-              <div className="mt-6 pt-4 border-t border-gray-200 text-center">
-                <p className="text-gray-600 text-sm">
-                  Don't have an account?{' '}
-                  <a href="/seller/register" className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors">
-                    Register as Seller
-                  </a>
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-      
-      {/* Footer */}
-      <div className="bg-white border-t flex-shrink-0">
-        <div className="max-w-6xl mx-auto px-4 py-2 text-center">
-          <p className="text-xs text-gray-500">© 2025 <span 
-                className="bg-gradient-to-r from-orange-600 via-orange-500 to-yellow-400 bg-clip-text text-transparent"
-                style={{ 
-                  backgroundSize: '300% 300%',
-                  filter: 'drop-shadow(0 0 5px rgba(255, 140, 0, 0.3))'
-                }}
-              >
-                Sham
-              </span>
-              <span 
-                className="bg-gradient-to-r from-blue-800 via-blue-600 to-blue-400 bg-clip-text text-transparent"
-                style={{ 
-                  backgroundSize: '300% 300%',
-                  filter: 'drop-shadow(0 0 5px rgba(30, 64, 175, 0.3))'
-                }}
-              >
-                Bit
-              </span> Commerce. All rights reserved. | <a href="/help" className="text-blue-600 hover:underline">Help</a> | <a href="/privacy" className="text-blue-600 hover:underline">Privacy</a> | <a href="/terms" className="text-blue-600 hover:underline">Terms</a></p>
-        </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

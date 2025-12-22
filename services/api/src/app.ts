@@ -60,6 +60,19 @@ export const createApp = (): Application => {
   // API routes
   app.use(`/api/${config.API_VERSION}`, routes);
 
+  // Simple routes for testing
+  const simpleRoutes = require('./routes/simple-routes').default;
+  app.use('/api/v1', simpleRoutes);
+
+  // Debug: Add a direct test route
+  app.get('/api/v1/direct-test', (req, res) => {
+    res.json({
+      success: true,
+      message: 'Direct route works!',
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // 404 handler
   app.use(notFoundHandler);
 

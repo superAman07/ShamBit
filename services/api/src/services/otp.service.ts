@@ -1,4 +1,7 @@
 import { getDatabase } from '@shambit/database';
+import { smsService } from './sms.service';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
 interface OTPRecord {
   identifier: string;
@@ -11,7 +14,33 @@ interface OTPRecord {
 class OTPService {
   private readonly MAX_ATTEMPTS = 3;
   private readonly OTP_LENGTH = 6;
+  private readonly SALT_ROUNDS = 10;
 
+  /**
+   * Generate and send OTP
+   */
+  async generateAndSendOTP(identifier: string, purpose: string, expirySeconds: number = 300): Promise<{ success: boolean; otp?: string; error?: string }> {
+    try {
+      const otp = await this.generateOTP(identifier, purpose, expirySeconds);
+      
+      // Send OTP via SMS if identifier looks like a phone number
+      if (this.isPhoneNumber(identifier)) {
+        await smsService.sendOTP({
+          to: identifier,
+          otp,
+          purpose
+        });
+      }
+      
+      return { success: true, otp };
+    } catch (error) {
+      console.error('Generate and send OTP failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to generate OTP' 
+      };
+    }
+  }
   /**
    * Generate and store OTP
    */
@@ -36,7 +65,8 @@ class OTPService {
     }
     
     // Generate cryptographically secure 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = this.generateSecureOTP();
+    const otpHash = await bcrypt.hash(otp, this.SALT_ROUNDS);
     
     // Calculate expiry time
     const expiresAt = new Date();
@@ -47,15 +77,31 @@ class OTPService {
       .where({ identifier, purpose })
       .delete();
     
-    // Store new OTP
-    await db('otp_records').insert({
+    // Store new OTP with hash (if supported) or plain text (for backward compatibility)
+    const otpData: any = {
       identifier,
-      otp,
       purpose,
       expires_at: expiresAt,
       attempts: 0,
       created_at: new Date(),
-    });
+    };
+
+    // Try to use hashed OTP first, fallback to plain text
+    try {
+      // Check if otp_hash column exists by attempting to insert with it
+      otpData.otp_hash = otpHash;
+      await db('otp_records').insert(otpData);
+    } catch (error: any) {
+      if (error.code === '42703') { // Column doesn't exist
+        // Fallback to plain text OTP for backward compatibility
+        console.log('Using plain text OTP (otp_hash column not found)');
+        delete otpData.otp_hash;
+        otpData.otp = otp;
+        await db('otp_records').insert(otpData);
+      } else {
+        throw error;
+      }
+    }
     
     console.log('OTP generated successfully', { identifier, purpose, expirySeconds });
     return otp;
@@ -108,8 +154,15 @@ class OTPService {
       .where({ id: record.id })
       .update({ attempts: record.attempts + 1 });
     
-    // Verify OTP with strict comparison
-    const isValid = record.otp === otp.trim();
+    // Verify OTP using bcrypt for hashed OTPs, direct comparison for plain text
+    let isValid = false;
+    if (record.otp_hash) {
+      // New hashed OTP
+      isValid = await bcrypt.compare(otp.trim(), record.otp_hash);
+    } else if (record.otp) {
+      // Legacy plain text OTP
+      isValid = record.otp === otp.trim();
+    }
     
     if (isValid) {
       console.log('OTP verification successful', { identifier, purpose });
@@ -120,8 +173,6 @@ class OTPService {
       console.error('OTP verification failed: Invalid OTP', { 
         identifier, 
         purpose, 
-        providedOtp: otp,
-        expectedOtp: record.otp,
         attempts: record.attempts + 1 
       });
       return false;
@@ -161,6 +212,22 @@ class OTPService {
       .delete();
     
     return result;
+  }
+
+  /**
+   * Generate cryptographically secure OTP
+   */
+  private generateSecureOTP(): string {
+    const buffer = crypto.randomBytes(4);
+    const num = buffer.readUInt32BE(0);
+    return (num % 900000 + 100000).toString();
+  }
+
+  /**
+   * Check if identifier is a phone number
+   */
+  private isPhoneNumber(identifier: string): boolean {
+    return /^[6-9]\d{9}$/.test(identifier.replace(/^\+91/, ''));
   }
 
   /**

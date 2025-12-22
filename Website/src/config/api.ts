@@ -26,27 +26,11 @@ export const API_ENDPOINTS = {
     RESEND_OTP: `${API_BASE_URL}/seller-registration/resend-otp`,
     LOGIN: `${API_BASE_URL}/seller-registration/login`,
     REFRESH_TOKEN: `${API_BASE_URL}/seller-registration/refresh-token`,
-    LOGOUT: `${API_BASE_URL}/seller-registration/logout`,
-    PROFILE_UPDATE: `${API_BASE_URL}/seller-registration/profile`,
-    PROFILE_STATUS: `${API_BASE_URL}/seller-registration/profile/status`,
-    CHECK_ACCOUNT: `${API_BASE_URL}/seller-registration/check-account`,
-  },
-  // Keep existing endpoints for backward compatibility
-  SELLERS: {
-    STATISTICS: `${API_BASE_URL}/sellers/statistics/overview`,
   },
   SMS: {
     SEND_OTP: `${API_BASE_URL}/sms/send-otp`,
     VERIFY_OTP: `${API_BASE_URL}/sms/verify-otp`,
     SEND_NOTIFICATION: `${API_BASE_URL}/sms/send-notification`,
-  },
-  SELLER_AUTH: {
-    LOGIN: `${API_BASE_URL}/seller-auth/login`,
-    VERIFY_OTP: `${API_BASE_URL}/seller-auth/verify-otp`,
-    CAPTCHA: `${API_BASE_URL}/seller-auth/captcha`,
-    FORGOT_PASSWORD: `${API_BASE_URL}/seller-auth/forgot-password`,
-    RESET_PASSWORD: `${API_BASE_URL}/seller-auth/reset-password`,
-    RESEND_OTP: `${API_BASE_URL}/seller-auth/resend-otp`,
   },
   HEALTH: `${API_BASE_URL.replace('/api/v1', '')}/health`,
 } as const;

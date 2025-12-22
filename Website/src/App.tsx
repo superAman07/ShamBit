@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { Categories } from './components/Categories';
@@ -25,28 +26,64 @@ const HomePage = () => (
   </>
 );
 
+// Component to manage body classes based on route
+const BodyClassManager = () => {
+  const location = useLocation();
+  
+  useEffect(() => {
+    // Remove any existing body classes
+    document.body.classList.remove('has-fixed-header');
+    
+    // Add appropriate class based on route
+    if (location.pathname === '/') {
+      document.body.classList.add('has-fixed-header');
+    }
+  }, [location.pathname]);
+  
+  return null;
+};
+
 function App() {
   return (
     <Router>
-      <main className="min-h-screen font-sans selection:bg-[#FF6F61] selection:text-white flex flex-col overflow-x-hidden">
-        <Routes>
-          {/* Home Page */}
-          <Route path="/" element={
-            <>
-              <Header />
-              <HomePage />
-              <Footer />
-            </>
-          } />
-          
-          {/* Seller Pages - No Header/Footer for clean auth experience */}
-          <Route path="/seller/register" element={<SellerRegistration />} />
-          <Route path="/seller/login" element={<SellerLogin />} />
-          <Route path="/seller/forgot-password" element={<SellerForgotPassword />} />
-          <Route path="/seller/dashboard" element={<SellerDashboard />} />
-          <Route path="/seller/profile/:section" element={<SellerProfileCompletion />} />
-        </Routes>
-      </main>
+      <BodyClassManager />
+      <Routes>
+        {/* Home Page */}
+        <Route path="/" element={
+          <main className="min-h-screen font-sans selection:bg-[#FF6F61] selection:text-white flex flex-col overflow-x-hidden">
+            <Header />
+            <HomePage />
+            <Footer />
+          </main>
+        } />
+        
+        {/* Seller Pages - Full screen without main wrapper for clean auth experience */}
+        <Route path="/seller/register" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerRegistration />
+          </div>
+        } />
+        <Route path="/seller/login" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerLogin />
+          </div>
+        } />
+        <Route path="/seller/forgot-password" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerForgotPassword />
+          </div>
+        } />
+        <Route path="/seller/dashboard" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerDashboard />
+          </div>
+        } />
+        <Route path="/seller/profile/:section" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerProfileCompletion />
+          </div>
+        } />
+      </Routes>
     </Router>
   );
 }

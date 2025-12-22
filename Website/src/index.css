@@ -30,9 +30,6 @@ body {
   color: var(--color-text-body);
   font-family: var(--font-family-sans);
   font-display: swap;
-  /* Compensate for fixed header */
-  padding-top: 116px;
-  /* Approximate header height */
 }
 
 /* Fixed header styles to prevent address bar conflicts */
@@ -70,7 +67,7 @@ header *::after {
 }
 
 /* Specific fix for potential black line at top */
-body {
+body.has-fixed-header {
   margin: 0 !important;
   padding-top: 120px !important;
   border: none !important;
@@ -99,7 +96,7 @@ html {
 
 /* Responsive header compensation */
 @media (max-width: 768px) {
-  body {
+  body.has-fixed-header {
     padding-top: 160px;
     /* More space on mobile for contact bar */
   }
@@ -579,70 +576,101 @@ img {
 
 /* ===== ENHANCED TEXT READABILITY ===== */
 
-/* Make all text darker and more readable */
-.text-gray-600 {
+/* Make all text darker and more readable - but only for forms and auth pages */
+.auth-page .text-gray-600,
+.form-container .text-gray-600 {
   color: #1f2937 !important; /* Much darker gray, almost black */
 }
 
-.text-gray-700 {
+.auth-page .text-gray-700,
+.form-container .text-gray-700 {
   color: #111827 !important; /* Very dark gray, nearly black */
 }
 
-.text-gray-500 {
+.auth-page .text-gray-500,
+.form-container .text-gray-500 {
   color: #374151 !important; /* Darker than default gray-500 */
 }
 
-.text-gray-800 {
+.auth-page .text-gray-800,
+.form-container .text-gray-800 {
   color: #000000 !important; /* Pure black */
 }
 
-.text-gray-900 {
+.auth-page .text-gray-900,
+.form-container .text-gray-900 {
   color: #000000 !important; /* Pure black */
 }
 
-/* Ensure form labels are very dark */
-label {
+/* Ensure form labels are very dark - only in auth contexts */
+.auth-page label,
+.form-container label {
   color: #111827 !important; /* Very dark gray */
   font-weight: 500 !important; /* Medium weight for better readability */
 }
 
-/* Make placeholder text darker */
-input::placeholder,
-textarea::placeholder,
-select::placeholder {
+/* Make placeholder text darker - only in auth contexts */
+.auth-page input::placeholder,
+.auth-page textarea::placeholder,
+.auth-page select::placeholder,
+.form-container input::placeholder,
+.form-container textarea::placeholder,
+.form-container select::placeholder {
   color: #4b5563 !important; /* Darker placeholder text */
   opacity: 1 !important;
 }
 
-/* Ensure all form text is dark */
-input,
-textarea,
-select {
+/* Ensure all form text is dark - only in auth contexts */
+.auth-page input,
+.auth-page textarea,
+.auth-page select,
+.form-container input,
+.form-container textarea,
+.form-container select {
   color: #111827 !important; /* Very dark text in form fields */
 }
 
-/* Make description text darker */
-p {
+/* Make description text darker - only in auth contexts */
+.auth-page p,
+.form-container p {
   color: #1f2937 !important; /* Dark gray for better readability */
 }
 
-/* Ensure headings are black */
-h1, h2, h3, h4, h5, h6 {
+/* Ensure headings are black - only in auth contexts */
+.auth-page h1, 
+.auth-page h2, 
+.auth-page h3, 
+.auth-page h4, 
+.auth-page h5, 
+.auth-page h6,
+.form-container h1, 
+.form-container h2, 
+.form-container h3, 
+.form-container h4, 
+.form-container h5, 
+.form-container h6 {
   color: #000000 !important; /* Pure black headings */
 }
 
-/* Make step descriptions more readable */
-.text-center p {
+/* Make step descriptions more readable - only in auth contexts */
+.auth-page .text-center p,
+.form-container .text-center p {
   color: #1f2937 !important;
 }
 
-/* Ensure all text in forms is highly readable */
-.space-y-8 p,
-.border-b p,
-.bg-gray-50 p,
-.bg-blue-50 p,
-.bg-yellow-50 p,
-.bg-green-50 p {
+/* Ensure all text in forms is highly readable - only in auth contexts */
+.auth-page .space-y-8 p,
+.auth-page .border-b p,
+.auth-page .bg-gray-50 p,
+.auth-page .bg-blue-50 p,
+.auth-page .bg-yellow-50 p,
+.auth-page .bg-green-50 p,
+.form-container .space-y-8 p,
+.form-container .border-b p,
+.form-container .bg-gray-50 p,
+.form-container .bg-blue-50 p,
+.form-container .bg-yellow-50 p,
+.form-container .bg-green-50 p {
   color: #1f2937 !important;
 }
 
@@ -681,7 +709,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Ensure footer text remains light on dark background */
 footer,
 footer * {
-  color: inherit !important;
+  color: inherit;
 }
 
 /* Footer headings should be white */
@@ -694,16 +722,54 @@ footer .font-bold {
 /* Footer paragraph text should be light */
 footer p,
 footer li,
-footer span:not(.bg-gradient-to-r *) {
+footer span:not(.bg-gradient-to-r *):not(.bg-clip-text) {
   color: #f5f5f5 !important;
 }
 
 /* Footer links should be light with hover effects */
-footer a {
+footer a:not(.bg-black *) {
   color: #f5f5f5 !important;
 }
 
-footer a:hover {
+footer a:not(.bg-black *):hover {
+  color: #ffffff !important;
+}
+
+/* Mobile app section - dark text on light background */
+footer .bg-gradient-to-r.from-slate-100 * {
+  color: inherit;
+}
+
+footer .bg-gradient-to-r.from-slate-100 h3 {
+  color: #111827 !important;
+}
+
+footer .bg-gradient-to-r.from-slate-100 p {
+  color: #4b5563 !important;
+}
+
+footer .bg-gradient-to-r.from-slate-100 span {
+  color: #374151 !important;
+}
+
+/* App store buttons - white text on black background */
+footer .bg-black {
+  background-color: #000000 !important;
+}
+
+footer .bg-black * {
+  color: #ffffff !important;
+}
+
+footer .bg-black .text-gray-300 {
+  color: #d1d5db !important;
+}
+
+footer .bg-black .text-xs {
+  color: #d1d5db !important;
+}
+
+footer .bg-black .font-semibold {
   color: #ffffff !important;
 }
 
@@ -725,21 +791,16 @@ footer .text-white\/95 {
   color: rgba(255, 255, 255, 0.95) !important;
 }
 
-/* Footer text opacity classes - using attribute selectors instead */
-footer [class*="text-"][class*="/80"] {
-  color: rgba(245, 245, 245, 0.8) !important;
-}
-
-footer [class*="text-"][class*="/60"] {
-  color: rgba(245, 245, 245, 0.6) !important;
-}
-
-footer [class*="text-"][class*="/70"] {
-  color: rgba(245, 245, 245, 0.7) !important;
-}
-
 footer .text-white\/80 {
   color: rgba(255, 255, 255, 0.8) !important;
+}
+
+footer .text-white\/60 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+footer .text-white\/70 {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 /* Ensure gradient text in footer works */
@@ -755,198 +816,4 @@ footer .bg-gradient-to-r.from-blue-400.to-blue-300.bg-clip-text.text-transparent
   -webkit-background-clip: text !important;
   background-clip: text !important;
   color: transparent !important;
-}
-
-/* ===== FOOTER BOTTOM SECTION SPECIFIC FIXES ===== */
-
-/* Target the bottom copyright and legal sections specifically */
-footer .text-center p,
-footer .text-center div,
-footer .text-xs,
-footer .text-sm {
-  color: #f5f5f5 !important;
-}
-
-/* Legal disclaimer text */
-footer .text-xs.leading-relaxed,
-footer .max-w-4xl p {
-  color: rgba(245, 245, 245, 0.8) !important;
-}
-
-/* Copyright text - using attribute selector instead */
-footer .text-xs[class*="text-"][class*="/70"] {
-  color: rgba(245, 245, 245, 0.9) !important;
-}
-
-/* Company description text - using attribute selector instead */
-footer .text-sm[class*="text-"][class*="/80"] {
-  color: rgba(245, 245, 245, 0.9) !important;
-}
-
-/* Ensure all text in the bottom section is light */
-footer .text-center * {
-  color: #f5f5f5 !important;
-}
-
-/* Override any remaining dark text in footer */
-footer .text-black,
-footer .text-gray-900,
-footer .text-gray-800,
-footer .text-gray-700,
-footer .text-gray-600 {
-  color: #f5f5f5 !important;
-}
-
-/* Make sure strong/bold text in footer is visible */
-footer strong {
-  color: #ffffff !important;
-  font-weight: 600 !important;
-}
-
-/* ===== SPECIFIC TAILWIND CLASS OVERRIDES FOR FOOTER ===== */
-
-/* Override specific Tailwind opacity classes in footer - using attribute selectors */
-footer [class*="F5F5F5"][class*="/60"] {
-  color: rgba(245, 245, 245, 0.9) !important;
-}
-
-footer [class*="F5F5F5"][class*="/70"] {
-  color: rgba(245, 245, 245, 0.95) !important;
-}
-
-footer [class*="F5F5F5"][class*="/80"] {
-  color: rgba(245, 245, 245, 0.95) !important;
-}
-
-footer .text-white\/90 {
-  color: rgba(255, 255, 255, 0.95) !important;
-}
-
-footer .text-white\/95 {
-  color: rgba(255, 255, 255, 0.98) !important;
-}
-
-/* Force all footer text to be light - nuclear option */
-footer * {
-  color: #f5f5f5 !important;
-}
-
-/* Re-apply specific colors after the nuclear option */
-footer .text-orange-300 {
-  color: #fdba74 !important;
-}
-
-footer .text-orange-200 {
-  color: #fed7aa !important;
-}
-
-footer h3,
-footer h4,
-footer .font-bold {
-  color: #ffffff !important;
-}
-
-footer strong {
-  color: #ffffff !important;
-}
-
-/* Gradient text exceptions */
-footer .bg-gradient-to-r.bg-clip-text.text-transparent {
-  color: transparent !important;
-}
-
-/* Ensure the ShamBit gradient text works */
-footer .bg-gradient-to-r.from-orange-400.to-yellow-400 {
-  background: linear-gradient(to right, #fb923c, #facc15) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-}
-
-footer .bg-gradient-to-r.from-blue-400.to-blue-300 {
-  background: linear-gradient(to right, #60a5fa, #93c5fd) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-}
-
-/* ===== APP DOWNLOAD SECTION FIXES ===== */
-
-/* App store buttons need light text on black background */
-.bg-black .text-gray-300 {
-  color: #d1d5db !important; /* Light gray for "Download on the" text */
-}
-
-.bg-black .text-white {
-  color: #ffffff !important; /* White for "App Store" text */
-}
-
-.bg-black .font-semibold {
-  color: #ffffff !important; /* White for main app store text */
-}
-
-/* Features section text should be dark */
-.text-gray-700.font-medium {
-  color: #374151 !important; /* Dark gray for feature descriptions */
-}
-
-/* ===== SELLER LOGIN PAGE SPECIFIC FIXES ===== */
-
-/* Ensure seller login page text is dark and readable */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-gray-600,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-gray-700,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-gray-500,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-gray-800,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-gray-900 {
-  color: #111827 !important; /* Very dark gray, nearly black */
-}
-
-/* Seller login form labels */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 label {
-  color: #111827 !important;
-  font-weight: 500 !important;
-}
-
-/* Seller login form text */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 p {
-  color: #1f2937 !important;
-}
-
-/* Seller login headings */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 h1,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 h2,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 h3 {
-  color: #000000 !important;
-}
-
-/* Seller login input placeholders */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 input::placeholder {
-  color: #4b5563 !important;
-  opacity: 1 !important;
-}
-
-/* Seller login input text */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 input {
-  color: #111827 !important;
-}
-
-/* Seller login links */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 a {
-  color: #1d4ed8 !important;
-}
-
-/* Seller login error messages */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-red-500,
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-red-700 {
-  color: #dc2626 !important;
-  font-weight: 500 !important;
-}
-
-/* Seller login success/info messages */
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-green-600 {
-  color: #059669 !important;
-  font-weight: 500 !important;
-}
-
-.bg-gradient-to-br.from-blue-50.to-indigo-100 .text-blue-600 {
-  color: #1d4ed8 !important;
-  font-weight: 500 !important;
 }
