@@ -1,6 +1,6 @@
 import { createLogger, RateLimitError, UnauthorizedError } from '@shambit/shared';
 import { AdminService } from './admin.service';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, verifyRefreshTokenLegacy } from '../utils/jwt';
 import { AuthTokens } from '../types/auth.types';
 import { Admin } from '../types/admin.types';
 
@@ -200,7 +200,7 @@ export class AdminAuthService {
    */
   async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
     // Verify refresh token
-    const payload = verifyRefreshToken(refreshToken);
+    const payload = verifyRefreshTokenLegacy(refreshToken);
 
     // Check if token is revoked
     const isRevoked = await this.isTokenRevoked(refreshToken);

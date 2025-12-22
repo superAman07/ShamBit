@@ -2,7 +2,7 @@ import { createLogger, UnauthorizedError, BadRequestError } from '@shambit/share
 import { UserService } from './user.service';
 import { otpService } from './otp.service';
 import { smsService } from './sms.service';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import { generateAccessToken, generateRefreshToken, verifyRefreshTokenLegacy } from '../utils/jwt';
 import { validateMobileNumber, validateOTP } from '../utils/validation';
 import { AuthTokens, User } from '../types/auth.types';
 
@@ -111,7 +111,7 @@ export class AuthService {
    */
   async refreshAccessToken(refreshToken: string): Promise<AuthTokens> {
     // Verify refresh token
-    const payload = verifyRefreshToken(refreshToken);
+    const payload = verifyRefreshTokenLegacy(refreshToken);
 
     // Check if token is revoked
     const isRevoked = await this.isTokenRevoked(refreshToken);
