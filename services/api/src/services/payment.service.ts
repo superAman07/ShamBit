@@ -39,24 +39,11 @@ class PaymentService {
    */
   async createOrder(options: RazorpayOrderOptions): Promise<RazorpayOrder> {
     try {
-      // In a real implementation, this would call the Razorpay API
-      // For now, we'll simulate the response
       if (!this.razorpayKeyId || !this.razorpayKeySecret) {
-        // Mock response for development
-        const mockOrderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        logger.info('Creating mock Razorpay order', { orderId: mockOrderId, amount: options.amount });
-        
-        return {
-          id: mockOrderId,
-          entity: 'order',
-          amount: options.amount,
-          currency: options.currency,
-          receipt: options.receipt,
-          status: 'created',
-        };
+        throw new Error('Razorpay credentials not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET environment variables.');
       }
 
-      // Real Razorpay API call would go here
+      // Real Razorpay API call
       const auth = Buffer.from(`${this.razorpayKeyId}:${this.razorpayKeySecret}`).toString('base64');
       
       const response = await fetch('https://api.razorpay.com/v1/orders', {
@@ -182,14 +169,7 @@ class PaymentService {
   async initiateRefund(paymentId: string, amount?: number): Promise<any> {
     try {
       if (!this.razorpayKeyId || !this.razorpayKeySecret) {
-        // Mock response for development
-        logger.info('Mock refund initiated', { paymentId, amount });
-        return {
-          id: `rfnd_${Date.now()}`,
-          payment_id: paymentId,
-          amount: amount || 0,
-          status: 'processed',
-        };
+        throw new Error('Razorpay credentials not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET environment variables.');
       }
 
       const auth = Buffer.from(`${this.razorpayKeyId}:${this.razorpayKeySecret}`).toString('base64');

@@ -130,7 +130,7 @@ async function reverseGeocodeCoordinates(lat: number, lng: number) {
       'Unknown State';
 
     // Extract pincode/postcode
-    const pincode = addressComponents.postcode || '000000';
+    const pincode = addressComponents.postcode || null;
 
     // Build full address
     const fullAddress = addressParts.length > 0

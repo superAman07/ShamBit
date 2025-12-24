@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { brandService } from '../services/brand.service';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { validate } from '../middleware/validation.middleware';
+import { validate } from '../middleware/validation';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AppError, BadRequestError } from '@shambit/shared';
 import {

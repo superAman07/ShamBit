@@ -42,13 +42,13 @@ export function migrateLegacySellerData(legacySeller: LegacySeller): Seller {
       addressLine1: 'Legacy Address',
       city: legacySeller.city,
       state: 'Unknown',
-      pinCode: '000000'
+      pinCode: ''
     } : undefined,
     businessAddress: legacySeller.city ? {
       sameAsHome: true,
       city: legacySeller.city,
       state: 'Unknown',
-      pinCode: '000000'
+      pinCode: ''
     } : undefined,
     
     // Tax information

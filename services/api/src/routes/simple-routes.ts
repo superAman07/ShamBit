@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { otpService } from '../services';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { getConfig } from '@shambit/config';
 import { getDatabase } from '@shambit/database';
+import { SellerRegistrationService } from '@shambit/database';
 import { 
   registrationLimiter, 
   otpVerificationLimiter, 
@@ -25,17 +27,14 @@ import {
   logoutSchema,
   refreshTokenSchema
 } from '../middleware/validation';
+
+// Import password reset schemas separately to avoid potential import issues
+import { 
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  verifyResetOtpSchema
+} from '../middleware/validation';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
-import {
-  createRegistrationSessionWithoutHash,
-  getRegistrationByMobile,
-  getRegistrationBySession,
-  updateRegistrationOTPStatus,
-  clearRegistrationSession,
-  markSessionVerified,
-  isSessionVerified,
-  isOTPExpired
-} from '../utils/session';
 import { maskMobile, maskEmail } from '../utils/security';
 import { generateTokens, revokeSession, revokeAllSessions, refreshAccessToken, getCurrentSessionFromToken } from '../utils/jwt';
 import { errorResponse, successResponse } from '../utils/response';
@@ -51,6 +50,16 @@ import {
 const router = Router();
 const config = getConfig();
 
+// Lazy-loaded services to avoid database initialization issues
+let registrationService: SellerRegistrationService | null = null;
+const getRegistrationService = () => {
+  if (!registrationService) {
+    const db = getDatabase();
+    registrationService = new SellerRegistrationService(db, otpService);
+  }
+  return registrationService;
+};
+
 // Verify JWT secrets exist at startup
 if (!config.JWT_SECRET || !config.JWT_REFRESH_SECRET) {
   console.error('CRITICAL: JWT secrets not configured');
@@ -64,61 +73,40 @@ router.post('/seller-registration/register',
   sanitizeInput,
   validateRequest(registrationSchema),
   async (req, res) => {
-    const db = getDatabase();
-    
     try {
       const { fullName, mobile, email, password } = req.body;
+      const ipAddress = req.ip || 'unknown';
       
-      // First check if seller exists (without transaction to avoid long locks)
-      const existingSeller = await db('sellers')
-        .where('email', email)
-        .orWhere('mobile', mobile)
-        .first();
-
-      if (existingSeller) {
-        return errorResponse(res, 409, ERROR_CODES.SELLER_EXISTS, 'Seller with this email or mobile already exists');
-      }
-
-      // Clear any existing session atomically
-      const existingSession = await getRegistrationByMobile(mobile);
-      if (existingSession) {
-        await clearRegistrationSession(existingSession.sessionId);
-      }
-      
-      // Create registration session (encrypt password, don't store plaintext)
-      const sessionId = await createRegistrationSessionWithoutHash({
+      // Use the secure registration service
+      const result = await getRegistrationService().registerSeller({
         fullName,
         mobile,
         email,
-        password // Encrypt temporarily, hash only after OTP verification
-      });
+        password,
+        deviceFingerprint: req.get('X-Device-Fingerprint') // Optional device fingerprinting
+      }, ipAddress);
       
-      // Send OTP OUTSIDE of any database transaction
-      const otpResult = await otpService.generateAndSendOTP(mobile, 'verification');
-      
-      if (!otpResult.success) {
-        await clearRegistrationSession(sessionId);
-        return errorResponse(res, 500, ERROR_CODES.OTP_SEND_FAILED, 'Failed to send OTP. Please try again.');
-      }
-
-      // Calculate OTP expiry
-      const otpExpirySeconds = parseInt(process.env.OTP_EXPIRY_SECONDS || '300');
-      const otpExpiresAt = new Date(Date.now() + otpExpirySeconds * 1000);
-
-      // Update session to mark OTP as sent with expiry
-      await updateRegistrationOTPStatus(sessionId, true, otpExpiresAt);
-      
-      // Return success response
       return successResponse(res, {
         message: SUCCESS_MESSAGES.REGISTRATION_INITIATED,
-        sessionId,
+        sessionId: result.data.sessionId,
         mobile: maskMobile(mobile),
-        otpSent: true,
-        expiresIn: parseInt(process.env.OTP_EXPIRY_SECONDS || '300'),
+        otpSent: result.data.otpSent,
+        expiresIn: result.data.expiresIn,
+        riskLevel: result.data.riskAssessment?.riskLevel || 'low', // Only expose risk level, not internal flags
         nextStep: NEXT_STEPS.VERIFY_OTP
       }, 201);
-    } catch (error) {
-      console.error('Registration error:', error instanceof Error ? error.message : 'Unknown error');
+      
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      
+      if (error.code === 'DUPLICATE_ACCOUNT') {
+        return errorResponse(res, 409, ERROR_CODES.SELLER_EXISTS, error.message, error.details);
+      }
+      
+      if (error.code === 'HIGH_RISK_REGISTRATION') {
+        return errorResponse(res, 403, ERROR_CODES.HIGH_RISK_REGISTRATION, error.message, error.details);
+      }
+      
       return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Registration failed');
     }
   }
@@ -131,160 +119,119 @@ router.post('/seller-registration/verify-otp',
   sanitizeInput,
   validateRequest(otpVerificationSchema),
   async (req, res) => {
-    const db = getDatabase();
-    
     try {
-      const { mobile, otp, sessionId } = req.body;
+      const { sessionId, otp } = req.body;
+      const ipAddress = req.ip || 'unknown';
+      const userAgent = req.get('User-Agent') || 'unknown';
       
-      // Check if session already verified (prevent replay attacks)
-      if (await isSessionVerified(sessionId)) {
-        return errorResponse(res, 400, ERROR_CODES.INVALID_SESSION, 'OTP already verified for this session');
-      }
-      
-      // Check OTP attempt limits
-      const attemptCheck = trackOTPAttempts(mobile);
+      // Session-scoped OTP attempt tracking
+      const attemptCheck = trackOTPAttempts(sessionId);
       if (!attemptCheck.allowed) {
-        return errorResponse(res, 429, ERROR_CODES.TOO_MANY_ATTEMPTS, 'Too many failed OTP attempts. Please try again later.');
+        // Auto-invalidate session after too many failed attempts
+        await getRegistrationService().cleanupExpiredRecords(); // This will clean up the session
+        return errorResponse(res, 429, ERROR_CODES.TOO_MANY_ATTEMPTS, 'Too many failed OTP attempts. Registration session invalidated.');
       }
       
-      // Retrieve registration session
-      const registrationData = await getRegistrationBySession(sessionId);
-      if (!registrationData || registrationData.mobile !== mobile) {
-        return errorResponse(res, 400, ERROR_CODES.INVALID_SESSION, 'Invalid or expired registration session');
-      }
-
-      if (!registrationData.otpSent) {
-        return errorResponse(res, 400, ERROR_CODES.OTP_NOT_SENT, 'OTP was not sent for this session');
-      }
-
-      // Check if OTP has expired
-      if (await isOTPExpired(sessionId)) {
-        return errorResponse(res, 400, ERROR_CODES.INVALID_OTP, 'OTP has expired. Please request a new one.');
-      }
+      // Create a simple auth service interface for token generation
+      const authService = {
+        generateTokenPair: async (seller: any, ip?: string, ua?: string) => {
+          const tokens = await generateTokens({
+            sellerId: seller.id,
+            email: seller.email,
+            type: 'seller'
+          }, ip, ua);
+          
+          if (!tokens) {
+            throw new Error('Token generation failed');
+          }
+          
+          return tokens;
+        }
+      };
       
-      // Verify OTP
-      const isOtpValid = await otpService.verifyOTP(mobile, otp, 'verification');
+      // Use the secure registration service
+      const result = await getRegistrationService().verifyRegistrationOTP(
+        sessionId,
+        otp,
+        ipAddress,
+        userAgent,
+        authService
+      );
       
-      if (!isOtpValid) {
-        recordFailedOTPAttempt(mobile);
-        return errorResponse(res, 400, ERROR_CODES.INVALID_OTP, 'Invalid or expired OTP. Please try again.');
+      if (!result.success || !result.verified) {
+        // Record failed attempt for session-scoped tracking
+        recordFailedOTPAttempt(sessionId);
+        return errorResponse(res, 400, ERROR_CODES.INVALID_OTP, result.error || 'OTP verification failed');
       }
       
       // Clear failed attempts on successful verification
-      clearOTPAttempts(mobile);
+      clearOTPAttempts(sessionId);
       
-      // Mark session as verified to prevent replay
-      await markSessionVerified(sessionId);
-
-      // Use database transaction for atomic operations
-      const result = await db.transaction(async (trx) => {
-        // Double-check seller doesn't exist (race condition protection)
-        const existingSeller = await trx('sellers')
-          .where('email', registrationData.email)
-          .orWhere('mobile', registrationData.mobile)
-          .first();
-
-        if (existingSeller) {
-          throw new Error(ERROR_CODES.SELLER_EXISTS);
-        }
-
-        // Hash password only now after successful OTP verification
-        const bcryptCost = process.env.BCRYPT_COST ? parseInt(process.env.BCRYPT_COST) : 12;
-        const hashedPassword = registrationData.password; // Already hashed during registration
-
-        // Create seller account with minimal required data
-        const [newSeller] = await trx('sellers')
-          .insert({
-            full_name: registrationData.fullName,
-            mobile: registrationData.mobile,
-            email: registrationData.email,
-            password_hash: hashedPassword,
-            mobile_verified: true,
-            email_verified: false,
-            
-            // Minimal required fields - will be completed in profile step
-            date_of_birth: null,
-            gender: null,
-            seller_type: SELLER_TYPE.INDIVIDUAL,
-            
-            registered_business_address: JSON.stringify({}),
-            warehouse_addresses: JSON.stringify([]),
-            bank_details: JSON.stringify({}),
-            
-            pan_number: null,
-            pan_holder_name: null,
-            primary_product_categories: null,
-            estimated_monthly_order_volume: null,
-            preferred_pickup_time_slots: null,
-            max_order_processing_time: null,
-            
-            terms_and_conditions_accepted: true,
-            return_policy_accepted: true,
-            data_compliance_accepted: true,
-            privacy_policy_accepted: true,
-            commission_rate_accepted: true,
-            payment_settlement_terms_accepted: true,
-            
-            status: SELLER_STATUS.PENDING,
-            overall_verification_status: VERIFICATION_STATUS.PENDING,
-            profile_completed: false, // Explicitly track profile completion
-            created_at: new Date(),
-            updated_at: new Date()
-          })
-          .returning(['id', 'full_name', 'email', 'mobile', 'mobile_verified', 'status', 'overall_verification_status', 'profile_completed']);
-
-        return newSeller;
-      });
-
-      // Clear registration session
-      await clearRegistrationSession(sessionId);
-
-      // Generate JWT tokens for immediate login
-      const tokens = await generateTokens({
-        sellerId: result.id, 
-        email: result.email,
-        type: 'seller'
-      }, req.ip, req.get('User-Agent'));
-      
-      if (!tokens) {
-        return errorResponse(res, 503, ERROR_CODES.TOKEN_GENERATION_FAILED, 'Registration completed but login failed. Please try logging in manually.');
-      }
-      
-      // Return success response with tokens
+      // Return success response with tokens and seller info
       return successResponse(res, {
         message: 'Registration completed successfully! Please complete your profile to start selling.',
         verified: true,
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken
-        },
-        sessionId: tokens.sessionId,
+        tokens: result.tokens,
+        sessionId: result.tokens?.refreshToken ? 'generated' : undefined, // Don't expose actual session ID
         seller: {
-          id: result.id,
-          fullName: result.full_name,
-          email: result.email,
-          mobile: maskMobile(result.mobile),
-          mobileVerified: result.mobile_verified,
-          status: result.status,
-          verificationStatus: result.overall_verification_status,
-          profileComplete: result.profile_completed,
+          id: result.seller!.id,
+          fullName: result.seller!.fullName,
+          email: result.seller!.email,
+          mobile: maskMobile(result.seller!.mobile),
+          mobileVerified: result.seller!.mobileVerified,
+          status: result.seller!.status,
+          verificationStatus: result.seller!.verificationStatus,
           nextStep: 'complete-profile'
         }
       });
       
-    } catch (error) {
-      if (error instanceof Error && error.message === ERROR_CODES.SELLER_EXISTS) {
-        await clearRegistrationSession(req.body.sessionId);
-        return errorResponse(res, 409, ERROR_CODES.SELLER_EXISTS, 'Seller with this email or mobile already exists');
-      }
-      
-      console.error('OTP verification error:', error instanceof Error ? error.message : 'Unknown error');
+    } catch (error: any) {
+      console.error('OTP verification error:', error);
       return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'OTP verification failed');
     }
   }
 );
 
+// Resend OTP route
+router.post('/seller-registration/resend-otp',
+  enforceHTTPS,
+  otpVerificationLimiter,
+  sanitizeInput,
+  async (req, res) => {
+    try {
+      const { sessionId, method = 'sms' } = req.body;
+      const ipAddress = req.ip || 'unknown';
+      
+      if (!sessionId) {
+        return errorResponse(res, 400, ERROR_CODES.VALIDATION_ERROR, 'Session ID is required');
+      }
+      
+      // Use the secure registration service
+      const result = await getRegistrationService().resendOTP(sessionId, method, ipAddress);
+      
+      if (!result.success) {
+        return errorResponse(res, 400, ERROR_CODES.OTP_SEND_FAILED, 'Failed to resend OTP');
+      }
+      
+      return successResponse(res, {
+        message: 'OTP resent successfully',
+        sent: result.sent,
+        expiresIn: result.expiresIn,
+        attemptsRemaining: result.attemptsRemaining,
+        cooldownSeconds: result.cooldownSeconds,
+        method: result.method
+      });
+      
+    } catch (error: any) {
+      console.error('OTP resend error:', error);
+      return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to resend OTP');
+    }
+  }
+);
+
 // Simple seller login route
+// TODO: Extract to centralized AuthService for consistency with SellerRegistrationService
+// Currently bypasses SellerRegistrationService - should be unified in future refactor
 router.post('/seller-registration/login',
   enforceHTTPS,
   loginLimiter,
@@ -294,35 +241,34 @@ router.post('/seller-registration/login',
     const db = getDatabase();
     
     try {
-      const { email, password } = req.body;
+      const { identifier, password } = req.body; // Changed from email to identifier to support both email and mobile
       
       // Create identifiers for multi-layer brute force protection
       const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
       
       // Check login attempt limits across multiple layers
-      const attemptCheck = trackLoginAttempts(email, clientIP, userAgent);
+      const attemptCheck = trackLoginAttempts(identifier, clientIP, userAgent);
       if (!attemptCheck.allowed) {
         return errorResponse(res, 429, ERROR_CODES.TOO_MANY_ATTEMPTS, 'Too many failed login attempts. Please try again later.');
       }
       
-      // Find seller by email with all required fields
+      // Find seller by email or mobile with all required fields
+      const db = getDatabase();
+      const isEmail = identifier.includes('@');
+      const field = isEmail ? 'email' : 'mobile';
+      
       const seller = await db('sellers')
-        .select(
-          'id', 'full_name', 'email', 'mobile', 'password_hash', 
-          'mobile_verified', 'email_verified', 'status', 'overall_verification_status',
-          'profile_completed'
-        )
-        .where('email', email)
+        .where(field, identifier)
         .first();
       
       if (!seller) {
-        recordFailedLoginAttempt(email, clientIP, userAgent);
-        return errorResponse(res, 401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password');
+        recordFailedLoginAttempt(identifier, clientIP, userAgent);
+        return errorResponse(res, 401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email/mobile or password');
       }
       
       // Check if seller is suspended
-      if (seller.status === SELLER_STATUS.SUSPENDED) {
+      if (seller.status === 'suspended') {
         return errorResponse(res, 403, ERROR_CODES.ACCOUNT_SUSPENDED, 'Account has been suspended. Please contact support.');
       }
       
@@ -330,12 +276,20 @@ router.post('/seller-registration/login',
       const isPasswordValid = await bcrypt.compare(password, seller.password_hash);
       
       if (!isPasswordValid) {
-        recordFailedLoginAttempt(email, clientIP, userAgent);
-        return errorResponse(res, 401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password');
+        recordFailedLoginAttempt(identifier, clientIP, userAgent);
+        return errorResponse(res, 401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email/mobile or password');
       }
       
       // Clear failed attempts on successful login
-      clearLoginAttempts(email, clientIP, userAgent);
+      clearLoginAttempts(identifier, clientIP, userAgent);
+      
+      // Update last login timestamp
+      await db('sellers')
+        .where('id', seller.id)
+        .update({ 
+          last_login_at: new Date(),
+          updated_at: new Date()
+        });
       
       // Generate JWT tokens
       const tokens = await generateTokens({
@@ -413,11 +367,7 @@ router.post('/seller-registration/complete-profile',
           throw new Error(ERROR_CODES.SELLER_NOT_FOUND);
         }
         
-        if (currentSeller.profile_completed) {
-          throw new Error(ERROR_CODES.PROFILE_ALREADY_COMPLETED);
-        }
-        
-        // Update seller profile
+        // Update seller profile with business details
         return await trx('sellers')
           .where('id', sellerId)
           .update({
@@ -427,11 +377,11 @@ router.post('/seller-registration/complete-profile',
             pan_holder_name: panHolderName,
             registered_business_address: JSON.stringify(businessAddress),
             primary_product_categories: primaryProductCategories,
-            profile_completed: true, // Mark profile as completed
-            overall_verification_status: VERIFICATION_STATUS.IN_REVIEW,
+            profile_completed: true,
+            overall_verification_status: 'in_review',
             updated_at: new Date()
           })
-          .returning(['id', 'full_name', 'email', 'overall_verification_status', 'profile_completed'])
+          .returning(['id', 'full_name', 'email', 'overall_verification_status'])
           .then(rows => rows[0]);
       });
       
@@ -602,6 +552,228 @@ router.get('/seller-registration/sessions',
     } catch (error) {
       console.error('Sessions fetch error:', error instanceof Error ? error.message : 'Unknown error');
       return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch sessions');
+    }
+  }
+);
+
+// Forgot password route - send password reset instructions via email or SMS
+router.post('/seller-registration/forgot-password',
+  enforceHTTPS,
+  registrationLimiter, // Reuse registration limiter for security
+  sanitizeInput,
+  validateRequest(forgotPasswordSchema),
+  async (req, res) => {
+    const db = getDatabase();
+    
+    try {
+      const { identifier } = req.body;
+      
+      // Find seller by email or mobile
+      const seller = await db('sellers')
+        .where('email', identifier)
+        .orWhere('mobile', identifier)
+        .first();
+      
+      // Always return success to prevent account enumeration (security best practice)
+      const successResponseData = {
+        message: 'If an account exists with this email/mobile, you will receive reset instructions shortly.',
+        method: identifier.includes('@') ? 'email' : 'sms'
+      };
+      
+      if (!seller) {
+        // Return success even if seller doesn't exist (security)
+        return successResponse(res, successResponseData);
+      }
+      
+      if (identifier.includes('@')) {
+        // Email-based reset: Generate JWT token for email reset link
+        const resetToken = jwt.sign(
+          { 
+            sub: seller.id,
+            type: 'password_reset',
+            identifier: identifier
+          },
+          config.JWT_SECRET,
+          { expiresIn: '15m' } // 15 minutes expiry
+        );
+        
+        // Hash the token before storing (security best practice)
+        const tokenHash = await bcrypt.hash(resetToken, 12);
+        
+        // Store hashed reset token in database with expiry (one per seller)
+        await db.transaction(async (trx) => {
+          // Delete any existing reset tokens for this seller
+          await trx('password_reset_tokens')
+            .where('seller_id', seller.id)
+            .delete();
+          
+          // Insert new hashed token
+          await trx('password_reset_tokens').insert({
+            seller_id: seller.id,
+            token_hash: tokenHash,
+            identifier: identifier,
+            expires_at: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+            created_at: new Date()
+          });
+        });
+        
+        // TODO: Send email reset link
+        console.log(`Password reset email would be sent to: ${identifier}`);
+        console.log(`Reset token: ${resetToken}`);
+      } else {
+        // Mobile-based reset: Send OTP via SMS
+        const otpResult = await otpService.generateAndSendOTP(identifier, 'password_reset');
+        
+        if (!otpResult.success) {
+          console.error('Failed to send password reset OTP:', otpResult.error);
+          // Still return success for security
+        }
+      }
+      
+      return successResponse(res, successResponseData);
+      
+    } catch (error) {
+      console.error('Forgot password error:', error instanceof Error ? error.message : 'Unknown error');
+      return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to process password reset request');
+    }
+  }
+);
+
+// Reset password using email token
+router.post('/seller-registration/reset-password',
+  enforceHTTPS,
+  registrationLimiter, // Reuse registration limiter for security
+  sanitizeInput,
+  validateRequest(resetPasswordSchema),
+  async (req, res) => {
+    const db = getDatabase();
+    
+    try {
+      const { token, newPassword } = req.body;
+      
+      // Verify reset token
+      let decoded;
+      try {
+        decoded = jwt.verify(token, config.JWT_SECRET) as any;
+      } catch (error) {
+        return errorResponse(res, 400, ERROR_CODES.INVALID_TOKEN, 'Invalid or expired reset token');
+      }
+      
+      if (decoded.type !== 'password_reset') {
+        return errorResponse(res, 400, ERROR_CODES.INVALID_TOKEN, 'Invalid token type');
+      }
+      
+      // Check if token exists in database and is not used
+      const resetRecords = await db('password_reset_tokens')
+        .where('seller_id', decoded.sub)
+        .where('expires_at', '>', new Date())
+        .whereNull('used_at');
+      
+      // Verify the token hash matches one of the stored hashes
+      let validRecord = null;
+      for (const record of resetRecords) {
+        const isValidHash = await bcrypt.compare(token, record.token_hash);
+        if (isValidHash) {
+          validRecord = record;
+          break;
+        }
+      }
+      
+      if (!validRecord) {
+        return errorResponse(res, 400, ERROR_CODES.INVALID_TOKEN, 'Invalid or expired reset token');
+      }
+      
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      
+      // Update seller password and mark token as used
+      await db.transaction(async (trx) => {
+        await trx('sellers')
+          .where('id', decoded.sub)
+          .update({
+            password_hash: passwordHash,
+            updated_at: new Date()
+          });
+        
+        await trx('password_reset_tokens')
+          .where('id', validRecord.id)
+          .update({
+            used_at: new Date()
+          });
+      });
+      
+      return successResponse(res, {
+        message: 'Password reset successful. You can now login with your new password.'
+      });
+      
+    } catch (error) {
+      console.error('Reset password error:', error instanceof Error ? error.message : 'Unknown error');
+      return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to reset password');
+    }
+  }
+);
+
+// Verify OTP and reset password for mobile-based reset
+router.post('/seller-registration/verify-reset-otp',
+  enforceHTTPS,
+  otpVerificationLimiter,
+  sanitizeInput,
+  validateRequest(verifyResetOtpSchema),
+  async (req, res) => {
+    const db = getDatabase();
+    
+    try {
+      const { identifier, otp, newPassword } = req.body;
+      
+      // Verify OTP
+      const otpResult = await otpService.verifyOTP({
+        mobile: identifier,
+        otp,
+        purpose: 'password_reset',
+        ipAddress: req.ip
+      });
+      
+      if (!otpResult.verified) {
+        return errorResponse(res, 400, ERROR_CODES.INVALID_OTP, otpResult.error || 'Invalid or expired OTP');
+      }
+      
+      // Find seller by mobile
+      const seller = await db('sellers')
+        .where('mobile', identifier)
+        .first();
+      
+      if (!seller) {
+        return errorResponse(res, 404, ERROR_CODES.SELLER_NOT_FOUND, 'Seller not found');
+      }
+      
+      // Hash new password
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      
+      // Update seller password and clean up any reset tokens
+      await db.transaction(async (trx) => {
+        await trx('sellers')
+          .where('id', seller.id)
+          .update({
+            password_hash: passwordHash,
+            updated_at: new Date()
+          });
+        
+        // Mark any existing reset tokens as used
+        await trx('password_reset_tokens')
+          .where('seller_id', seller.id)
+          .whereNull('used_at')
+          .update({
+            used_at: new Date()
+          });
+      });
+      
+      return successResponse(res, {
+        message: 'Password reset successful. You can now login with your new password.'
+      });
+      
+    } catch (error) {
+      console.error('Verify reset OTP error:', error instanceof Error ? error.message : 'Unknown error');
+      return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to reset password');
     }
   }
 );

@@ -136,7 +136,7 @@ export const HelpSection: React.FC = () => {
           </a>
           
           <a
-            href="tel:+911800123456"
+            href="tel:+911800000000"
             className="flex items-center text-sm hover:opacity-80 transition-opacity"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,7 +4,7 @@ import { getConfig } from '@shambit/config';
 import { getDatabase } from '@shambit/database';
 
 interface TokenPayload {
-  sellerId: number;
+  sellerId: string;
   email: string;
   type: string;
 }
@@ -17,7 +17,7 @@ interface TokenPair {
 
 interface RefreshTokenData {
   sessionId: string;
-  sellerId: number;
+  sellerId: string;
   tokenFamily: string;
 }
 

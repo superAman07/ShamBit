@@ -1609,9 +1609,8 @@ export class ProductService {
         throw createNotFoundError('Product', productId, ErrorCodes.PRODUCT_NOT_FOUND);
       }
 
-      // TODO: Implement seller notification after creating simplified seller service
-      // const { sellerService } = await import('./seller.service');
-      // await sellerService.createSellerNotification(updatedProduct.sellerId!, {
+      // TODO: Implement seller notification system
+      // This will be implemented when we create a proper notification service
       //   type: `product_${action}d`,
       //   title: `Product ${action.charAt(0).toUpperCase() + action.slice(1)}d`,
       //   message: `Your product "${updatedProduct.name}" has been ${action}d.`,

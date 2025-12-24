@@ -2,8 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { AuthService } from '../services/auth.service';
 import { asyncHandler } from '../middleware';
-import { authRateLimit, passwordResetRateLimit } from '../middleware/rateLimiting.middleware';
-import { validate, sanitizeInput } from '../middleware/validation.middleware';
+import { authRateLimiter } from '../middleware/rateLimiter';
+import { validateRequest, validate, sanitizeInput } from '../middleware/validation';
 import { authenticate } from '../middleware/auth.middleware';
 import {
   RegisterRequest,
@@ -41,11 +41,11 @@ const refreshTokenSchema = z.object({
 router.post(
   '/register',
   sanitizeInput,
-  authRateLimit,
+  authRateLimiter,
   validate({
     body: [
       { field: 'mobileNumber', required: true, type: 'phone' },
-      { field: 'acceptedTerms', required: true, type: 'boolean', custom: (val) => val === true || 'You must accept terms and conditions' }
+      { field: 'acceptedTerms', required: true, type: 'boolean', custom: (val: any) => val === true || 'You must accept terms and conditions' }
     ]
   }),
   asyncHandler(async (req: Request, res: Response) => {
@@ -74,7 +74,7 @@ router.post(
 router.post(
   '/send-otp',
   sanitizeInput,
-  authRateLimit,
+  authRateLimiter,
   validate({
     body: [
       { field: 'mobileNumber', required: true, type: 'phone' }
@@ -106,7 +106,7 @@ router.post(
 router.post(
   '/verify-otp',
   sanitizeInput,
-  authRateLimit,
+  authRateLimiter,
   validate({
     body: [
       { field: 'mobileNumber', required: true, type: 'phone' },

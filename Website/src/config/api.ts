@@ -26,6 +26,9 @@ export const API_ENDPOINTS = {
     RESEND_OTP: `${API_BASE_URL}/seller-registration/resend-otp`,
     LOGIN: `${API_BASE_URL}/seller-registration/login`,
     REFRESH_TOKEN: `${API_BASE_URL}/seller-registration/refresh-token`,
+    FORGOT_PASSWORD: `${API_BASE_URL}/seller-registration/forgot-password`,
+    RESET_PASSWORD: `${API_BASE_URL}/seller-registration/reset-password`,
+    VERIFY_RESET_OTP: `${API_BASE_URL}/seller-registration/verify-reset-otp`,
   },
   SMS: {
     SEND_OTP: `${API_BASE_URL}/sms/send-otp`,

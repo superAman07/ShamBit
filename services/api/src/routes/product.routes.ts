@@ -1,11 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { productService } from '../services/product.service';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { validate, commonValidations, sanitizeInput } from '../middleware/validation.middleware';
+import { validate, sanitizeInput } from '../middleware/validation';
 import { asyncHandler } from '../middleware/errorHandler';
 import { AppError, BadRequestError, createLogger } from '@shambit/shared';
 import { ErrorCodes } from '../utils/errorCodes';
-import { publicRateLimit } from '../middleware/rateLimiting.middleware';
+import { defaultRateLimiter } from '../middleware/rateLimiter';
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -244,7 +244,7 @@ router.post(
  */
 router.get(
   '/filters',
-  publicRateLimit, // PERFORMANCE FIX: Add rate limiting to prevent API spam
+  defaultRateLimiter(), // PERFORMANCE FIX: Add rate limiting to prevent API spam
   asyncHandler(async (req: Request, res: Response): Promise<void> => {
     // Import services dynamically to avoid circular dependencies
     const { categoryService } = await import('../services/category.service');

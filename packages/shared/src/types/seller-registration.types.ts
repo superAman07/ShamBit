@@ -153,7 +153,7 @@ export interface Seller {
   fullName: string;
   mobile: string;
   email: string;
-  passwordHash: string;
+  // passwordHash: REMOVED - only auth services should access password hashes
   
   // Verification Status
   mobileVerified: boolean;
@@ -232,9 +232,9 @@ export interface ProfileCompletionStatus {
 // Audit logging
 export interface AuditLog {
   id: string;
-  sellerId: string;
+  sellerId: string | null; // Allow null for system actions before seller creation
   action: string;
-  entityType: 'seller' | 'document' | 'profile';
+  entityType: 'seller' | 'document' | 'profile' | 'registration_session';
   entityId: string;
   oldValues?: Record<string, any>;
   newValues?: Record<string, any>;
@@ -278,7 +278,7 @@ export interface RegistrationRequest {
 export interface RegistrationResponse {
   success: boolean;
   data: {
-    sellerId: string;
+    sessionId: string; // Changed from sellerId - no seller created until OTP verification
     otpSent: boolean;
     expiresIn: number;
     riskAssessment?: {
@@ -495,6 +495,8 @@ export interface SessionRecord {
   sellerId: string;
   refreshTokenHash: string;
   tokenFamily: string;
+  accessTokenJti?: string;
+  accessTokenExpiresAt?: Date;
   createdAt: Date;
   expiresAt: Date;
   revoked: boolean;

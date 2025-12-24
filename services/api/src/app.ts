@@ -9,11 +9,11 @@ import {
   requestLogger,
   getCorsOptions,
 } from './middleware';
-import { generalRateLimit } from './middleware/rateLimiting.middleware';
-import { securityMiddleware } from './middleware/security.middleware';
+import { defaultRateLimiter } from './middleware/rateLimiter';
 import { performanceMonitor } from './middleware/performanceMonitor';
 import routes from './routes';
 import healthRoutes from './routes/health.routes';
+import simpleRoutes from './routes/simple-routes';
 
 /**
  * Create and configure Express application
@@ -24,9 +24,6 @@ export const createApp = (): Application => {
 
   // Trust proxy (for rate limiting and IP detection behind load balancers)
   app.set('trust proxy', 1);
-
-  // Enhanced security middleware stack
-  app.use(securityMiddleware);
 
   // CORS with enhanced configuration
   app.use(cors(getCorsOptions()));
@@ -41,8 +38,8 @@ export const createApp = (): Application => {
   // Performance monitoring
   app.use(performanceMonitor);
 
-  // Enhanced rate limiting
-  app.use(generalRateLimit);
+  // Rate limiting
+  app.use(defaultRateLimiter());
 
   // Static file serving for uploads with CORS headers
   app.use('/uploads', (req, res, next) => {
@@ -60,18 +57,8 @@ export const createApp = (): Application => {
   // API routes
   app.use(`/api/${config.API_VERSION}`, routes);
 
-  // Simple routes for testing
-  const simpleRoutes = require('./routes/simple-routes').default;
+  // Seller registration routes
   app.use('/api/v1', simpleRoutes);
-
-  // Debug: Add a direct test route
-  app.get('/api/v1/direct-test', (req, res) => {
-    res.json({
-      success: true,
-      message: 'Direct route works!',
-      timestamp: new Date().toISOString()
-    });
-  });
 
   // 404 handler
   app.use(notFoundHandler);

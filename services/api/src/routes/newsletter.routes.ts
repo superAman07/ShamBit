@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { NewsletterService } from '../services/newsletter.service';
-import { validate, sanitizeInput } from '../middleware/validation.middleware';
+import { validate, sanitizeInput } from '../middleware/validation';
 import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();

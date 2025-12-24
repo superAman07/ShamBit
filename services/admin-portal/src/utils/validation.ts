@@ -198,8 +198,8 @@ export const validatePrice = (price: number): { valid: boolean; error?: string }
     return { valid: false, error: 'Price must be a positive number' }
   }
 
-  if (price > 1000000) {
-    return { valid: false, error: 'Price cannot exceed ₹10,000' }
+  if (price > 100000) {
+    return { valid: false, error: 'Price cannot exceed ₹1,00,000' }
   }
 
   return { valid: true }

@@ -22,6 +22,7 @@ interface RegistrationFormData {
   confirmPassword: string;
   otp: string;
   deviceFingerprint?: string;
+  sessionId?: string; // Add sessionId to track registration session
 }
 
 interface OTPState {
@@ -173,6 +174,13 @@ const SellerRegistration: React.FC = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // Store the sessionId from registration response
+        console.log('Registration successful, sessionId:', result.data.sessionId);
+        setFormData(prev => ({
+          ...prev,
+          sessionId: result.data.sessionId
+        }));
+        
         setOtpState(prev => ({
           ...prev,
           sent: true,
@@ -202,6 +210,18 @@ const SellerRegistration: React.FC = () => {
   const handleVerifyOTP = async () => {
     if (!validateStep(2)) return;
 
+    // Debug logging
+    console.log('Verifying OTP with data:', {
+      mobile: formData.mobile,
+      otp: formData.otp,
+      sessionId: formData.sessionId
+    });
+
+    if (!formData.sessionId) {
+      setErrors({ otp: 'Session expired. Please register again.' });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.VERIFY_OTP, {
@@ -210,7 +230,7 @@ const SellerRegistration: React.FC = () => {
         body: JSON.stringify({
           mobile: formData.mobile,
           otp: formData.otp,
-          deviceFingerprint: formData.deviceFingerprint
+          sessionId: formData.sessionId // Send sessionId instead of deviceFingerprint
         }),
       });
 
@@ -226,7 +246,14 @@ const SellerRegistration: React.FC = () => {
           localStorage.setItem('refreshToken', result.data.tokens.refreshToken);
         }
       } else {
-        setErrors({ otp: result.error?.message || 'Invalid OTP. Please try again.' });
+        // Handle different types of errors
+        if (result.error?.code === 'VALIDATION_ERROR') {
+          const validationErrors = result.error.details || [];
+          const errorMessage = validationErrors.map((err: any) => `${err.field}: ${err.message}`).join(', ');
+          setErrors({ otp: `Validation error: ${errorMessage}` });
+        } else {
+          setErrors({ otp: result.error?.message || 'Invalid OTP. Please try again.' });
+        }
         setOtpState(prev => ({
           ...prev,
           attemptsRemaining: Math.max(0, prev.attemptsRemaining - 1)

@@ -8,6 +8,7 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react';
+import { API_ENDPOINTS } from '../config/api';
 
 const SellerForgotPassword: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
@@ -28,10 +29,27 @@ const SellerForgotPassword: React.FC = () => {
     setError('');
 
     try {
-      // Mock API call - in production, this would call the actual forgot password API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setSuccess(true);
+      // Call the actual forgot password API
+      const response = await fetch(API_ENDPOINTS.SELLER_REGISTRATION.FORGOT_PASSWORD, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ identifier }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        if (method === 'otp') {
+          // Redirect to OTP reset page for mobile users
+          window.location.href = '/seller/reset-password-otp';
+        } else {
+          setSuccess(true);
+        }
+      } else {
+        setError(result.error?.message || 'Failed to send reset instructions. Please try again.');
+      }
     } catch (error) {
       setError('Failed to send reset instructions. Please try again.');
     } finally {

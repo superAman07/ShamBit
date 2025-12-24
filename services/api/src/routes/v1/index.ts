@@ -1,12 +1,9 @@
 import { Router } from 'express';
-import sellerRegistrationRoutes from './seller-registration.routes';
 import testRoutes from './test-routes';
 
 const router = Router();
 
-console.log('V1 routes: Mounting seller-registration routes...');
-console.log('V1 routes: sellerRegistrationRoutes type:', typeof sellerRegistrationRoutes);
-console.log('V1 routes: sellerRegistrationRoutes is Router?', sellerRegistrationRoutes instanceof Router);
+console.log('V1 routes: Mounting routes...');
 
 // Create a simple test route to verify routing works
 router.get('/test-simple', (req, res) => {
@@ -16,18 +13,6 @@ router.get('/test-simple', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
-// Try to mount the seller registration routes
-try {
-  if (sellerRegistrationRoutes) {
-    router.use('/seller-registration', sellerRegistrationRoutes);
-    console.log('V1 routes: seller-registration routes mounted successfully');
-  } else {
-    console.error('V1 routes: sellerRegistrationRoutes is null or undefined');
-  }
-} catch (error) {
-  console.error('V1 routes: Error mounting seller-registration routes:', error);
-}
 
 // Try to mount test routes
 try {

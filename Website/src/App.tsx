@@ -11,6 +11,8 @@ import { Footer } from './components/Footer';
 import SellerRegistration from './pages/SellerRegistration';
 import SellerLogin from './pages/SellerLogin';
 import SellerForgotPassword from './pages/SellerForgotPassword';
+import SellerResetPassword from './pages/SellerResetPassword';
+import SellerResetPasswordOTP from './pages/SellerResetPasswordOTP';
 import SellerDashboard from './pages/SellerDashboard';
 import SellerProfileCompletion from './pages/SellerProfileCompletion';
 
@@ -71,6 +73,16 @@ function App() {
         <Route path="/seller/forgot-password" element={
           <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
             <SellerForgotPassword />
+          </div>
+        } />
+        <Route path="/seller/reset-password" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerResetPassword />
+          </div>
+        } />
+        <Route path="/seller/reset-password-otp" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerResetPasswordOTP />
           </div>
         } />
         <Route path="/seller/dashboard" element={

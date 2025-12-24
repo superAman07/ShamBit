@@ -7,6 +7,7 @@ export interface ErrorResponse {
     code: ErrorCode;
     message: string;
     timestamp: string;
+    details?: any;
   };
 }
 
@@ -22,14 +23,16 @@ export const errorResponse = (
   res: Response, 
   statusCode: number, 
   code: ErrorCode, 
-  message: string
+  message: string,
+  details?: any
 ): Response<ErrorResponse> => {
   return res.status(statusCode).json({
     success: false,
     error: {
       code,
       message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(details && { details })
     }
   });
 };

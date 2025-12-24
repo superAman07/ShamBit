@@ -4,6 +4,7 @@ import { createLogger } from '@shambit/shared';
 
 import { logger as winstonLogger } from './config/logger.config';
 import { createApp } from './app';
+import { cleanupJob } from './jobs/cleanup.job';
 
 const logger = createLogger('api');
 
@@ -29,6 +30,10 @@ const startServer = async (): Promise<void> => {
     // Test database connection
     await database.raw('SELECT 1');
     logger.info('Database connection verified');
+
+    // Start cleanup job after database is ready
+    cleanupJob.start();
+    logger.info('Cleanup job started');
 
     // Create Express app
     const app = createApp();

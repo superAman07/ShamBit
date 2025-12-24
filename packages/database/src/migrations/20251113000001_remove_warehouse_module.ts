@@ -221,7 +221,7 @@ export async function down(knex: Knex): Promise<void> {
       city: 'Default City',
       state: 'Default State',
       country: 'India',
-      postal_code: '000000',
+      postal_code: null,
       is_active: true
     })
     .returning('id');

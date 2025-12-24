@@ -70,9 +70,13 @@ export class AuthService {
     validateOTP(otp);
 
     // Verify OTP
-    const isValidOTP = await this.otpService.verifyOTP(mobileNumber, otp, 'user_login');
-    if (!isValidOTP) {
-      throw new UnauthorizedError('Invalid or expired OTP');
+    const otpResult = await this.otpService.verifyOTP({
+      mobile: mobileNumber,
+      otp,
+      purpose: 'user_login'
+    });
+    if (!otpResult.verified) {
+      throw new UnauthorizedError(otpResult.error || 'Invalid or expired OTP');
     }
 
     // Find or create user
