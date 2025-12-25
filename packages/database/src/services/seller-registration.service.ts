@@ -23,6 +23,16 @@ interface RegistrationSession {
   expiresAt: Date;
   createdAt: Date;
 }
+
+// Persistence-safe DTO for seller creation - only allows fields that are actually inserted
+type SellerCreateInput = {
+  fullName: string;
+  mobile: string;
+  email: string;
+  passwordHash: string;
+  mobileVerified?: boolean;
+  emailVerified?: boolean;
+};
 import bcrypt from 'bcrypt';
 
 // Note: Enhanced OTP service will be imported from API layer when called
@@ -37,6 +47,14 @@ export class SellerRegistrationService {
     hasAccessTokenJti: false,
     hasAccessTokenExpiresAt: false,
     hasRevokedColumns: false
+  };
+
+  private sellerSchemaFlags: {
+    hasLastLoginAt: boolean;
+    hasUpdatedAt: boolean;
+  } = {
+    hasLastLoginAt: false,
+    hasUpdatedAt: false
   };
 
   constructor(private db: Knex, private otpService?: any) {
@@ -67,6 +85,21 @@ export class SellerRegistrationService {
       this.sessionSchemaFlags.hasRevokedColumns = true;
     } catch (error) {
       this.sessionSchemaFlags.hasRevokedColumns = false;
+    }
+
+    // Check seller table schema flags
+    try {
+      await this.db.raw("SELECT last_login_at FROM sellers LIMIT 0");
+      this.sellerSchemaFlags.hasLastLoginAt = true;
+    } catch (error) {
+      this.sellerSchemaFlags.hasLastLoginAt = false;
+    }
+
+    try {
+      await this.db.raw("SELECT updated_at FROM sellers LIMIT 0");
+      this.sellerSchemaFlags.hasUpdatedAt = true;
+    } catch (error) {
+      this.sellerSchemaFlags.hasUpdatedAt = false;
     }
   }
 
@@ -298,23 +331,7 @@ export class SellerRegistrationService {
             email: consumedSession.email,
             passwordHash: consumedSession.passwordHash,
             mobileVerified: true,
-            emailVerified: false,
-            accountStatus: 'active',
-            status: 'active',
-            verificationStatus: 'pending',
-            canListProducts: false,
-            payoutEnabled: false,
-            deviceFingerprints: consumedSession.deviceFingerprint ? [consumedSession.deviceFingerprint] : [],
-            featureAccess: {
-              productListing: false,
-              payoutProcessing: false,
-              bulkOperations: false,
-              advancedAnalytics: false
-            },
-            slaTracking: {
-              escalationLevel: 0
-            },
-            loginAttempts: 0
+            emailVerified: false
           });
 
           const createdSeller = await this.getSellerByIdWithTransaction(trx, sellerId);
@@ -337,15 +354,15 @@ export class SellerRegistrationService {
             accessToken: tokenPair.accessToken,
             refreshToken: tokenPair.refreshToken
           };
+          
+          // Only update login timestamp AFTER successful token generation
+          await this.updateLastLoginWithTransaction(trx, sellerId);
         } catch (error) {
           console.error('Token generation failed:', error);
           tokenGenerationFailed = true;
+          // Do NOT update login timestamps if token generation fails
         }
 
-        // ALWAYS cleanup registration session (success or partial success)
-        await this.deleteRegistrationSessionWithTransaction(trx, sessionId);
-        
-        // Create audit log
         await this.createAuditLogWithTransaction(trx, {
           sellerId,
           action: 'seller_registration_completed',
@@ -366,7 +383,8 @@ export class SellerRegistrationService {
           riskLevel: consumedSession.riskLevel
         });
 
-        await this.updateLastLoginWithTransaction(trx, sellerId);
+        // ALWAYS cleanup registration session (success or partial success)
+        await this.deleteRegistrationSessionWithTransaction(trx, sessionId);
 
         // Handle token generation failure AFTER seller creation
         if (tokenGenerationFailed) {
@@ -392,11 +410,12 @@ export class SellerRegistrationService {
     } catch (error) {
       console.error('Registration transaction failed:', error);
       
-      // Cleanup session even on transaction failure (best effort)
+      // Cleanup session even on transaction failure (best effort, no rollback)
       try {
         await this.deleteRegistrationSession(sessionId);
       } catch (cleanupError) {
-        console.error('Failed to cleanup registration session:', cleanupError);
+        console.error('Failed to cleanup registration session after transaction failure:', cleanupError);
+        // Don't throw - cleanup failures should not affect the main error
       }
 
       return {
@@ -818,28 +837,43 @@ export class SellerRegistrationService {
   }
 
   /**
-   * Update last login timestamp
+   * Update last login timestamp - schema-safe version
    */
   private async updateLastLogin(sellerId: string): Promise<void> {
+    const updateData: any = {};
+    
+    // Only update columns that exist in the current schema
+    if (this.sellerSchemaFlags.hasLastLoginAt) {
+      updateData.last_login_at = this.db.fn.now();
+    }
+    
+    if (this.sellerSchemaFlags.hasUpdatedAt) {
+      updateData.updated_at = this.db.fn.now();
+    }
+    
+    // Skip update if no updatable fields exist
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+    
     await this.db('sellers')
       .where('id', sellerId)
-      .update({
-        last_login_at: this.db.fn.now(),
-        updated_at: this.db.fn.now()
-      });
+      .update(updateData);
   }
 
   /**
    * Create a new seller record
    */
-  async createSeller(sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { passwordHash: string }): Promise<string> {
+/**  async createSeller(sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { passwordHash: string }): Promise<string> {
+    console.log('DEBUG: createSeller (non-transaction) called with data:', JSON.stringify(sellerData, null, 2));
+    
     // Create minimal seller record with only essential fields that exist in current schema
     const insertData: any = {
       full_name: sellerData.fullName,
       mobile: sellerData.mobile,
       email: sellerData.email,
       password_hash: sellerData.passwordHash,
-      status: 'active', // Account is active but pending verification
+      status: 'pending', // Account is active but pending verification
       // Required fields with default values to satisfy NOT NULL constraints
       gender: 'other', // Default value
       date_of_birth: '1990-01-01', // Default date
@@ -875,10 +909,13 @@ export class SellerRegistrationService {
         insertData.email_verified = sellerData.emailVerified;
       }
 
+      console.log('DEBUG: About to insert seller data (non-transaction):', JSON.stringify(insertData, null, 2));
+      
       const [seller] = await this.db('sellers')
         .insert(insertData)
         .returning('id');
       
+      console.log('DEBUG: Successfully inserted seller with ID (non-transaction):', seller.id);
       return seller.id;
     } catch (error: any) {
       // If insertion fails due to missing columns, try with minimal data
@@ -890,7 +927,7 @@ export class SellerRegistrationService {
           mobile: sellerData.mobile,
           email: sellerData.email,
           password_hash: sellerData.passwordHash,
-          status: 'active'
+          status: 'pending'
         };
 
         const [seller] = await this.db('sellers')
@@ -902,6 +939,13 @@ export class SellerRegistrationService {
       throw error;
     }
   }
+  **/
+
+  async createSeller(): Promise<never> {
+  throw new Error(
+    '❌ createSeller() is forbidden. Use createSellerWithTransaction().'
+  );
+}
 
   /**
    * Get seller by ID
@@ -950,12 +994,18 @@ export class SellerRegistrationService {
     section: 'business_details' | 'address_info' | 'tax_compliance' | 'bank_details',
     data: any
   ): Promise<boolean> {
+    const updateData: any = {
+      [section]: JSON.stringify(data)
+    };
+    
+    // Only add updated_at if column exists
+    if (this.sellerSchemaFlags.hasUpdatedAt) {
+      updateData.updated_at = this.db.fn.now();
+    }
+    
     const result = await this.db('sellers')
       .where('id', sellerId)
-      .update({
-        [section]: JSON.stringify(data),
-        updated_at: this.db.fn.now()
-      });
+      .update(updateData);
     
     return result > 0;
   }
@@ -967,12 +1017,18 @@ export class SellerRegistrationService {
     sellerId: string, 
     status: 'pending' | 'in_review' | 'verified' | 'rejected'
   ): Promise<boolean> {
+    const updateData: any = {
+      overall_verification_status: status
+    };
+    
+    // Only add updated_at if column exists
+    if (this.sellerSchemaFlags.hasUpdatedAt) {
+      updateData.updated_at = this.db.fn.now();
+    }
+    
     const result = await this.db('sellers')
       .where('id', sellerId)
-      .update({
-        verification_status: status,
-        updated_at: this.db.fn.now()
-      });
+      .update(updateData);
     
     return result > 0;
   }
@@ -981,12 +1037,18 @@ export class SellerRegistrationService {
    * Verify seller mobile number
    */
   async verifySellerMobile(sellerId: string): Promise<boolean> {
+    const updateData: any = {
+      mobile_verified: true
+    };
+    
+    // Only add updated_at if column exists
+    if (this.sellerSchemaFlags.hasUpdatedAt) {
+      updateData.updated_at = this.db.fn.now();
+    }
+    
     const result = await this.db('sellers')
       .where('id', sellerId)
-      .update({
-        mobile_verified: true,
-        updated_at: this.db.fn.now()
-      });
+      .update(updateData);
     
     return result > 0;
   }
@@ -1152,16 +1214,37 @@ export class SellerRegistrationService {
   /**
    * Revoke session
    */
-  async revokeSession(sessionId: string): Promise<boolean> {
-    const result = await this.db('seller_sessions')
-      .where('id', sessionId)
-      .update({
-        revoked: true,
-        revoked_at: this.db.fn.now()
-      });
+  // async revokeSession(sessionId: string): Promise<boolean> {
+  //   const result = await this.db('seller_sessions')
+  //     .where('id', sessionId)
+  //     .update({
+  //       revoked: true,
+  //       revoked_at: this.db.fn.now()
+  //     });
     
-    return result > 0;
+  //   return result > 0;
+  // }
+
+async revokeSession(sessionId: string): Promise<boolean> {
+  const updateData: any = {};
+
+  if (this.sessionSchemaFlags.hasRevokedColumns) {
+    updateData.revoked = true;
+    updateData.revoked_at = this.db.fn.now();
   }
+
+  // If schema does not support revocation, safely no-op
+  if (Object.keys(updateData).length === 0) {
+    return false;
+  }
+
+  const result = await this.db('seller_sessions')
+    .where('id', sessionId)
+    .update(updateData);
+
+  return result > 0;
+}
+
 
   /**
    * Clean up expired records (run frequently for security)
@@ -1231,7 +1314,7 @@ export class SellerRegistrationService {
       lastRiskAssessment: dbSeller.last_risk_assessment,
       deviceFingerprints: this.safeJsonParse(dbSeller.device_fingerprints, []),
       suspiciousActivityFlags: this.safeJsonParse(dbSeller.suspicious_activity_flags, []),
-      accountStatus: dbSeller.status || 'active', // Map status to accountStatus for interface compatibility
+      accountStatus: dbSeller.status, // Use database value as-is, no fallback
       status: dbSeller.status,
       verificationStatus: dbSeller.overall_verification_status,
       canListProducts: dbSeller.can_list_products,
@@ -1268,7 +1351,7 @@ export class SellerRegistrationService {
       features.push('payout_processing');
     }
     
-    if (seller.verification_status === 'verified') {
+    if (seller.overall_verification_status === 'verified') {
       features.push('advanced_features');
     }
     
@@ -1312,16 +1395,18 @@ export class SellerRegistrationService {
   // Transaction-aware helper methods
   
   /**
-   * Create seller with transaction support
+   * Create seller with transaction support - schema-safe and production-ready
    */
-  async createSellerWithTransaction(trx: any, sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { passwordHash: string }): Promise<string> {
+  async createSellerWithTransaction(trx: any, sellerData: SellerCreateInput): Promise<string> {
+    console.log('DEBUG: createSellerWithTransaction called with data:', JSON.stringify(sellerData, null, 2));
+    
     // Create minimal seller record with only essential fields that exist in current schema
     const insertData: any = {
       full_name: sellerData.fullName,
       mobile: sellerData.mobile,
       email: sellerData.email,
       password_hash: sellerData.passwordHash,
-      status: 'active', // Account is active but pending verification
+      status: 'pending', // Account is active but pending verification
       // Required fields with default values to satisfy NOT NULL constraints
       gender: 'other', // Default value
       date_of_birth: '1990-01-01', // Default date
@@ -1354,27 +1439,41 @@ export class SellerRegistrationService {
         insertData.email_verified = sellerData.emailVerified;
       }
 
-      const [seller] = await trx('sellers')
-        .insert(insertData)
-        .returning('id');
+      console.log('DEBUG: About to insert seller data:', JSON.stringify(insertData, null, 2));
       
+      const query = trx('sellers').insert(insertData).returning('id');
+      console.log('DEBUG: Generated SQL:', query.toString());
+      
+      const [seller] = await query;
+      
+      console.log('DEBUG: Successfully inserted seller with ID:', seller.id);
       return seller.id;
     } catch (error: any) {
       if (error.code === '42703') { // Column doesn't exist error
-        console.warn('Some columns do not exist, creating seller with minimal data:', error.message);
+        const isProduction = process.env.NODE_ENV === 'production';
+        
+        if (isProduction) {
+          // In production, rethrow the error - no silent fallbacks
+          console.error('Schema error in production - missing column:', error.message);
+          throw error;
+        }
+        
+        // Allow fallback only in development
+        console.warn('Development mode: Some columns do not exist, creating seller with minimal data:', error.message);
         
         const minimalData = {
           full_name: sellerData.fullName,
           mobile: sellerData.mobile,
           email: sellerData.email,
           password_hash: sellerData.passwordHash,
-          status: 'active'
+          status: 'pending'
         };
 
         const [seller] = await trx('sellers')
           .insert(minimalData)
           .returning('id');
         
+        console.log('DEBUG: Inserted minimal seller data:', JSON.stringify(minimalData, null, 2));
         return seller.id;
       }
       throw error;
@@ -1455,13 +1554,27 @@ export class SellerRegistrationService {
   }
 
   /**
-   * Update last login with transaction support
+   * Update last login with transaction support - schema-safe version
    */
   async updateLastLoginWithTransaction(trx: any, sellerId: string): Promise<void> {
+    const updateData: any = {};
+    
+    // Only update columns that exist in the current schema
+    if (this.sellerSchemaFlags.hasLastLoginAt) {
+      updateData.last_login_at = trx.fn.now();
+    }
+    
+    if (this.sellerSchemaFlags.hasUpdatedAt) {
+      updateData.updated_at = trx.fn.now();
+    }
+    
+    // Skip update if no updatable fields exist
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+    
     await trx('sellers')
       .where('id', sellerId)
-      .update({
-        last_login_at: trx.fn.now()
-      });
+      .update(updateData);
   }
 }
