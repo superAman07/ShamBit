@@ -14,8 +14,13 @@ export default defineConfig({
     port: 3001,
     host: '0.0.0.0', // Allow access from any IP
     proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/uploads': {
-        target: 'http://192.168.29.45:3000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
     },

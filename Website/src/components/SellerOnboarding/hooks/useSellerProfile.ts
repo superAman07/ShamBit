@@ -35,15 +35,15 @@ export const useSellerProfile = (): UseSellerProfileReturn => {
       }
 
       // Fetch seller profile from API
-      const response = await sellerApi.getProfile() as { seller: SellerProfile };
-      setSeller(response.seller);
+      const response = await sellerApi.getProfile() as { success: boolean; data: { seller: SellerProfile } };
+      setSeller(response.data.seller);
       
       // Calculate section completion status
       const status: SectionStatus = {
-        business: !!response.seller.businessDetails,
-        tax: !!response.seller.taxCompliance,
-        bank: !!response.seller.bankDetails,
-        documents: !!(response.seller.documents && response.seller.documents.length > 0)
+        business: !!response.data.seller.businessDetails,
+        tax: !!response.data.seller.taxCompliance,
+        bank: !!response.data.seller.bankDetails,
+        documents: !!(response.data.seller.documents && response.data.seller.documents.length > 0)
       };
       setSectionStatus(status);
       

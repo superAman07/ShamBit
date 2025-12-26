@@ -59,8 +59,46 @@ export const createApp = (): Application => {
   // API routes
   app.use(`/api/${config.API_VERSION}`, routes);
 
-  // Seller routes (direct mounting for frontend compatibility)
-  app.use('/api/seller', sellerRoutes);
+  // Seller routes (mounted under /api/v1 for consistency)
+  app.use('/api/v1/seller', sellerRoutes);
+
+  // Legacy profile endpoint for backward compatibility
+  app.get('/profile', async (req, res) => {
+    // Extract token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Access token required',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+
+    // Redirect to the proper seller profile endpoint
+    try {
+      const token = authHeader.substring(7);
+      const response = await fetch(`http://localhost:${config.PORT}/api/v1/seller/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const data = await response.json();
+      return res.status(response.status).json(data);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch profile',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  });
 
   // Seller registration routes (legacy)
   app.use('/api/v1', simpleRoutes);

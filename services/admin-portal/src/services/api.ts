@@ -79,8 +79,22 @@ class ApiService {
         if (error.response) {
           console.error('API Error Response:', {
             status: error.response.status,
+            statusText: error.response.statusText,
             data: error.response.data,
-            headers: error.response.headers
+            url: error.config?.url,
+            method: error.config?.method?.toUpperCase()
+          })
+        } else if (error.request) {
+          console.error('API Network Error:', {
+            message: error.message,
+            url: error.config?.url,
+            method: error.config?.method?.toUpperCase(),
+            code: error.code
+          })
+        } else {
+          console.error('API Request Setup Error:', {
+            message: error.message,
+            url: error.config?.url
           })
         }
         

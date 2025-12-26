@@ -25,231 +25,236 @@ router.get('/auth-test', authenticateToken, (req: AuthenticatedRequest, res) => 
   });
 });
 
-// GET /api/seller/profile - Get seller profile
+// GET /api/v1/seller/profile - Get seller profile
 router.get('/profile', authenticateToken, async (req: AuthenticatedRequest, res) => {
   const db = getDatabase();
   
   try {
     const sellerId = req.seller!.id;
-    console.log('Fetching profile for seller ID:', sellerId);
     
-    // Fetch seller data from database with minimal fields first
-    let seller;
-    try {
-      seller = await db('sellers')
-        .select([
-          'id',
-          'full_name',
-          'mobile',
-          'email',
-          'mobile_verified',
-          'email_verified',
-          'overall_verification_status'
-        ])
-        .where('id', sellerId)
-        .first();
-      
-      console.log('Basic seller data:', seller ? 'Found' : 'Not found');
-      
-      if (seller) {
-        // Try to get additional fields
-        const additionalData = await db('sellers')
-          .select([
-            'business_name',
-            'business_type',
-            'nature_of_business',
-            'year_of_establishment',
-            'primary_product_categories',
-            'registered_business_address',
-            'warehouse_addresses',
-            'gst_registered',
-            'gst_number',
-            'gstin',
-            'pan_number',
-            'pan_holder_name',
-            'aadhaar_number',
-            'bank_details',
-            'documents',
-            'rejection_reason',
-            'verification_notes',
-            'profile_completed',
-            'created_at',
-            'updated_at'
-          ])
-          .where('id', sellerId)
-          .first();
-        
-        // Merge the data
-        seller = { ...seller, ...additionalData };
-        console.log('Extended seller data retrieved');
-      }
-    } catch (dbError) {
-      console.error('Database query error:', dbError);
-      throw dbError;
-    }
-    
-    console.log('Database query result:', seller ? 'Found seller' : 'Seller not found');
+    // Fetch seller data from database
+    const seller = await db('sellers')
+      .where('id', sellerId)
+      .first();
     
     if (!seller) {
-      console.log('Seller not found for ID:', sellerId);
       return errorResponse(res, 404, ERROR_CODES.SELLER_NOT_FOUND, 'Seller not found');
     }
     
     // Parse JSON fields safely
-    let registeredAddress = null;
+    let businessDetails = null;
+    if (seller.business_details) {
+      try {
+        businessDetails = typeof seller.business_details === 'string' 
+          ? JSON.parse(seller.business_details) 
+          : seller.business_details;
+      } catch (error) {
+        console.error('Error parsing business_details:', error);
+        businessDetails = null;
+      }
+    }
+    
+    let taxCompliance = null;
+    if (seller.tax_compliance) {
+      try {
+        taxCompliance = typeof seller.tax_compliance === 'string' 
+          ? JSON.parse(seller.tax_compliance) 
+          : seller.tax_compliance;
+      } catch (error) {
+        console.error('Error parsing tax_compliance:', error);
+        taxCompliance = null;
+      }
+    }
+    
     let bankDetails = null;
-    let documents = {};
-    
-    try {
-      if (seller.registered_business_address) {
-        // Handle both JSON string and object cases
-        if (typeof seller.registered_business_address === 'string') {
-          registeredAddress = JSON.parse(seller.registered_business_address);
-        } else if (typeof seller.registered_business_address === 'object') {
-          registeredAddress = seller.registered_business_address;
-        }
+    if (seller.bank_details) {
+      try {
+        bankDetails = typeof seller.bank_details === 'string' 
+          ? JSON.parse(seller.bank_details) 
+          : seller.bank_details;
+      } catch (error) {
+        console.error('Error parsing bank_details:', error);
+        bankDetails = null;
       }
-    } catch (e) {
-      console.warn('Failed to parse registered_business_address:', e);
     }
     
-    try {
-      if (seller.warehouse_addresses) {
-        // Handle both JSON string and object cases
-        if (typeof seller.warehouse_addresses === 'string') {
-          // warehouseAddresses = JSON.parse(seller.warehouse_addresses);
-        } else if (Array.isArray(seller.warehouse_addresses)) {
-          // warehouseAddresses = seller.warehouse_addresses;
-        }
+    let addressInfo = null;
+    if (seller.address_info) {
+      try {
+        addressInfo = typeof seller.address_info === 'string' 
+          ? JSON.parse(seller.address_info) 
+          : seller.address_info;
+      } catch (error) {
+        console.error('Error parsing address_info:', error);
+        addressInfo = null;
       }
-    } catch (e) {
-      console.warn('Failed to parse warehouse_addresses:', e);
     }
     
-    try {
-      if (seller.bank_details) {
-        // Handle both JSON string and object cases
-        if (typeof seller.bank_details === 'string') {
-          bankDetails = JSON.parse(seller.bank_details);
-        } else if (typeof seller.bank_details === 'object') {
-          bankDetails = seller.bank_details;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to parse bank_details:', e);
-    }
-    
-    try {
-      if (seller.documents) {
-        // Handle both JSON string and object cases
-        if (typeof seller.documents === 'string') {
-          documents = JSON.parse(seller.documents);
-        } else if (typeof seller.documents === 'object') {
-          documents = seller.documents;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to parse documents:', e);
-    }
-    
-    // Map database verification status to frontend application status
-    const applicationStatus = mapVerificationStatusToApplicationStatus(
-      seller.overall_verification_status, 
-      seller.profile_completed
-    );
-    
-    // Build business details if any business info exists
-    const businessDetails = (seller.business_name || seller.business_type || seller.nature_of_business) ? {
-      businessName: seller.business_name || undefined,
-      businessType: seller.business_type || undefined,
-      natureOfBusiness: seller.nature_of_business || undefined,
-      yearOfEstablishment: seller.year_of_establishment || undefined,
-      primaryProductCategories: seller.primary_product_categories || undefined
-    } : undefined;
-    
-    // Build tax compliance if PAN exists
-    const taxCompliance = seller.pan_number ? {
-      panNumber: seller.pan_number,
-      panHolderName: seller.pan_holder_name || seller.full_name,
-      gstRegistered: seller.gst_registered || false,
-      gstNumber: seller.gst_number || seller.gstin || undefined,
-      aadhaarNumber: seller.aadhaar_number || undefined,
-      gstExempt: !seller.gst_registered,
-      exemptionReason: !seller.gst_registered ? 'turnover_below_threshold' : undefined,
-      turnoverDeclaration: undefined
-    } : undefined;
-    
-    // Build bank details if they exist
-    const mappedBankDetails = bankDetails ? {
-      accountHolderName: bankDetails.accountHolderName || bankDetails.account_holder_name || seller.full_name,
-      bankName: bankDetails.bankName || bankDetails.bank_name || '',
-      accountNumber: bankDetails.accountNumber || bankDetails.account_number || '',
-      ifscCode: bankDetails.ifscCode || bankDetails.ifsc_code || '',
-      accountType: (bankDetails.accountType || bankDetails.account_type || 'savings') as 'savings' | 'current',
-      verificationStatus: (bankDetails.verificationStatus || bankDetails.verification_status || 'pending') as 'pending' | 'verified' | 'rejected'
-    } : undefined;
-    
-    // Build address info if registered address exists
-    const addressInfo = registeredAddress ? {
-      registeredAddress: {
-        line1: registeredAddress.addressLine1 || registeredAddress.line1 || '',
-        line2: registeredAddress.addressLine2 || registeredAddress.line2 || '',
-        city: registeredAddress.city || '',
-        state: registeredAddress.state || '',
-        pincode: registeredAddress.pinCode || registeredAddress.pincode || '',
-        country: 'India' as const
-      }
-    } : undefined;
-    
-    // Convert documents object to array format expected by frontend
-    const documentsArray = Object.keys(documents).length > 0 ? 
-      Object.keys(documents).map(docType => {
-        const doc = documents[docType as keyof typeof documents] as any;
-        return {
-          id: `${sellerId}-${docType}`,
-          type: docType,
-          fileName: doc?.fileName || `${docType}.pdf`,
-          uploadedAt: doc?.uploadedAt || seller.created_at,
-          verificationStatus: doc?.verified ? 'verified' : 
-                             doc?.uploaded ? 'pending' : 'not_uploaded'
-        };
-      }) : undefined;
-    
-    // Parse clarification requests from verification notes
-    const clarificationRequests = seller.verification_notes && 
-      seller.overall_verification_status === 'in_review' ? 
-      [seller.verification_notes] : undefined;
-    
-    // Build the response matching frontend expectations exactly
+    // Map database fields to frontend expected format
     const sellerProfile = {
-      fullName: seller.full_name || '',
-      mobile: seller.mobile || '',
-      email: seller.email || '',
-      mobileVerified: seller.mobile_verified || false,
-      emailVerified: seller.email_verified || false,
-      applicationStatus,
-      businessDetails,
-      taxCompliance,
-      bankDetails: mappedBankDetails,
-      documents: documentsArray,
-      addressInfo,
-      rejectionReason: seller.rejection_reason || undefined,
-      clarificationRequests
+      id: seller.id,
+      fullName: seller.full_name,
+      mobile: seller.mobile,
+      email: seller.email,
+      mobileVerified: seller.mobile_verified,
+      emailVerified: seller.email_verified,
+      status: seller.status,
+      verificationStatus: seller.overall_verification_status || seller.verification_status,
+      canListProducts: seller.can_list_products,
+      payoutEnabled: seller.payout_enabled,
+      
+      // Include parsed JSON objects if they exist
+      ...(businessDetails ? { businessDetails } : {}),
+      ...(taxCompliance ? { taxCompliance } : {}),
+      ...(bankDetails ? { bankDetails } : {}),
+      ...(addressInfo ? { addressInfo } : {}),
+      
+      accountStatus: seller.account_status || seller.status || 'active',
+      createdAt: seller.created_at,
+      updatedAt: seller.updated_at,
+      
+      // Add applicationStatus based on verification status
+      applicationStatus: mapVerificationStatusToApplicationStatus(
+        seller.overall_verification_status || seller.verification_status, 
+        !!(businessDetails || taxCompliance || bankDetails)
+      )
     };
     
-    console.log('Sending response with seller profile');
-    return res.json({
+    return successResponse(res, {
       seller: sellerProfile
     });
     
   } catch (error) {
     console.error('Error fetching seller profile:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      sellerId: req.seller?.id
-    });
     return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to fetch seller profile');
+  }
+});
+
+// PUT /api/v1/seller/profile/business - Update business details
+router.put('/profile/business', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const db = getDatabase();
+  
+  try {
+    const sellerId = req.seller!.id;
+    const {
+      businessName,
+      businessType,
+      natureOfBusiness,
+      yearOfEstablishment,
+      primaryProductCategories
+    } = req.body;
+    
+    console.log('Updating business details for seller:', sellerId, req.body);
+    
+    // Validate and sanitize yearOfEstablishment
+    let validatedYear = null;
+    if (yearOfEstablishment !== undefined && yearOfEstablishment !== null && yearOfEstablishment !== '') {
+      const year = parseInt(yearOfEstablishment);
+      if (!isNaN(year) && year >= 1900 && year <= new Date().getFullYear()) {
+        validatedYear = year;
+      }
+    }
+    
+    // Update business details in database
+    await db('sellers')
+      .where('id', sellerId)
+      .update({
+        business_name: businessName,
+        business_type: businessType,
+        nature_of_business: natureOfBusiness,
+        year_of_establishment: validatedYear,
+        primary_product_categories: primaryProductCategories,
+        updated_at: db.fn.now()
+      });
+    
+    console.log('Business details updated successfully for seller:', sellerId);
+    
+    return successResponse(res, {
+      message: 'Business details updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating business details:', error);
+    return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to update business details');
+  }
+});
+
+// PUT /api/v1/seller/profile/tax - Update tax information
+router.put('/profile/tax', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const db = getDatabase();
+  
+  try {
+    const sellerId = req.seller!.id;
+    const {
+      panNumber,
+      panHolderName,
+      gstRegistered,
+      gstNumber,
+      aadhaarNumber
+    } = req.body;
+    
+    // Update tax information in database
+    await db('sellers')
+      .where('id', sellerId)
+      .update({
+        pan_number: panNumber,
+        pan_holder_name: panHolderName,
+        gst_registered: gstRegistered,
+        gst_number: gstNumber,
+        gstin: gstNumber, // Also update gstin field
+        aadhaar_number: aadhaarNumber,
+        updated_at: db.fn.now()
+      });
+    
+    return successResponse(res, {
+      message: 'Tax information updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating tax information:', error);
+    return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to update tax information');
+  }
+});
+
+// PUT /api/v1/seller/profile/bank - Update bank details
+router.put('/profile/bank', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  const db = getDatabase();
+  
+  try {
+    const sellerId = req.seller!.id;
+    const {
+      accountHolderName,
+      bankName,
+      accountNumber,
+      ifscCode,
+      accountType
+    } = req.body;
+    
+    // Prepare bank details object
+    const bankDetails = {
+      accountHolderName,
+      bankName,
+      accountNumber,
+      ifscCode,
+      accountType: accountType || 'savings',
+      verificationStatus: 'pending'
+    };
+    
+    // Update bank details in database
+    await db('sellers')
+      .where('id', sellerId)
+      .update({
+        bank_details: JSON.stringify(bankDetails),
+        updated_at: db.fn.now()
+      });
+    
+    return successResponse(res, {
+      message: 'Bank details updated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error updating bank details:', error);
+    return errorResponse(res, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, 'Failed to update bank details');
   }
 });
 

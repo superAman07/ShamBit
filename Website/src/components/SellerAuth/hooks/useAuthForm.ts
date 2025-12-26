@@ -100,16 +100,31 @@ const useAuthForm = <T extends Record<string, any>>({
   const updateField = useCallback((field: keyof T, value: any) => {
     setFormState(prev => {
       const newData = { ...prev.data, [field]: value };
-      const error = validateField(field, value, newData);
+      const fieldError = validateField(field, value, newData);
+      const newErrors = { ...prev.errors, [field]: fieldError };
+      
+      // Calculate overall form validity
+      const allErrors: Record<string, string> = {};
+      Object.keys(validationRules).forEach((ruleField) => {
+        if (ruleField === field) {
+          if (fieldError) allErrors[ruleField] = fieldError;
+        } else {
+          const existingError = validateField(ruleField as keyof T, newData[ruleField], newData);
+          if (existingError) allErrors[ruleField] = existingError;
+        }
+      });
+      
+      const isValid = Object.keys(allErrors).length === 0;
       
       return {
         ...prev,
         data: newData,
-        errors: { ...prev.errors, [field]: error },
-        touched: { ...prev.touched, [field]: true }
+        errors: newErrors,
+        touched: { ...prev.touched, [field]: true },
+        isValid
       };
     });
-  }, [validateField]);
+  }, [validateField, validationRules]);
 
   const setFieldError = useCallback((field: keyof T, error: string) => {
     setFormState(prev => ({

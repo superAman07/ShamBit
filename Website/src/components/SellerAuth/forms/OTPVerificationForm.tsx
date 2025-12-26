@@ -70,7 +70,11 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
             localStorage.setItem('accessToken', result.data.tokens.accessToken);
             localStorage.setItem('refreshToken', result.data.tokens.refreshToken);
           }
-          onSuccess();
+          
+          // Small delay to ensure tokens are stored before redirect
+          setTimeout(() => {
+            onSuccess();
+          }, 100);
         } else {
           handleOTPError(result);
         }

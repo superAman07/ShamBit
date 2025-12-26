@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 // Base API configuration
-const API_BASE_URL = '/api';
+const API_BASE_URL = '/api/v1';
 
 // Helper function to get auth headers
 const getAuthHeaders = (): Record<string, string> => {

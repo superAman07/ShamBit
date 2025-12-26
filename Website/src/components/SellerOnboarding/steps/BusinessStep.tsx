@@ -253,7 +253,9 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
       // Convert yearOfEstablishment back to number for API
       const dataToSave = {
         ...formData,
-        yearOfEstablishment: formData.yearOfEstablishment ? parseInt(formData.yearOfEstablishment) : undefined
+        yearOfEstablishment: formData.yearOfEstablishment && formData.yearOfEstablishment.trim() !== '' 
+          ? parseInt(formData.yearOfEstablishment) 
+          : null
       };
       
       await onSave(dataToSave, options);

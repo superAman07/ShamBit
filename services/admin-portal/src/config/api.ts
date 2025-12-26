@@ -21,7 +21,16 @@ export function getApiBaseUrl(): string {
     return import.meta.env.VITE_API_BASE_URL
   }
 
-  // Auto-detect based on current host
+  // In development, use relative URLs to leverage Vite proxy
+  if (import.meta.env.MODE === 'development') {
+    const relativeUrl = '/api/v1'
+    if (import.meta.env.MODE !== 'production') {
+      console.log('🔧 Using Vite proxy URL:', relativeUrl)
+    }
+    return relativeUrl
+  }
+
+  // Auto-detect based on current host for production
   const currentHost = window.location.hostname
   
   // Use the same host as the admin portal for API calls

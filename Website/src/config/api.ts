@@ -1,6 +1,6 @@
 // API Configuration
 const getApiBaseUrl = () => {
-  // In development, detect if we're accessing via network IP
+  // In development, use relative URLs to leverage Vite proxy
   if (import.meta.env.DEV) {
     const hostname = window.location.hostname;
     
@@ -9,8 +9,8 @@ const getApiBaseUrl = () => {
       return `http://${hostname}:3000/api/v1`;
     }
     
-    // Default to localhost for local development
-    return 'http://localhost:3000/api/v1';
+    // Use relative URL for localhost to leverage Vite proxy
+    return '/api/v1';
   }
   
   // In production, use relative URLs or environment variable
