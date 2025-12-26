@@ -4,13 +4,13 @@ import { VALIDATION_PATTERNS } from '../types';
 
 interface UseAuthFormOptions<T> {
   initialData: T;
-  validationRules?: Record<keyof T, FieldValidation>;
+  validationRules?: Partial<Record<keyof T, FieldValidation>>;
   onSubmit?: (data: T) => Promise<void>;
 }
 
-export const useAuthForm = <T extends Record<string, any>>({
+const useAuthForm = <T extends Record<string, any>>({
   initialData,
-  validationRules = {},
+  validationRules = {} as Partial<Record<keyof T, FieldValidation>>,
   onSubmit
 }: UseAuthFormOptions<T>) => {
   const [formState, setFormState] = useState<FormState<T>>({
@@ -183,3 +183,5 @@ export const useAuthForm = <T extends Record<string, any>>({
     handleSubmit
   };
 };
+
+export default useAuthForm;

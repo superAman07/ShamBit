@@ -3,7 +3,7 @@ import SectionCard from '../components/SectionCard';
 import InfoCard from '../components/InfoCard';
 import type { BaseStepProps } from '../types';
 
-const BankStep: React.FC<BaseStepProps> = ({ seller, onSave, canEdit }) => {
+const BankStep: React.FC<BaseStepProps> = ({ seller: _seller, onSave: _onSave, canEdit: _canEdit, isLoading: _isLoading }) => {
   return (
     <div className="space-y-6">
       <SectionCard

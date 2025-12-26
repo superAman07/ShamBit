@@ -79,14 +79,10 @@ export interface StatusBannerProps {
   className?: string;
 }
 
-// Step component base props
-export interface BaseStepProps {
-  seller: SellerProfile;
-  onSave: (data: any) => Promise<void>;
-  onNext?: () => void;
-  onPrevious?: () => void;
-  canEdit: boolean;
-  isLoading?: boolean;
+// Save options
+export interface SaveOptions {
+  saveAsDraft?: boolean;
+  skipValidation?: boolean;
 }
 
 // Form validation result
@@ -95,9 +91,10 @@ export interface ValidationResult {
   errors: Record<string, string>;
 }
 
-// Save options
-export interface SaveOptions {
-  saveAsDraft?: boolean;
-  skipValidation?: boolean;
-  navigateNext?: boolean;
+// Step component base props
+export interface BaseStepProps {
+  seller: SellerProfile;
+  canEdit: boolean;
+  isLoading?: boolean;
+  onSave: (data: any, options?: SaveOptions) => Promise<void>;
 }

@@ -1,8 +1,8 @@
 import React from 'react';
-import RegisterForm from '../components/SellerAuth/forms/RegisterForm';
+import SellerRegistrationPage from '../components/SellerAuth/pages/SellerRegistrationPage';
 
 const SellerRegistration: React.FC = () => {
-  return <RegisterForm />;
+  return <SellerRegistrationPage />;
 };
 
 export default SellerRegistration;

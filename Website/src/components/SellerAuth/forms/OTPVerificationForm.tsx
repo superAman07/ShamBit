@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw, MessageSquare } from 'lucide-react';
+import { RefreshCw, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AuthLayout from '../layout/AuthLayout';
 import AuthCard from '../layout/AuthCard';
@@ -7,7 +7,7 @@ import OTPInput from '../components/OTPInput';
 import LoadingButton from '../components/LoadingButton';
 import ErrorAlert from '../components/ErrorAlert';
 import ProgressIndicator from '../components/ProgressIndicator';
-import { useAuthForm } from '../hooks/useAuthForm';
+import useAuthForm from '../hooks/useAuthForm';
 import { useOTPTimer } from '../hooks/useOTPTimer';
 import { API_ENDPOINTS } from '../../../config/api';
 import type { OTPVerificationData, AuthResponse } from '../types';

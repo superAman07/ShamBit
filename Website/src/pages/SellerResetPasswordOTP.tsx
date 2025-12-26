@@ -69,19 +69,20 @@ const SellerResetPasswordOTP: React.FC = () => {
   };
 
   const {
-    formData,
-    errors,
-    isSubmitting,
+    formState,
     updateField,
     validateForm,
-    setError,
-    clearError
+    setFormError,
+    clearFormError
   } = useAuthForm<ResetPasswordOTPFormData>({
-    mobile: '',
-    otp: '',
-    newPassword: '',
-    confirmPassword: ''
-  }, validationRules);
+    initialData: {
+      mobile: '',
+      otp: '',
+      newPassword: '',
+      confirmPassword: ''
+    },
+    validationRules
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,9 +99,9 @@ const SellerResetPasswordOTP: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          identifier: formData.mobile,
-          otp: formData.otp,
-          newPassword: formData.newPassword 
+          identifier: formState.data.mobile,
+          otp: formState.data.otp,
+          newPassword: formState.data.newPassword 
         }),
       });
 
@@ -109,10 +110,10 @@ const SellerResetPasswordOTP: React.FC = () => {
       if (response.ok && result.success) {
         setSuccess(true);
       } else {
-        setError(result.error?.message || 'Failed to reset password. Please try again.');
+        setFormError(result.error?.message || 'Failed to reset password. Please try again.');
       }
     } catch (error) {
-      setError('Failed to reset password. Please try again.');
+      setFormError('Failed to reset password. Please try again.');
     }
   };
 
@@ -142,10 +143,10 @@ const SellerResetPasswordOTP: React.FC = () => {
       onBack={() => window.location.href = '/seller/forgot-password'}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {errors.general && (
+        {formState.errors.form && (
           <ErrorAlert 
-            error={errors.general}
-            onDismiss={() => clearError('general')}
+            error={formState.errors.form}
+            onDismiss={clearFormError}
           />
         )}
 
@@ -153,9 +154,9 @@ const SellerResetPasswordOTP: React.FC = () => {
           label="Mobile Number"
           name="mobile"
           type="tel"
-          value={formData.mobile}
+          value={formState.data.mobile}
           onChange={(value: string) => updateField('mobile', value.replace(/\D/g, '').slice(0, 10))}
-          error={errors.mobile}
+          error={formState.errors.mobile}
           placeholder="Enter your mobile number"
           icon={<Phone className="w-5 h-5" />}
           maxLength={10}
@@ -169,9 +170,9 @@ const SellerResetPasswordOTP: React.FC = () => {
             OTP <span className="text-red-500">*</span>
           </label>
           <OTPInput
-            value={formData.otp}
+            value={formState.data.otp}
             onChange={(value: string) => updateField('otp', value)}
-            error={errors.otp}
+            error={formState.errors.otp}
             autoFocus
           />
           <p className="text-xs text-gray-500">
@@ -182,9 +183,9 @@ const SellerResetPasswordOTP: React.FC = () => {
         <PasswordField
           label="New Password"
           name="newPassword"
-          value={formData.newPassword}
+          value={formState.data.newPassword}
           onChange={(value: string) => updateField('newPassword', value)}
-          error={errors.newPassword}
+          error={formState.errors.newPassword}
           placeholder="Enter your new password"
           showStrength
           requirements
@@ -195,9 +196,9 @@ const SellerResetPasswordOTP: React.FC = () => {
         <PasswordField
           label="Confirm New Password"
           name="confirmPassword"
-          value={formData.confirmPassword}
+          value={formState.data.confirmPassword}
           onChange={(value: string) => updateField('confirmPassword', value)}
-          error={errors.confirmPassword}
+          error={formState.errors.confirmPassword}
           placeholder="Confirm your new password"
           icon={<Shield className="w-5 h-5" />}
           autoComplete="new-password"
@@ -206,11 +207,11 @@ const SellerResetPasswordOTP: React.FC = () => {
 
         <LoadingButton
           type="submit"
-          loading={isSubmitting}
-          disabled={!formData.mobile || !formData.otp || !formData.newPassword || !formData.confirmPassword}
+          loading={formState.isSubmitting}
+          disabled={!formState.data.mobile || !formState.data.otp || !formState.data.newPassword || !formState.data.confirmPassword}
           className="w-full"
         >
-          {isSubmitting ? 'Resetting Password...' : 'Reset Password'}
+          {formState.isSubmitting ? 'Resetting Password...' : 'Reset Password'}
         </LoadingButton>
 
         <div className="flex items-center justify-center space-x-4 text-sm">

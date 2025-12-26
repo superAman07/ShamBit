@@ -74,7 +74,7 @@ export const SellerCTA = () => {
                     
                     {/* Main CTA Button */}
                     <motion.a
-                        href="/seller/register"
+                        href="/seller"
                         whileHover={{ 
                             scale: 1.08, 
                             y: -5,

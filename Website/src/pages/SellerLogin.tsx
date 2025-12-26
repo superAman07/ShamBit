@@ -1,8 +1,8 @@
 import React from 'react';
-import LoginForm from '../components/SellerAuth/forms/LoginForm';
+import SellerLoginPage from '../components/SellerAuth/pages/SellerLoginPage';
 
 const SellerLogin: React.FC = () => {
-  return <LoginForm />;
+  return <SellerLoginPage />;
 };
 
 export default SellerLogin;

@@ -7,7 +7,7 @@ import FormField from '../components/FormField';
 import LoadingButton from '../components/LoadingButton';
 import ErrorAlert from '../components/ErrorAlert';
 import SuccessMessage from '../components/SuccessMessage';
-import { useAuthForm } from '../hooks/useAuthForm';
+import useAuthForm from '../hooks/useAuthForm';
 import { API_ENDPOINTS } from '../../../config/api';
 import type { ForgotPasswordFormData, AuthResponse } from '../types';
 import { VALIDATION_PATTERNS } from '../types';

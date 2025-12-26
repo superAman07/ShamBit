@@ -4,18 +4,19 @@ import InfoCard from '../components/InfoCard';
 import type { BaseStepProps } from '../types';
 
 interface ReviewStepProps extends BaseStepProps {
-  onSubmitApplication: () => void;
+  onSubmitApplication: () => Promise<void>;
   canSubmit: boolean;
   submitting: boolean;
 }
 
 const ReviewStep: React.FC<ReviewStepProps> = ({ 
-  seller, 
-  onSave, 
-  canEdit, 
-  onSubmitApplication,
-  canSubmit,
-  submitting
+  seller: _seller, 
+  onSave: _onSave, 
+  canEdit: _canEdit,
+  isLoading: _isLoading,
+  onSubmitApplication: _onSubmitApplication,
+  canSubmit: _canSubmit,
+  submitting: _submitting
 }) => {
   return (
     <div className="space-y-6">

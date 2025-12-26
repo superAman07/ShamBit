@@ -229,7 +229,7 @@ export const Hero = () => {
                         </motion.a>
                         
                         <motion.a
-                            href="/seller/register"
+                            href="/seller"
                             className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all group font-semibold"
                             whileHover={{ scale: 1.05, y: -2 }}
                             whileTap={{ scale: 0.95 }}

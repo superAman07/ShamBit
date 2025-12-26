@@ -88,7 +88,7 @@ export const Header = () => {
                         </a>
 
                         <motion.a
-                            href="/seller/register"
+                            href="/seller"
                             className="relative px-4 py-2 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -174,7 +174,7 @@ export const Header = () => {
                                 Browse Categories
                             </a>
 
-                            <a href="/seller/register" className="block py-3 px-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md">
+                            <a href="/seller" className="block py-3 px-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-lg shadow-md">
                                 Sell With Us ⭐
                             </a>
 

@@ -8,6 +8,7 @@ import { SocialProof } from './components/SocialProof';
 import { SellerCTA } from './components/SellerCTA';
 import { Newsletter } from './components/Newsletter';
 import { Footer } from './components/Footer';
+import SellerInfo from './pages/SellerInfo';
 import SellerRegistration from './pages/SellerRegistration';
 import SellerLogin from './pages/SellerLogin';
 import SellerForgotPassword from './pages/SellerForgotPassword';
@@ -60,6 +61,11 @@ function App() {
         } />
         
         {/* Seller Pages - Full screen without main wrapper for clean auth experience */}
+        <Route path="/seller" element={
+          <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
+            <SellerInfo />
+          </div>
+        } />
         <Route path="/seller/register" element={
           <div className="font-sans selection:bg-[#FF6F61] selection:text-white" style={{ margin: 0, padding: 0, minHeight: '100vh' }}>
             <SellerRegistration />

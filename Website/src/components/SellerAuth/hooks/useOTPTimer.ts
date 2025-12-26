@@ -23,7 +23,7 @@ export const useOTPTimer = ({
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     if (isActive && timeRemaining > 0) {
       interval = setInterval(() => {
@@ -81,3 +81,5 @@ export const useOTPTimer = ({
     formatTime
   };
 };
+
+export default useOTPTimer;

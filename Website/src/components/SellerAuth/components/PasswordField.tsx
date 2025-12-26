@@ -87,10 +87,12 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
           autoComplete={autoComplete}
           className={`
             w-full pl-11 pr-12 py-3 border rounded-lg transition-all duration-200
+            bg-white text-black font-medium
+            placeholder:text-gray-500
             focus:ring-2 focus:ring-[#FF6F61] focus:border-transparent
-            disabled:bg-gray-50 disabled:cursor-not-allowed
+            disabled:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-500
             ${error 
-              ? 'border-red-300 bg-red-50 focus:ring-red-200' 
+              ? 'border-red-300 bg-red-50 text-black focus:ring-red-200' 
               : 'border-gray-300 hover:border-gray-400 focus:border-[#FF6F61]'
             }
           `}

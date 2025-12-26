@@ -1,8 +1,6 @@
 import React from 'react';
-import { Mail, Phone } from 'lucide-react';
+import { Mail, Phone, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
-import AuthLayout from '../layout/AuthLayout';
-import AuthCard from '../layout/AuthCard';
 import FormField from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import LoadingButton from '../components/LoadingButton';
@@ -11,8 +9,9 @@ import useAuthForm from '../hooks/useAuthForm';
 import { API_ENDPOINTS } from '../../../config/api';
 import type { LoginFormData, AuthResponse } from '../types';
 import { VALIDATION_PATTERNS } from '../types';
+import logo from '../../../assets/logo.png';
 
-const LoginForm: React.FC = () => {
+const SellerLoginPage: React.FC = () => {
   const { formState, updateField, setFormError, clearFormError, handleSubmit } = useAuthForm<LoginFormData>({
     initialData: {
       identifier: '',
@@ -93,16 +92,43 @@ const LoginForm: React.FC = () => {
   const isEmail = VALIDATION_PATTERNS.email.test(formState.data.identifier);
 
   return (
-    <AuthLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
-        <AuthCard>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16">
+            <a href="/seller" className="flex items-center space-x-3">
+              <div className="flex items-center justify-center w-8 h-8 bg-white rounded-lg shadow-sm border border-gray-100">
+                <img
+                  src={logo}
+                  alt="ShamBit Logo"
+                  className="h-5 w-5 object-contain"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="text-lg font-bold">
+                  <span className="bg-gradient-to-r from-orange-500 via-yellow-500 to-amber-500 bg-clip-text text-transparent">Sham</span>
+                  <span className="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 bg-clip-text text-transparent">Bit</span>
+                </div>
+                <div className="text-gray-400">|</div>
+                <span className="text-gray-700 font-medium">Seller Login</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="max-w-md w-full bg-white rounded-lg shadow-sm border border-gray-200 p-8"
+        >
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">
               Welcome Back
             </h1>
             <p className="text-gray-600 text-sm">
@@ -111,7 +137,13 @@ const LoginForm: React.FC = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <motion.form
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            onSubmit={handleSubmit}
+            className="space-y-6"
+          >
             {/* Error Alert */}
             <ErrorAlert 
               error={formState.errors.form} 
@@ -152,13 +184,13 @@ const LoginForm: React.FC = () => {
                   type="checkbox"
                   checked={formState.data.rememberMe}
                   onChange={(e) => updateField('rememberMe', e.target.checked)}
-                  className="rounded border-gray-300 text-[#FF6F61] focus:ring-[#FF6F61] focus:ring-offset-0"
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
                 />
                 <span className="ml-2 text-sm text-gray-600">Remember me</span>
               </label>
               <a 
                 href="/seller/forgot-password" 
-                className="text-sm text-[#FF6F61] hover:text-[#E55A4F] font-medium transition-colors"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
               >
                 Forgot password?
               </a>
@@ -169,10 +201,11 @@ const LoginForm: React.FC = () => {
               type="submit"
               loading={formState.isSubmitting}
               disabled={!formState.data.identifier || !formState.data.password}
-              className="w-full"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded transition-colors"
               size="lg"
             >
               Sign In
+              <ArrowRight className="w-4 h-4 ml-2" />
             </LoadingButton>
 
             {/* Register Link */}
@@ -181,16 +214,16 @@ const LoginForm: React.FC = () => {
                 Don't have an account?{' '}
                 <a 
                   href="/seller/register" 
-                  className="text-[#FF6F61] hover:text-[#E55A4F] font-medium transition-colors"
+                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                 >
                   Register now
                 </a>
               </p>
             </div>
-          </form>
+          </motion.form>
 
           {/* Help Section */}
-          <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+          <div className="mt-8 pt-6 border-t border-gray-200">
             <h4 className="text-sm font-medium text-gray-900 mb-3">Quick Login Help</h4>
             <ul className="text-xs text-gray-600 space-y-1">
               <li>• Use your registered email or mobile number</li>
@@ -199,10 +232,10 @@ const LoginForm: React.FC = () => {
               <li>• Contact support if you need help</li>
             </ul>
           </div>
-        </AuthCard>
-      </motion.div>
-    </AuthLayout>
+        </motion.div>
+      </div>
+    </div>
   );
 };
 
-export default LoginForm;
+export default SellerLoginPage;

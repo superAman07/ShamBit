@@ -9,7 +9,7 @@ const Stepper: React.FC<StepperProps> = ({
   onStepClick,
   className = ''
 }) => {
-  const getStepIcon = (stepId: OnboardingStep, status: StepStatus, isActive: boolean) => {
+  const getStepIcon = (_stepId: OnboardingStep, status: StepStatus, isActive: boolean) => {
     const iconClass = `w-5 h-5 ${isActive ? 'text-white' : ''}`;
     
     switch (status) {
@@ -26,7 +26,7 @@ const Stepper: React.FC<StepperProps> = ({
     }
   };
 
-  const getStepStyles = (stepId: OnboardingStep, status: StepStatus, isActive: boolean) => {
+  const getStepStyles = (_stepId: OnboardingStep, status: StepStatus, isActive: boolean) => {
     if (isActive) {
       return 'bg-[#FF6F61] border-[#FF6F61] text-white';
     }
@@ -49,7 +49,6 @@ const Stepper: React.FC<StepperProps> = ({
     if (index === steps.length - 1) return '';
     
     const currentStepStatus = stepStatuses[steps[index].id];
-    const nextStepStatus = stepStatuses[steps[index + 1].id];
     
     if (currentStepStatus === 'completed') {
       return 'bg-green-500';
@@ -60,7 +59,7 @@ const Stepper: React.FC<StepperProps> = ({
     }
   };
 
-  const canClickStep = (stepId: OnboardingStep, status: StepStatus) => {
+  const canClickStep = (_stepId: OnboardingStep, status: StepStatus) => {
     return status !== 'locked';
   };
 

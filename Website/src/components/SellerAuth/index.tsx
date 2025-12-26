@@ -1,26 +1,30 @@
-export { default as AuthLayout } from './layout/AuthLayout';
-export { default as AuthCard } from './layout/AuthCard';
-export { default as AuthHeader } from './layout/AuthHeader';
+// Main page components (only what we actually use)
+export { default as SellerInfoPage } from './pages/SellerInfoPage';
+export { default as SellerRegistrationPage } from './pages/SellerRegistrationPage';
+export { default as SellerLoginPage } from './pages/SellerLoginPage';
 
-// Form components
-export { default as LoginForm } from './forms/LoginForm';
-export { default as RegisterForm } from './forms/RegisterForm';
+// Layout components (used by other pages)
+export { default as SellerLayout } from './layout/SellerLayout';
+export { default as AuthLayout } from './layout/AuthLayout';
+
+// Form components (used by other pages)
 export { default as ForgotPasswordForm } from './forms/ForgotPasswordForm';
 export { default as ResetPasswordForm } from './forms/ResetPasswordForm';
-export { default as OTPVerificationForm } from './forms/OTPVerificationForm';
 
-// Shared components
+// Essential components (used by the registration page)
 export { default as FormField } from './components/FormField';
 export { default as PasswordField } from './components/PasswordField';
-export { default as OTPInput } from './components/OTPInput';
 export { default as LoadingButton } from './components/LoadingButton';
 export { default as ErrorAlert } from './components/ErrorAlert';
 export { default as SuccessMessage } from './components/SuccessMessage';
 export { default as ProgressIndicator } from './components/ProgressIndicator';
+export { default as OTPInput } from './components/OTPInput';
 
-// Hooks
+// Forms (used by the registration page)
+export { default as OTPVerificationForm } from './forms/OTPVerificationForm';
+
+// Hooks (used by the registration page)
 export { default as useAuthForm } from './hooks/useAuthForm';
-export { default as useOTPTimer } from './hooks/useOTPTimer';
 
-// Types
+// Types (used by the registration page)
 export * from './types';

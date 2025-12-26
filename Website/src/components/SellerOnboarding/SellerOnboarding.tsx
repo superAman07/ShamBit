@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SellerLayout from './layout/SellerLayout';
 import DashboardOverview from './steps/DashboardOverview';
+import AccountStep from './steps/AccountStep';
 import BusinessStep from './steps/BusinessStep';
 import TaxStep from './steps/TaxStep';
 import BankStep from './steps/BankStep';
@@ -10,7 +11,7 @@ import ReviewStep from './steps/ReviewStep';
 import { useSellerProfile } from './hooks/useSellerProfile';
 import { useStepAccess } from './hooks/useStepAccess';
 import { sellerApi, errorUtils } from '../../utils/api';
-import type { OnboardingStep } from './types';
+import type { OnboardingStep, SaveOptions } from './types';
 
 const SellerOnboarding: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('business');
@@ -18,22 +19,28 @@ const SellerOnboarding: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const { seller, sectionStatus, loading, refetch, updateSectionStatus } = useSellerProfile();
-  const { getStepAccess, getNextAvailableStep } = useStepAccess(seller, sectionStatus);
+  const { getStepAccess } = useStepAccess(seller, sectionStatus);
 
-  const handleSectionSave = async (section: string, data: any) => {
+  const handleSectionSave = async (section: string, data: any, options?: SaveOptions) => {
     try {
       setError(null);
+      
+      const payload = {
+        ...data,
+        saveAsDraft: options?.saveAsDraft ?? false,
+        skipValidation: options?.skipValidation ?? false,
+      };
       
       // Call appropriate API based on section
       switch (section) {
         case 'business':
-          await sellerApi.updateBusinessDetails(data);
+          await sellerApi.updateBusinessDetails(payload);
           break;
         case 'tax':
-          await sellerApi.updateTaxInformation(data);
+          await sellerApi.updateTaxInformation(payload);
           break;
         case 'bank':
-          await sellerApi.updateBankDetails(data);
+          await sellerApi.updateBankDetails(payload);
           break;
         case 'documents':
           // Document upload is handled separately in the documents form
@@ -42,23 +49,26 @@ const SellerOnboarding: React.FC = () => {
           throw new Error(`Unknown section: ${section}`);
       }
 
-      // Update section status
-      updateSectionStatus(section as keyof typeof sectionStatus, true);
+      // Update section status only if not saving as draft
+      if (!options?.saveAsDraft) {
+        updateSectionStatus(section as keyof typeof sectionStatus, true);
+      }
       
       // Reload seller data to get updated info
       await refetch();
-      
-      // Navigate to next step if available
-      const nextStep = getNextAvailableStep(currentStep);
-      if (nextStep) {
-        setCurrentStep(nextStep);
-      }
       
     } catch (error) {
       console.error(`Error saving ${section}:`, error);
       setError(errorUtils.getErrorMessage(error));
       throw error;
     }
+  };
+
+  // Create step-specific save functions
+  const saveForStep = (step: OnboardingStep) => {
+    return async (data: any, options?: SaveOptions) => {
+      await handleSectionSave(step, data, options);
+    };
   };
 
   const handleApplicationSubmit = async () => {
@@ -140,26 +150,28 @@ const SellerOnboarding: React.FC = () => {
   if (!seller) return null;
 
   const renderCurrentStep = () => {
-    const stepProps = {
+    const baseStepProps = {
       seller,
-      onSave: handleSectionSave,
       canEdit: getStepAccess(currentStep).canEdit,
       isLoading: submitting
     };
 
     switch (currentStep) {
+      case 'account':
+        return <AccountStep {...baseStepProps} onSave={saveForStep('account')} />;
       case 'business':
-        return <BusinessStep {...stepProps} />;
+        return <BusinessStep {...baseStepProps} onSave={saveForStep('business')} />;
       case 'tax':
-        return <TaxStep {...stepProps} />;
+        return <TaxStep {...baseStepProps} onSave={saveForStep('tax')} />;
       case 'bank':
-        return <BankStep {...stepProps} />;
+        return <BankStep {...baseStepProps} onSave={saveForStep('bank')} />;
       case 'documents':
-        return <DocumentsStep {...stepProps} />;
+        return <DocumentsStep {...baseStepProps} onSave={saveForStep('documents')} />;
       case 'review':
         return (
           <ReviewStep 
-            {...stepProps}
+            {...baseStepProps}
+            onSave={saveForStep('review')}
             onSubmitApplication={handleApplicationSubmit}
             canSubmit={canSubmitApplication()}
             submitting={submitting}
