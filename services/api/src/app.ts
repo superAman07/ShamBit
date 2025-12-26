@@ -14,6 +14,8 @@ import { performanceMonitor } from './middleware/performanceMonitor';
 import routes from './routes';
 import healthRoutes from './routes/health.routes';
 import simpleRoutes from './routes/simple-routes';
+import v1Routes from './routes/v1';
+import sellerRoutes from './routes/seller.routes';
 
 /**
  * Create and configure Express application
@@ -57,8 +59,14 @@ export const createApp = (): Application => {
   // API routes
   app.use(`/api/${config.API_VERSION}`, routes);
 
-  // Seller registration routes
+  // Seller routes (direct mounting for frontend compatibility)
+  app.use('/api/seller', sellerRoutes);
+
+  // Seller registration routes (legacy)
   app.use('/api/v1', simpleRoutes);
+  
+  // V1 API routes (new structure)
+  app.use('/api/v1', v1Routes);
 
   // 404 handler
   app.use(notFoundHandler);

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { getConfig } from '@shambit/config';
 import { getDatabase } from '@shambit/database';
 import { SellerRegistrationService } from '@shambit/database';
+import { AuthService } from '@shambit/database/src/services/auth.service';
 import { 
   registrationLimiter, 
   otpVerificationLimiter, 
@@ -35,13 +36,11 @@ import {
   verifyResetOtpSchema
 } from '../middleware/validation';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
-import { maskMobile, maskEmail } from '../utils/security';
+import { maskMobile } from '../utils/security';
 import { generateTokens, revokeSession, revokeAllSessions, refreshAccessToken, getCurrentSessionFromToken } from '../utils/jwt';
 import { errorResponse, successResponse } from '../utils/response';
 import { 
-  SELLER_STATUS, 
   VERIFICATION_STATUS, 
-  SELLER_TYPE, 
   ERROR_CODES, 
   SUCCESS_MESSAGES, 
   NEXT_STEPS 
@@ -52,12 +51,22 @@ const config = getConfig();
 
 // Lazy-loaded services to avoid database initialization issues
 let registrationService: SellerRegistrationService | null = null;
+let authService: AuthService | null = null;
+
 const getRegistrationService = () => {
   if (!registrationService) {
     const db = getDatabase();
     registrationService = new SellerRegistrationService(db, otpService);
   }
   return registrationService;
+};
+
+const getAuthService = () => {
+  if (!authService) {
+    const db = getDatabase();
+    authService = new AuthService(db, config.JWT_SECRET, config.JWT_REFRESH_SECRET);
+  }
+  return authService;
 };
 
 // Verify JWT secrets exist at startup
@@ -132,22 +141,8 @@ router.post('/seller-registration/verify-otp',
         return errorResponse(res, 429, ERROR_CODES.TOO_MANY_ATTEMPTS, 'Too many failed OTP attempts. Registration session invalidated.');
       }
       
-      // Create a simple auth service interface for token generation
-      const authService = {
-        generateTokenPair: async (seller: any, ip?: string, ua?: string) => {
-          const tokens = await generateTokens({
-            sellerId: seller.id,
-            email: seller.email,
-            type: 'seller'
-          }, ip, ua);
-          
-          if (!tokens) {
-            throw new Error('Token generation failed');
-          }
-          
-          return tokens;
-        }
-      };
+      // Use the proper auth service
+      const authServiceInstance = getAuthService();
       
       // Use the secure registration service
       const result = await getRegistrationService().verifyRegistrationOTP(
@@ -155,7 +150,7 @@ router.post('/seller-registration/verify-otp',
         otp,
         ipAddress,
         userAgent,
-        authService
+        authServiceInstance
       );
       
       if (!result.success || !result.verified) {
@@ -244,7 +239,7 @@ router.post('/seller-registration/login',
       const { identifier, password } = req.body; // Changed from email to identifier to support both email and mobile
       
       // Create identifiers for multi-layer brute force protection
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+      const clientIP = req.ip || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
       
       // Check login attempt limits across multiple layers
@@ -254,7 +249,6 @@ router.post('/seller-registration/login',
       }
       
       // Find seller by email or mobile with all required fields
-      const db = getDatabase();
       const isEmail = identifier.includes('@');
       const field = isEmail ? 'email' : 'mobile';
       
@@ -283,13 +277,17 @@ router.post('/seller-registration/login',
       // Clear failed attempts on successful login
       clearLoginAttempts(identifier, clientIP, userAgent);
       
-      // Update last login timestamp
-      await db('sellers')
-        .where('id', seller.id)
-        .update({ 
-          last_login_at: new Date(),
-          updated_at: new Date()
-        });
+      // Update last login timestamp (only if column exists)
+      try {
+        await db('sellers')
+          .where('id', seller.id)
+          .update({ 
+            updated_at: new Date()
+          });
+      } catch (updateError) {
+        console.warn('Could not update last login timestamp:', updateError);
+        // Continue with login even if timestamp update fails
+      }
       
       // Generate JWT tokens
       const tokens = await generateTokens({
@@ -495,7 +493,7 @@ router.post('/seller-registration/refresh-token',
       }
       
       // Get client info for session tracking
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+      const clientIP = req.ip || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
       
       // Refresh tokens (with rotation)

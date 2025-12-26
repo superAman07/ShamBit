@@ -264,7 +264,7 @@ export const revokeSession = async (sessionId: string): Promise<boolean> => {
 /**
  * Revoke all sessions for a seller (logout from all devices)
  */
-export const revokeAllSessions = async (sellerId: number): Promise<boolean> => {
+export const revokeAllSessions = async (sellerId: string): Promise<boolean> => {
   const db = getDatabase();
   
   try {
@@ -370,7 +370,7 @@ export const isAccessTokenRevoked = async (jti: string): Promise<boolean> => {
 /**
  * Revoke access token by JTI
  */
-export const revokeAccessToken = async (jti: string, sellerId: number, expiresAt: Date): Promise<boolean> => {
+export const revokeAccessToken = async (jti: string, sellerId: string, expiresAt: Date): Promise<boolean> => {
   const db = getDatabase();
   
   try {

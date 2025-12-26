@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import testRoutes from './test-routes';
+import sellerRoutes from '../seller.routes';
 
 const router = Router();
 
@@ -13,6 +14,14 @@ router.get('/test-simple', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Mount seller routes
+try {
+  router.use('/seller', sellerRoutes);
+  console.log('V1 routes: seller routes mounted successfully');
+} catch (error) {
+  console.error('V1 routes: Error mounting seller routes:', error);
+}
 
 // Try to mount test routes
 try {

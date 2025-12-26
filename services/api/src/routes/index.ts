@@ -24,6 +24,7 @@ import customerRoutes from './customer.routes';
 import reportsRoutes from './reports.routes';
 import offerAnalyticsRoutes from './offer-analytics.routes';
 import newsletterRoutes from './newsletter.routes';
+import sellerRoutes from './seller.routes';
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use('/auth', authRoutes);
 router.use('/auth/admin', adminAuthRoutes);
 router.use('/admins', adminRoutes);
 router.use('/profile', profileRoutes);
+router.use('/seller', sellerRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/brands', brandRoutes);
 router.use('/products', productRoutes);
