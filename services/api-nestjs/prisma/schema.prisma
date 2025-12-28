@@ -11,6 +11,71 @@ datasource db {
 }
 
 // ================================
+// MULTI-TENANCY
+// ================================
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  type        String   // ENTERPRISE, BUSINESS, STARTER, TRIAL
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userTenants     UserTenant[]
+  tenantFeatures  TenantFeature[]
+  apiKeys         ApiKey[]
+
+  @@map("tenants")
+}
+
+model UserTenant {
+  id       String @id @default(cuid())
+  userId   String
+  tenantId String
+  roles    String[] @default([])
+  status   String   @default("ACTIVE") // ACTIVE, INACTIVE
+  joinedAt DateTime @default(now())
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@map("user_tenants")
+}
+
+model Feature {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  // Relations
+  tenantFeatures TenantFeature[]
+
+  @@map("features")
+}
+
+model TenantFeature {
+  id        String  @id @default(cuid())
+  tenantId  String
+  featureId String
+  isEnabled Boolean @default(true)
+  config    Json    @default("{}")
+
+  // Relations
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureId])
+  @@map("tenant_features")
+}
+
+// ================================
 // USER & AUTHENTICATION
 // ================================
 
@@ -25,6 +90,8 @@ model User {
   isEmailVerified Boolean  @default(false)
   isPhoneVerified Boolean  @default(false)
   lastLoginAt     DateTime?
+  deletedAt       DateTime?
+  deletedBy       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -32,6 +99,7 @@ model User {
   sellerProfile SellerProfile?
   addresses     Address[]
   orders        Order[]
+  userTenants   UserTenant[]
   
   // New relations for extended functionality
   carts                   Cart[]
@@ -49,6 +117,7 @@ model User {
   featureFlagsCreated     FeatureFlag[]
   auditLogsAsActor        AuditLog[]              @relation("AuditActor")
   webhooksCreated         Webhook[]
+  userRoles               UserRole[]
 
   @@map("users")
 }
@@ -1019,3 +1088,232 @@ model DomainEvent {
   @@map("domain_events")
 }
 
+
+// ================================
+// ADVANCED AUTHORIZATION (RBAC + ABAC)
+// ================================
+
+model Role {
+  id          String @id @default(cuid())
+  name        String
+  description String?
+  tenantId    String
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([name, tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  name        String @unique
+  resource    String
+  action      String
+  description String?
+  conditions  Json   @default("[]") // ABAC conditions
+  createdAt   DateTime @default(now())
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id       String @id @default(cuid())
+  userId   String
+  roleId   String
+  tenantId String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, tenantId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ================================
+// DYNAMIC CONFIGURATION
+// ================================
+
+model Configuration {
+  id          String @id @default(cuid())
+  key         String
+  value       String
+  type        String @default("string") // string, number, boolean, json
+  tenantId    String @default("")
+  environment String @default("development")
+  description String?
+  isSecret    Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, tenantId, environment])
+  @@map("configurations")
+}
+
+// ================================
+// SAGA ORCHESTRATION
+// ================================
+
+model SagaInstance {
+  id            String @id @default(cuid())
+  sagaType      String
+  tenantId      String
+  userId        String
+  status        String // PENDING, RUNNING, COMPLETED, FAILED, COMPENSATING, COMPENSATED
+  data          Json
+  stepResults   Json   @default("{}")
+  currentStep   Int    @default(0)
+  correlationId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("saga_instances")
+}
+
+// ================================
+// READ MODELS & PROJECTIONS
+// ================================
+
+model ProductReadModel {
+  id          String @id @default(cuid())
+  tenantId    String
+  sellerId    String
+  name        String
+  slug        String
+  description String?
+  status      String
+  categoryId  String
+  brandId     String?
+  images      Json   @default("[]")
+  variants    Json   @default("[]")
+  pricing     Json   @default("{}")
+  inventory   Json   @default("{}")
+  ratings     Json   @default("{}")
+  version     Int    @default(1)
+  lastUpdated DateTime @default(now())
+
+  @@unique([slug, tenantId])
+  @@map("product_read_models")
+}
+
+model OrderReadModel {
+  id          String @id @default(cuid())
+  tenantId    String
+  userId      String
+  orderNumber String
+  status      String
+  totalAmount Decimal
+  items       Json   @default("[]")
+  shipping    Json   @default("{}")
+  payment     Json   @default("{}")
+  timeline    Json   @default("[]")
+  version     Int    @default(1)
+  lastUpdated DateTime @default(now())
+
+  @@unique([orderNumber, tenantId])
+  @@map("order_read_models")
+}
+
+model InventoryReadModel {
+  id            String @id @default(cuid())
+  tenantId      String
+  variantId     String
+  productId     String
+  sellerId      String
+  totalStock    Int
+  availableStock Int
+  reservedStock Int
+  lowStockAlert Boolean @default(false)
+  version       Int     @default(1)
+  lastUpdated   DateTime @default(now())
+
+  @@unique([variantId, tenantId])
+  @@map("inventory_read_models")
+}
+
+model FailedProjection {
+  id          String @id @default(cuid())
+  eventId     String
+  eventType   String
+  handlerName String
+  error       String
+  eventData   Json
+  tenantId    String
+  retryCount  Int    @default(0)
+  createdAt   DateTime @default(now())
+  lastRetryAt DateTime?
+
+  @@map("failed_projections")
+}
+
+// ================================
+// DATA LIFECYCLE MANAGEMENT
+// ================================
+
+model ArchivedData {
+  id         String @id @default(cuid())
+  entityType String
+  entityId   String
+  tableName  String
+  data       Json
+  tenantId   String
+  archivedAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([archivedAt])
+  @@map("archived_data")
+}
+
+// ================================
+// API EXPOSURE LAYERS
+// ================================
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  type        String   // PUBLIC, INTERNAL, ADMIN, PARTNER
+  permissions String[] // API layers this key can access
+  tenantId    String
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  createdBy   String
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+// ================================
+// TENANT-AWARE UPDATES TO EXISTING MODELS
+// ================================
+
+// Update existing models to include tenantId
+// Note: This would require a migration to add tenantId to existing tables

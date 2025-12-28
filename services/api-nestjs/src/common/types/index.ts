@@ -15,10 +15,15 @@ export interface SoftDeletableEntity extends BaseEntity {
   deletedBy?: string;
 }
 
+export interface TenantAwareEntity extends BaseEntity {
+  tenantId: string;
+}
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   SELLER = 'SELLER',
   BUYER = 'BUYER',
+  PARTNER = 'PARTNER',
 }
 
 export enum EntityStatus {
@@ -37,6 +42,7 @@ export interface PaginationQuery {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  tenantId?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -57,6 +63,11 @@ export interface ApiResponse<T = any> {
   message?: string;
   errors?: string[];
   timestamp: string;
+  _meta?: {
+    apiVersion?: string;
+    deprecated?: boolean;
+    tenantId?: string;
+  };
 }
 
 export interface EventPayload {
@@ -65,5 +76,11 @@ export interface EventPayload {
   entityType: string;
   data: any;
   actorId: string;
+  tenantId: string;
   timestamp: Date;
 }
+
+// Re-export types from other modules
+export * from './tenant.types';
+export * from './domain.types';
+export * from './authorization.types';

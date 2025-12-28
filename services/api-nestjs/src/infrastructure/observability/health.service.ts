@@ -150,7 +150,7 @@ export class HealthService {
     } catch (error) {
       const responseTime = Date.now() - startTime;
       
-      this.logger.error('Database health check failed', { error: error.message });
+      this.logger.error('Database health check failed', error.stack, { error: error.message });
       
       return {
         name: 'database',
@@ -202,7 +202,7 @@ export class HealthService {
     } catch (error) {
       const responseTime = Date.now() - startTime;
       
-      this.logger.error('Redis health check failed', { error: error.message });
+      this.logger.error('Redis health check failed', error.stack, { error: error.message });
       
       return {
         name: 'redis',
