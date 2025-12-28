@@ -12,6 +12,9 @@ export interface ReservationMetadata {
 export class InventoryReservation {
   id: string;
   inventoryId: string;
+  // Optional linkage back to variant/seller for event emission convenience
+  variantId?: string;
+  sellerId?: string;
   
   // Reservation details
   quantity: number;

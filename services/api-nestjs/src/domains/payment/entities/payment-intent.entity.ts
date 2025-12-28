@@ -2,12 +2,60 @@ import {
   PaymentIntentStatus, 
   PaymentMethod, 
   PaymentGatewayProvider,
+  PaymentIntentStatusTransitions,
   isPaymentIntentTerminal,
   isPaymentIntentActive,
   requiresUserAction 
 } from '../enums/payment-status.enum';
-import { PaymentTransaction } from './payment-transaction.entity';
-import { PaymentAttempt } from './payment-attempt.entity';
+
+// Forward declarations for types
+interface PaymentTransaction {
+  id: string;
+  paymentIntentId: string;
+  transactionId: string;
+  gatewayTransactionId?: string;
+  amount: number;
+  currency: string;
+  type: string;
+  status: string;
+  paymentMethod: any;
+  gatewayResponse: any;
+  gatewayFees: number;
+  failureCode?: string;
+  failureMessage?: string;
+  processedAt?: Date;
+  settledAt?: Date;
+  reconciled: boolean;
+  reconciledAt?: Date;
+  metadata: any;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isSuccessful(): boolean;
+}
+
+interface PaymentAttempt {
+  id: string;
+  paymentIntentId: string;
+  attemptNumber: number;
+  idempotencyKey: string;
+  gatewayProvider: string;
+  gatewayAttemptId?: string;
+  status: string;
+  errorCode?: string;
+  errorMessage?: string;
+  errorType?: string;
+  isRetry: boolean;
+  retryAfter?: Date;
+  startedAt: Date;
+  completedAt?: Date;
+  gatewayResponse: any;
+  metadata: any;
+  createdBy: string;
+  createdAt: Date;
+  isSuccessful(): boolean;
+  isFailed(): boolean;
+}
 
 export interface PaymentIntentMetadata {
   orderId?: string;
@@ -165,7 +213,7 @@ export class PaymentIntent {
   // ============================================================================
   
   getSuccessfulTransaction(): PaymentTransaction | undefined {
-    return this.transactions?.find(t => t.isSucceeded());
+    return this.transactions?.find(t => t.isSuccessful());
   }
   
   getLatestTransaction(): PaymentTransaction | undefined {
@@ -173,12 +221,12 @@ export class PaymentIntent {
   }
   
   getTotalPaid(): number {
-    return this.transactions?.filter(t => t.isSucceeded())
+    return this.transactions?.filter(t => t.isSuccessful())
       .reduce((sum, t) => sum + t.amount, 0) || 0;
   }
   
   getTotalRefunded(): number {
-    return this.transactions?.filter(t => t.type === 'REFUND' && t.isSucceeded())
+    return this.transactions?.filter(t => t.type === 'REFUND' && t.isSuccessful())
       .reduce((sum, t) => sum + t.amount, 0) || 0;
   }
   
@@ -216,7 +264,7 @@ export class PaymentIntent {
   }
   
   getSuccessfulAttempt(): PaymentAttempt | undefined {
-    return this.attempts?.find(a => a.isSucceeded());
+    return this.attempts?.find(a => a.isSuccessful());
   }
   
   canRetry(): boolean {
@@ -375,7 +423,7 @@ export class PaymentIntent {
     
     return new PaymentIntent({
       ...data,
-      intentId: `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      intentId: `pi_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       gatewayIntentId: '', // Will be set by gateway
       status: PaymentIntentStatus.CREATED,
       confirmationMethod: 'AUTOMATIC',

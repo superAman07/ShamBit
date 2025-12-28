@@ -8,27 +8,27 @@ export class SettlementPolicies {
 
   static canAccess(settlement: any, userId?: string, userRole?: UserRole): boolean {
     // System admin can access all settlements
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN) {
       return true;
     }
 
     // Finance team can access all settlements
-    if (userRole === 'FINANCE') {
+    if (userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can only access their own settlements
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return settlement.sellerId === userId;
     }
 
     // Support team can access settlements for investigation
-    if (userRole === 'SUPPORT') {
+    if (userRole === UserRole.SUPPORT) {
       return true;
     }
 
     // Customer service can view settlements (read-only)
-    if (userRole === 'CUSTOMER_SERVICE') {
+    if (userRole === UserRole.CUSTOMER_SERVICE) {
       return true;
     }
 
@@ -37,15 +37,15 @@ export class SettlementPolicies {
 
   static canCreate(userId?: string, userRole?: UserRole): boolean {
     // Only admin, finance, and system can create settlements
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE' ||
-           userRole === 'SYSTEM';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE ||
+           userRole === UserRole.SYSTEM;
   }
 
   static canProcess(settlement: any, userId?: string, userRole?: UserRole): boolean {
     // Only finance team and admin can process settlements
-    if (userRole !== 'FINANCE' && userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+    if (userRole !== UserRole.FINANCE && userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN) {
       return false;
     }
 
@@ -55,7 +55,7 @@ export class SettlementPolicies {
 
   static canCancel(settlement: any, userId?: string, userRole?: UserRole): boolean {
     // Only admin and finance can cancel settlements
-    if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN' && userRole !== 'FINANCE') {
+    if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN && userRole !== UserRole.FINANCE) {
       return false;
     }
 
@@ -66,7 +66,7 @@ export class SettlementPolicies {
 
   static canRetry(settlement: any, userId?: string, userRole?: UserRole): boolean {
     // Only admin and finance can retry failed settlements
-    if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN' && userRole !== 'FINANCE') {
+    if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN && userRole !== UserRole.FINANCE) {
       return false;
     }
 
@@ -81,30 +81,30 @@ export class SettlementPolicies {
     }
 
     // Sellers can view their own settlement details
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return settlement.sellerId === userId;
     }
 
     // Admin, finance, and support can view all details
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE' || 
-           userRole === 'SUPPORT';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE || 
+           userRole === UserRole.SUPPORT;
   }
 
   static canViewTransactions(settlement: any, userId?: string, userRole?: UserRole): boolean {
     // More restrictive than viewing settlement details
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can view their own settlement transactions
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return settlement.sellerId === userId;
     }
 
     // Support can view for investigation purposes
-    if (userRole === 'SUPPORT') {
+    if (userRole === UserRole.SUPPORT) {
       return true;
     }
 
@@ -113,17 +113,17 @@ export class SettlementPolicies {
 
   static canAccessSellerSettlements(sellerId: string, userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can access all seller settlements
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can only access their own settlements
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return sellerId === userId;
     }
 
     // Support can access for investigation
-    if (userRole === 'SUPPORT') {
+    if (userRole === UserRole.SUPPORT) {
       return true;
     }
 
@@ -136,17 +136,17 @@ export class SettlementPolicies {
 
   static canAccessSellerAccount(sellerAccount: any, userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can access all seller accounts
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can access their own account
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return sellerAccount.sellerId === userId;
     }
 
     // Support can access for investigation
-    if (userRole === 'SUPPORT') {
+    if (userRole === UserRole.SUPPORT) {
       return true;
     }
 
@@ -155,20 +155,20 @@ export class SettlementPolicies {
 
   static canCreateSellerAccount(userId?: string, userRole?: UserRole): boolean {
     // Admin, finance, and sellers can create seller accounts
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE' ||
-           userRole === 'SELLER';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE ||
+           userRole === UserRole.SELLER;
   }
 
   static canUpdateSellerAccount(sellerAccount: any, userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can update any seller account
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can update their own account (with restrictions)
-    if (userRole === 'SELLER' && sellerAccount.sellerId === userId) {
+    if (userRole === UserRole.SELLER && sellerAccount.sellerId === userId) {
       // Sellers can only update if account is not yet activated
       return sellerAccount.status !== SellerAccountStatus.ACTIVATED;
     }
@@ -178,9 +178,9 @@ export class SettlementPolicies {
 
   static canUpdateSellerAccountStatus(sellerAccount: any, userId?: string, userRole?: UserRole): boolean {
     // Only admin and finance can update seller account status
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE;
   }
 
   static canViewSellerAccountDetails(sellerAccount: any, userId?: string, userRole?: UserRole): boolean {
@@ -189,12 +189,12 @@ export class SettlementPolicies {
 
   static canViewBankDetails(sellerAccount: any, userId?: string, userRole?: UserRole): boolean {
     // More restrictive access to bank details
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can view their own bank details
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return sellerAccount.sellerId === userId;
     }
 
@@ -207,12 +207,12 @@ export class SettlementPolicies {
 
   static canUpdateSettlementSchedule(sellerId: string, userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can update any schedule
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE) {
       return true;
     }
 
     // Sellers can update their own schedule
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return sellerId === userId;
     }
 
@@ -229,20 +229,20 @@ export class SettlementPolicies {
 
   static canViewAuditLogs(userId?: string, userRole?: UserRole): boolean {
     // Only admin, finance, and support can view audit logs
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE' || 
-           userRole === 'SUPPORT';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE || 
+           userRole === UserRole.SUPPORT;
   }
 
   static canViewSellerAuditLogs(sellerId: string, userId?: string, userRole?: UserRole): boolean {
     // Admin, finance, and support can view all audit logs
-    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN' || userRole === 'FINANCE' || userRole === 'SUPPORT') {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN || userRole === UserRole.FINANCE || userRole === UserRole.SUPPORT) {
       return true;
     }
 
     // Sellers can view their own audit logs (limited)
-    if (userRole === 'SELLER') {
+    if (userRole === UserRole.SELLER) {
       return sellerId === userId;
     }
 
@@ -255,24 +255,24 @@ export class SettlementPolicies {
 
   static canGenerateReports(userId?: string, userRole?: UserRole): boolean {
     // Admin, finance, and support can generate reports
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE' || 
-           userRole === 'SUPPORT';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE || 
+           userRole === UserRole.SUPPORT;
   }
 
   static canViewFinancialReports(userId?: string, userRole?: UserRole): boolean {
     // Only admin and finance can view financial reports
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE;
   }
 
   static canExportData(userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can export settlement data
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE;
   }
 
   // ============================================================================
@@ -318,14 +318,14 @@ export class SettlementPolicies {
 
   static canBypassHoldPeriod(userId?: string, userRole?: UserRole): boolean {
     // Only super admin can bypass hold periods
-    return userRole === 'SUPER_ADMIN';
+    return userRole === UserRole.SUPER_ADMIN;
   }
 
   static canProcessManualSettlement(userId?: string, userRole?: UserRole): boolean {
     // Admin and finance can process manual settlements
-    return userRole === 'ADMIN' || 
-           userRole === 'SUPER_ADMIN' || 
-           userRole === 'FINANCE';
+    return userRole === UserRole.ADMIN || 
+           userRole === UserRole.SUPER_ADMIN || 
+           userRole === UserRole.FINANCE;
   }
 
   // ============================================================================

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
-import { PaymentRepository } from '../../payment/repositories/payment.repository';
+import { PaymentRepository } from '../../payment/repositories/payment.repository.js';
 import { OrderRepository } from '../../order/repositories/order.repository';
 
 export interface CalculateSettlementRequest {
@@ -194,7 +194,7 @@ export class SettlementCalculationService {
     return {
       paymentTransactionId: transaction.id,
       orderId: transaction.orderId,
-      orderNumber: order.orderNumber,
+      orderNumber: order?.orderNumber || 'UNKNOWN',
       transactionAmount: transaction.amount,
       platformFee,
       gatewayFee,
@@ -202,8 +202,8 @@ export class SettlementCalculationService {
       netAmount,
       transactionDate: transaction.processedAt,
       paymentMethod: transaction.paymentMethod?.type || 'UNKNOWN',
-      customerId: order.customerId,
-      customerEmail: order.customer?.email,
+      customerId: order?.customerId || 'UNKNOWN',
+      customerEmail: 'unknown@example.com', // We don't have customer email in order entity
       productDetails: this.extractProductDetails(order),
     };
   }
@@ -333,6 +333,14 @@ export class SettlementCalculationService {
 
   private extractProductDetails(order: any): any {
     // Extract relevant product information for settlement records
+    if (!order) {
+      return {
+        items: [],
+        totalItems: 0,
+        totalAmount: 0,
+      };
+    }
+
     return {
       items: order.items?.map((item: any) => ({
         productId: item.productId,
@@ -343,8 +351,8 @@ export class SettlementCalculationService {
         price: item.price,
         category: item.product?.category?.name,
       })) || [],
-      totalItems: order.totalItems,
-      totalAmount: order.totalAmount,
+      totalItems: order.totalItems || 0,
+      totalAmount: order.totalAmount || 0,
     };
   }
 

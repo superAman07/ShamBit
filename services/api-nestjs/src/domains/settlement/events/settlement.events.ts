@@ -489,8 +489,8 @@ export class SettlementWebhookProcessedEvent {
     public readonly webhookId: string,
     public readonly eventType: string,
     public readonly gatewayProvider: string,
-    public readonly settlementId?: string,
     public readonly processingResult: 'SUCCESS' | 'FAILURE' | 'IGNORED',
+    public readonly settlementId?: string,
     public readonly processingMessage?: string,
     public readonly timestamp: Date = new Date(),
   ) {}

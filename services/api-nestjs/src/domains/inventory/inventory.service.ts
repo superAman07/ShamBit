@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { InventoryRepository } from './repositories/inventory.repository';
+import { InventoryRepository } from './inventory.repository';
 import { InventoryAuditService } from './services/inventory-audit.service';
 import { InventoryReservationService } from './services/inventory-reservation.service';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
@@ -42,6 +42,7 @@ import {
 } from './events/inventory.events';
 
 import { UserRole } from '../../common/types';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
 @Injectable()
 export class InventoryService {
@@ -49,6 +50,7 @@ export class InventoryService {
     private readonly inventoryRepository: InventoryRepository,
     private readonly inventoryAuditService: InventoryAuditService,
     private readonly inventoryReservationService: InventoryReservationService,
+    private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
@@ -410,11 +412,11 @@ export class InventoryService {
     });
 
     if (result.success) {
-      // Emit inventory-level event
+      // Emit inventory-level event (use fallbacks if reservation lacks variant/seller)
       this.eventEmitter.emit('inventory.reserved', new InventoryReservedEvent(
         inventoryId,
-        result.reservation!.variantId,
-        result.reservation!.sellerId,
+        result.reservation!.variantId ?? '',
+        result.reservation!.sellerId ?? '',
         quantity,
         reservationKey,
         createdBy
@@ -449,7 +451,7 @@ export class InventoryService {
         await this.adjustStock(
           adjustment.inventoryId,
           adjustment.newQuantity,
-          adjustment.reason || adjustmentDto.reason,
+          adjustment.reason || adjustmentDto.reason || 'Bulk adjustment',
           createdBy,
           adjustment.metadata
         );

@@ -303,7 +303,7 @@ export class RazorpayGateway implements IPaymentGateway {
       const response: CreateRefundResponse = {
         refundId: refund.id,
         status: this.mapRazorpayRefundStatus(refund.status),
-        amount: refund.amount,
+        amount: refund.amount || 0,
       };
       
       this.logger.log('Razorpay refund created successfully', {

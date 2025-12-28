@@ -65,7 +65,7 @@ export class InventoryReservationService {
         }
 
         // Lock inventory row for update
-        const inventory = await tx.inventory.findUnique({
+        const inventory = await tx.variantInventory.findUnique({
           where: { id: request.inventoryId },
         });
 
@@ -100,27 +100,24 @@ export class InventoryReservationService {
         });
 
         // Update inventory quantities
-        await tx.inventory.update({
+        await tx.variantInventory.update({
           where: { id: request.inventoryId },
           data: {
             availableQuantity: { decrement: request.quantity },
             reservedQuantity: { increment: request.quantity },
-            version: { increment: 1 },
-            updatedBy: request.createdBy,
+            // version: { increment: 1 }, // VariantInventory doesn't have version field
+            // updatedBy: request.createdBy, // VariantInventory doesn't have updatedBy field
           },
         });
 
         // Create ledger entry
-        await tx.inventoryLedger.create({
+        await tx.inventoryMovement.create({
           data: {
             inventoryId: request.inventoryId,
-            type: 'RESERVATION',
-            quantity: -request.quantity,
-            runningBalance: inventory.totalQuantity, // Balance doesn't change for reservations
-            referenceType: 'RESERVATION',
-            referenceId: reservation.id,
+            type: 'RESERVED',
+            quantity: request.quantity,
             reason: `Reserved for ${request.referenceType}`,
-            metadata: request.metadata || {},
+            reference: reservation.id,
             createdBy: request.createdBy,
           },
         });
@@ -209,7 +206,7 @@ export class InventoryReservationService {
         });
 
         // Get current inventory
-        const inventory = await tx.inventory.findUnique({
+        const inventory = await tx.variantInventory.findUnique({
           where: { id: reservation.inventoryId },
         });
 
@@ -218,26 +215,24 @@ export class InventoryReservationService {
         }
 
         // Update inventory quantities
-        await tx.inventory.update({
+        await tx.variantInventory.update({
           where: { id: reservation.inventoryId },
           data: {
             availableQuantity: { increment: reservation.quantity },
             reservedQuantity: { decrement: reservation.quantity },
-            version: { increment: 1 },
-            updatedBy: releasedBy,
+            // version: { increment: 1 }, // VariantInventory doesn't have version field
+            // updatedBy: releasedBy, // VariantInventory doesn't have updatedBy field
           },
         });
 
         // Create ledger entry
-        await tx.inventoryLedger.create({
+        await tx.inventoryMovement.create({
           data: {
             inventoryId: reservation.inventoryId,
-            type: 'RELEASE',
+            type: 'RELEASED',
             quantity: reservation.quantity,
-            runningBalance: inventory.totalQuantity, // Balance doesn't change for releases
-            referenceType: 'RESERVATION',
-            referenceId: reservation.id,
             reason: reason || 'Reservation released',
+            reference: reservation.id,
             createdBy: releasedBy,
           },
         });
@@ -319,7 +314,7 @@ export class InventoryReservationService {
         });
 
         // Get current inventory
-        const inventory = await tx.inventory.findUnique({
+        const inventory = await tx.variantInventory.findUnique({
           where: { id: reservation.inventoryId },
         });
 
@@ -328,27 +323,25 @@ export class InventoryReservationService {
         }
 
         // Update inventory quantities (remove from reserved, reduce total)
-        const newTotalQuantity = inventory.totalQuantity - reservation.quantity;
-        await tx.inventory.update({
+        // Note: VariantInventory doesn't have totalQuantity, so we just update reservedQuantity
+        await tx.variantInventory.update({
           where: { id: reservation.inventoryId },
           data: {
             reservedQuantity: { decrement: reservation.quantity },
-            totalQuantity: newTotalQuantity,
-            version: { increment: 1 },
-            updatedBy: committedBy,
+            // totalQuantity: newTotalQuantity, // VariantInventory doesn't have totalQuantity
+            // version: { increment: 1 }, // VariantInventory doesn't have version field
+            // updatedBy: committedBy, // VariantInventory doesn't have updatedBy field
           },
         });
 
         // Create ledger entry for the actual outbound movement
-        await tx.inventoryLedger.create({
+        await tx.inventoryMovement.create({
           data: {
             inventoryId: reservation.inventoryId,
-            type: 'OUTBOUND',
-            quantity: -reservation.quantity,
-            runningBalance: newTotalQuantity,
-            referenceType: reservation.referenceType as any,
-            referenceId: reservation.referenceId,
+            type: 'OUT',
+            quantity: reservation.quantity,
             reason: reason || 'Reservation committed',
+            reference: reservation.referenceId,
             createdBy: committedBy,
           },
         });

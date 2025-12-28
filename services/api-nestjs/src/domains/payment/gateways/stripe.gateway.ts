@@ -311,7 +311,7 @@ export class StripeGateway implements IPaymentGateway {
       
       const response: CreateRefundResponse = {
         refundId: refund.id,
-        status: this.mapStripeRefundStatus(refund.status),
+        status: this.mapStripeRefundStatus(refund.status || 'pending'),
         amount: refund.amount,
       };
       

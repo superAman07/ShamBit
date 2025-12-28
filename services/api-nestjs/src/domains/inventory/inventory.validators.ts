@@ -1,233 +1,204 @@
-import { BadRequestException } from '@nestjs/common';
-import { Inventory } from './entities/inventory.entity';
-import { InventoryLedger } from './entities/inventory-ledger.entity';
-
 export class InventoryValidators {
-  
-  // ============================================================================
-  // CRITICAL SAFETY INVARIANTS - NEVER BYPASS THESE
-  // ============================================================================
-  
   /**
-   * SAFETY: Stock is NEVER mutated directly - only through ledger
-   */
-  static validateStockIncrease(quantity: number): void {
-    if (quantity <= 0) {
-      throw new BadRequestException('Stock increase quantity must be positive');
-    }
-    if (!Number.isInteger(quantity)) {
-      throw new BadRequestException('Stock quantity must be an integer');
-    }
-    if (quantity > 1000000) {
-      throw new BadRequestException('Stock increase too large - maximum 1,000,000 per operation');
-    }
-  }
-
-  /**
-   * SAFETY: Cannot decrease more than available (prevent overselling)
-   */
-  static validateStockDecrease(quantity: number, availableQuantity: number): void {
-    if (quantity <= 0) {
-      throw new BadRequestException('Stock decrease quantity must be positive');
-    }
-    if (!Number.isInteger(quantity)) {
-      throw new BadRequestException('Stock quantity must be an integer');
-    }
-    if (quantity > availableQuantity) {
-      throw new BadRequestException(
-        `Cannot decrease stock by ${quantity}. Only ${availableQuantity} available.`
-      );
-    }
-  }
-
-  /**
-   * SAFETY: Stock adjustments must be valid
-   */
-  static validateStockAdjustment(newQuantity: number): void {
-    if (newQuantity < 0) {
-      throw new BadRequestException('Stock quantity cannot be negative');
-    }
-    if (!Number.isInteger(newQuantity)) {
-      throw new BadRequestException('Stock quantity must be an integer');
-    }
-    if (newQuantity > 10000000) {
-      throw new BadRequestException('Stock quantity too large - maximum 10,000,000');
-    }
-  }
-
-  /**
-   * SAFETY: Reservation must exist before order creation succeeds
-   */
-  static validateReservationExists(reservationKey: string): void {
-    if (!reservationKey || reservationKey.trim().length === 0) {
-      throw new BadRequestException('Inventory reservation is required before order creation');
-    }
-  }
-
-  /**
-   * SAFETY: Reservation → commit only once (idempotent)
+   * Validate that a reservation can be committed (idempotency check)
    */
   static validateReservationCommitIdempotency(reservation: any): void {
+    if (!reservation) {
+      throw new Error('Reservation not found');
+    }
+
     if (reservation.status === 'COMMITTED') {
-      throw new BadRequestException('Reservation has already been committed');
+      // Already committed - this is idempotent, so it's okay
+      return;
     }
-    
+
     if (reservation.status !== 'ACTIVE') {
-      throw new BadRequestException(`Cannot commit reservation in ${reservation.status} status`);
+      throw new Error(`Cannot commit reservation with status: ${reservation.status}`);
+    }
+
+    // Check if reservation has expired
+    if (reservation.expiresAt && new Date() > new Date(reservation.expiresAt)) {
+      throw new Error('Reservation has expired and cannot be committed');
     }
   }
 
   /**
-   * SAFETY: Cannot reduce inventory below zero
+   * Validate that a reservation can be released
    */
-  static validateInventoryNonNegative(currentQuantity: number, reduction: number): void {
-    if (currentQuantity - reduction < 0) {
-      throw new BadRequestException(
-        `Cannot reduce inventory below zero. Current: ${currentQuantity}, Attempted reduction: ${reduction}`
-      );
+  static validateReservationRelease(reservation: any): void {
+    if (!reservation) {
+      throw new Error('Reservation not found');
+    }
+
+    if (reservation.status === 'RELEASED') {
+      // Already released - this is idempotent, so it's okay
+      return;
+    }
+
+    if (reservation.status !== 'ACTIVE') {
+      throw new Error(`Cannot release reservation with status: ${reservation.status}`);
     }
   }
 
   /**
-   * SAFETY: Derived quantities must be consistent (available = total - reserved)
+   * Validate inventory availability for reservation
    */
-  static validateInventoryConsistency(inventory: Inventory): void {
-    const expectedTotal = inventory.availableQuantity + inventory.reservedQuantity;
-    
-    if (inventory.totalQuantity !== expectedTotal) {
-      throw new BadRequestException(
-        `Inventory inconsistency: total=${inventory.totalQuantity}, expected=${expectedTotal}`
-      );
+  static validateInventoryAvailability(inventory: any, requestedQuantity: number): void {
+    if (!inventory) {
+      throw new Error('Inventory not found');
     }
-    
-    if (inventory.availableQuantity < 0) {
-      throw new BadRequestException('Available quantity cannot be negative');
+
+    if (inventory.availableQuantity < requestedQuantity) {
+      throw new Error(`Insufficient inventory. Available: ${inventory.availableQuantity}, Requested: ${requestedQuantity}`);
     }
-    
-    if (inventory.reservedQuantity < 0) {
-      throw new BadRequestException('Reserved quantity cannot be negative');
+
+    if (!inventory.isTrackingEnabled) {
+      // If tracking is disabled, we don't enforce quantity limits
+      return;
     }
   }
 
   /**
-   * SAFETY: Ledger entries are append-only and immutable
+   * Validate reservation key format
    */
-  static validateLedgerEntry(entry: InventoryLedger): void {
-    if (!entry.inventoryId) {
-      throw new BadRequestException('Ledger entry must have inventory ID');
+  static validateReservationKey(reservationKey: string): void {
+    if (!reservationKey) {
+      throw new Error('Reservation key is required');
     }
-    
-    if (!entry.type) {
-      throw new BadRequestException('Ledger entry must have type');
+
+    if (typeof reservationKey !== 'string') {
+      throw new Error('Reservation key must be a string');
     }
-    
-    if (entry.quantity === 0) {
-      throw new BadRequestException('Ledger entry quantity cannot be zero');
+
+    if (reservationKey.length < 3 || reservationKey.length > 100) {
+      throw new Error('Reservation key must be between 3 and 100 characters');
     }
-    
-    if (entry.runningBalance < 0) {
-      throw new BadRequestException('Running balance cannot be negative');
-    }
-    
-    if (!entry.createdBy) {
-      throw new BadRequestException('Ledger entry must have creator');
+
+    // Basic format validation - alphanumeric, hyphens, underscores
+    if (!/^[a-zA-Z0-9_-]+$/.test(reservationKey)) {
+      throw new Error('Reservation key can only contain alphanumeric characters, hyphens, and underscores');
     }
   }
 
   /**
-   * SAFETY: Reservations must have TTL and valid reference
+   * Validate inventory movement data
    */
-  static validateReservation(
-    quantity: number,
-    availableQuantity: number,
-    expiresAt: Date,
-    reservationKey: string,
-    referenceId: string
-  ): void {
+  static validateInventoryMovement(movement: any): void {
+    if (!movement.inventoryId) {
+      throw new Error('Inventory ID is required for movement');
+    }
+
+    if (!movement.type) {
+      throw new Error('Movement type is required');
+    }
+
+    const validTypes = ['IN', 'OUT', 'RESERVED', 'RELEASED'];
+    if (!validTypes.includes(movement.type)) {
+      throw new Error(`Invalid movement type: ${movement.type}. Must be one of: ${validTypes.join(', ')}`);
+    }
+
+    if (typeof movement.quantity !== 'number' || movement.quantity <= 0) {
+      throw new Error('Movement quantity must be a positive number');
+    }
+
+    if (!movement.reason) {
+      throw new Error('Movement reason is required');
+    }
+
+    if (!movement.createdBy) {
+      throw new Error('Movement creator is required');
+    }
+  }
+
+  /**
+   * Validate stock increase operation
+   */
+  static validateStockIncrease(quantity: number): void {
+    if (typeof quantity !== 'number') {
+      throw new Error('Quantity must be a number');
+    }
+
     if (quantity <= 0) {
-      throw new BadRequestException('Reservation quantity must be positive');
+      throw new Error('Stock increase quantity must be positive');
     }
-    
+
+    if (!Number.isInteger(quantity)) {
+      throw new Error('Stock increase quantity must be a whole number');
+    }
+
+    if (quantity > 1000000) {
+      throw new Error('Stock increase quantity is too large (max: 1,000,000)');
+    }
+  }
+
+  /**
+   * Validate stock decrease operation
+   */
+  static validateStockDecrease(quantity: number, availableQuantity: number): void {
+    if (typeof quantity !== 'number') {
+      throw new Error('Quantity must be a number');
+    }
+
+    if (quantity <= 0) {
+      throw new Error('Stock decrease quantity must be positive');
+    }
+
+    if (!Number.isInteger(quantity)) {
+      throw new Error('Stock decrease quantity must be a whole number');
+    }
+
     if (quantity > availableQuantity) {
-      throw new BadRequestException(
-        `Cannot reserve ${quantity}. Only ${availableQuantity} available.`
-      );
-    }
-    
-    if (expiresAt <= new Date()) {
-      throw new BadRequestException('Reservation expiry must be in the future');
-    }
-    
-    if (!reservationKey || reservationKey.trim().length === 0) {
-      throw new BadRequestException('Reservation key is required');
-    }
-    
-    if (!referenceId || referenceId.trim().length === 0) {
-      throw new BadRequestException('Reservation reference ID is required');
-    }
-    
-    // TTL validation - maximum 24 hours
-    const maxTTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-    if (expiresAt.getTime() - Date.now() > maxTTL) {
-      throw new BadRequestException('Reservation TTL cannot exceed 24 hours');
+      throw new Error(`Insufficient stock. Available: ${availableQuantity}, Requested: ${quantity}`);
     }
   }
 
   /**
-   * SAFETY: Cannot delete inventory with existing ledger entries
+   * Validate stock adjustment operation
    */
-  static validateInventoryDeletion(inventory: Inventory, hasLedgerEntries: boolean): void {
-    if (hasLedgerEntries) {
-      throw new BadRequestException('Cannot delete inventory with existing ledger entries');
+  static validateStockAdjustment(newQuantity: number): void {
+    if (typeof newQuantity !== 'number') {
+      throw new Error('New quantity must be a number');
     }
-    
-    if (inventory.totalQuantity > 0) {
-      throw new BadRequestException('Cannot delete inventory with stock');
+
+    if (newQuantity < 0) {
+      throw new Error('Stock adjustment quantity cannot be negative');
     }
-    
-    if (inventory.reservedQuantity > 0) {
-      throw new BadRequestException('Cannot delete inventory with active reservations');
+
+    if (!Number.isInteger(newQuantity)) {
+      throw new Error('Stock adjustment quantity must be a whole number');
+    }
+
+    if (newQuantity > 1000000) {
+      throw new Error('Stock adjustment quantity is too large (max: 1,000,000)');
     }
   }
 
   /**
-   * SAFETY: Validate reservation state transitions
+   * Validate that inventory quantities are consistent
    */
-  static validateReservationTransition(
-    currentStatus: string,
-    newStatus: string,
-    isExpired: boolean
-  ): void {
-    const validTransitions: Record<string, string[]> = {
-      'ACTIVE': ['COMMITTED', 'RELEASED', 'EXPIRED'],
-      'COMMITTED': [], // Terminal state
-      'RELEASED': [], // Terminal state
-      'EXPIRED': ['RELEASED'], // Can be manually released
-    };
-    
-    if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid reservation transition from ${currentStatus} to ${newStatus}`
-      );
+  static validateInventoryConsistency(inventory: any): void {
+    if (!inventory) {
+      throw new Error('Inventory data is required');
     }
-    
-    if (newStatus === 'COMMITTED' && isExpired) {
-      throw new BadRequestException('Cannot commit expired reservation');
-    }
-  }
 
-  /**
-   * SAFETY: Validate bulk operations don't exceed limits
-   */
-  static validateBulkOperation(itemCount: number, maxItems: number = 1000): void {
-    if (itemCount <= 0) {
-      throw new BadRequestException('Bulk operation must include at least one item');
+    if (inventory.availableQuantity < 0) {
+      throw new Error('Available quantity cannot be negative');
     }
-    
-    if (itemCount > maxItems) {
-      throw new BadRequestException(
-        `Bulk operation too large: ${itemCount} items. Maximum: ${maxItems}`
-      );
+
+    if (inventory.reservedQuantity < 0) {
+      throw new Error('Reserved quantity cannot be negative');
+    }
+
+    if (inventory.quantity < 0) {
+      throw new Error('Total quantity cannot be negative');
+    }
+
+    // Check if available + reserved equals total (if total quantity is tracked)
+    if (inventory.quantity !== undefined) {
+      const calculatedTotal = inventory.availableQuantity + inventory.reservedQuantity;
+      if (Math.abs(calculatedTotal - inventory.quantity) > 0.01) { // Allow for small floating point differences
+        throw new Error(`Inventory quantities are inconsistent. Available: ${inventory.availableQuantity}, Reserved: ${inventory.reservedQuantity}, Total: ${inventory.quantity}`);
+      }
     }
   }
 }

@@ -16,6 +16,10 @@ export class CreateOrderItemDto {
   @Max(1000)
   quantity: number;
 
+  @IsNumber()
+  @Min(0)
+  unitPrice: number;
+
   @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;

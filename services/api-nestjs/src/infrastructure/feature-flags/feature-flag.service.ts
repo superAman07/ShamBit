@@ -46,6 +46,21 @@ export class FeatureFlagService {
     private readonly redisService: RedisService,
   ) {}
 
+  // Helper method to transform Prisma result to FeatureFlag interface
+  private transformToFeatureFlag(prismaFlag: any): FeatureFlag | null {
+    if (!prismaFlag) return null;
+    
+    return {
+      ...prismaFlag,
+      description: prismaFlag.description || undefined, // Convert null to undefined
+    };
+  }
+
+  // Helper method to transform array of Prisma results
+  private transformToFeatureFlags(prismaFlags: any[]): FeatureFlag[] {
+    return prismaFlags.map(flag => this.transformToFeatureFlag(flag)).filter(Boolean) as FeatureFlag[];
+  }
+
   async isEnabled(
     flagKey: string,
     context?: FeatureFlagContext,
@@ -60,7 +75,8 @@ export class FeatureFlagService {
     if (cachedFlag) {
       flag = JSON.parse(cachedFlag);
     } else {
-      flag = await this.featureFlagRepository.findByKey(flagKey);
+      const prismaFlag = await this.featureFlagRepository.findByKey(flagKey);
+      flag = this.transformToFeatureFlag(prismaFlag);
       if (flag) {
         await this.redisService.set(cacheKey, JSON.stringify(flag), this.CACHE_TTL);
       }
@@ -105,7 +121,7 @@ export class FeatureFlagService {
   ): Promise<FeatureFlag> {
     this.logger.log('FeatureFlagService.createFlag', { key: createDto.key, createdBy });
 
-    const flag = await this.featureFlagRepository.create({
+    const prismaFlag = await this.featureFlagRepository.create({
       ...createDto,
       isEnabled: createDto.isEnabled ?? false,
       rolloutPercentage: createDto.rolloutPercentage ?? 0,
@@ -113,10 +129,12 @@ export class FeatureFlagService {
       createdBy,
     });
 
-    // Invalidate cache
-    await this.invalidateCache(flag.key);
+    const flag = this.transformToFeatureFlag(prismaFlag);
 
-    return flag;
+    // Invalidate cache
+    await this.invalidateCache(flag!.key);
+
+    return flag!;
   }
 
   async updateFlag(
@@ -125,42 +143,48 @@ export class FeatureFlagService {
   ): Promise<FeatureFlag> {
     this.logger.log('FeatureFlagService.updateFlag', { id, updateData });
 
-    const flag = await this.featureFlagRepository.update(id, updateData);
+    const prismaFlag = await this.featureFlagRepository.update(id, updateData);
+    const flag = this.transformToFeatureFlag(prismaFlag);
     
     // Invalidate cache
-    await this.invalidateCache(flag.key);
+    await this.invalidateCache(flag!.key);
 
-    return flag;
+    return flag!;
   }
 
   async toggleFlag(id: string): Promise<FeatureFlag> {
     this.logger.log('FeatureFlagService.toggleFlag', { id });
 
-    const flag = await this.featureFlagRepository.findById(id);
-    if (!flag) {
+    const prismaFlag = await this.featureFlagRepository.findById(id);
+    if (!prismaFlag) {
       throw new Error('Feature flag not found');
     }
 
-    const updatedFlag = await this.featureFlagRepository.update(id, {
-      isEnabled: !flag.isEnabled,
+    const updatedPrismaFlag = await this.featureFlagRepository.update(id, {
+      isEnabled: !prismaFlag.isEnabled,
     });
 
-    // Invalidate cache
-    await this.invalidateCache(updatedFlag.key);
+    const updatedFlag = this.transformToFeatureFlag(updatedPrismaFlag);
 
-    return updatedFlag;
+    // Invalidate cache
+    await this.invalidateCache(updatedFlag!.key);
+
+    return updatedFlag!;
   }
 
   async getAllFlags(): Promise<FeatureFlag[]> {
-    return this.featureFlagRepository.findAll();
+    const prismaFlags = await this.featureFlagRepository.findAll();
+    return this.transformToFeatureFlags(prismaFlags);
   }
 
   async getFlagById(id: string): Promise<FeatureFlag | null> {
-    return this.featureFlagRepository.findById(id);
+    const prismaFlag = await this.featureFlagRepository.findById(id);
+    return this.transformToFeatureFlag(prismaFlag);
   }
 
   async getFlagsByEnvironment(environment: string): Promise<FeatureFlag[]> {
-    return this.featureFlagRepository.findByEnvironment(environment);
+    const prismaFlags = await this.featureFlagRepository.findByEnvironment(environment);
+    return this.transformToFeatureFlags(prismaFlags);
   }
 
   // Bulk operations for performance

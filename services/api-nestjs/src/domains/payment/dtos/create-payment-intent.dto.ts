@@ -17,6 +17,10 @@ export class CreatePaymentIntentDto {
   @IsEnum(PaymentGatewayProvider)
   gatewayProvider: PaymentGatewayProvider;
 
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  paymentMethod?: PaymentMethod;
+
   @IsArray()
   @IsEnum(PaymentMethod, { each: true })
   allowedPaymentMethods: PaymentMethod[];

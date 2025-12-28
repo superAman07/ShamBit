@@ -66,12 +66,47 @@ export class SkuGeneratorService {
   }
 
   private async getSkuConfiguration(sellerId: string): Promise<SkuConfiguration> {
-    const config = await this.prisma.skuConfiguration.findUnique({
-      where: { sellerId },
-    });
+    try {
+      // Get SKU configuration from key-value store
+      const configs = await this.prisma.configuration.findMany({
+        where: {
+          key: {
+            in: [
+              `sku.${sellerId}.prefix`,
+              `sku.${sellerId}.suffix`, 
+              `sku.${sellerId}.pattern`,
+              `sku.${sellerId}.template`,
+              `sku.${sellerId}.counter`,
+              `sku.${sellerId}.isActive`
+            ]
+          }
+        }
+      });
 
-    if (!config || !config.isActive) {
-      // Return default configuration
+      const configMap = new Map(configs.map(c => [c.key, c.value]));
+      
+      const isActive = configMap.get(`sku.${sellerId}.isActive`) === 'true';
+      
+      if (!isActive) {
+        // Return default configuration
+        return {
+          prefix: '',
+          suffix: '',
+          pattern: 'AUTO',
+          counter: 1,
+        };
+      }
+
+      return {
+        prefix: configMap.get(`sku.${sellerId}.prefix`) || '',
+        suffix: configMap.get(`sku.${sellerId}.suffix`) || '',
+        pattern: (configMap.get(`sku.${sellerId}.pattern`) as 'AUTO' | 'CUSTOM' | 'TEMPLATE') || 'AUTO',
+        template: configMap.get(`sku.${sellerId}.template`) || undefined,
+        counter: parseInt(configMap.get(`sku.${sellerId}.counter`) || '1'),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SKU configuration', error, { sellerId });
+      // Return default configuration on error
       return {
         prefix: '',
         suffix: '',
@@ -79,14 +114,6 @@ export class SkuGeneratorService {
         counter: 1,
       };
     }
-
-    return {
-      prefix: config.prefix,
-      suffix: config.suffix,
-      pattern: config.pattern as 'AUTO' | 'CUSTOM' | 'TEMPLATE',
-      template: config.template || undefined,
-      counter: config.counter,
-    };
   }
 
   private async generateAutoSku(
@@ -195,14 +222,53 @@ export class SkuGeneratorService {
   }
 
   private async getNextCounter(sellerId: string): Promise<number> {
-    // Atomic counter increment
-    const result = await this.prisma.skuConfiguration.update({
-      where: { sellerId },
-      data: { counter: { increment: 1 } },
-      select: { counter: true },
-    });
+    try {
+      // Atomic counter increment using transaction
+      const counterKey = `sku.${sellerId}.counter`;
+      
+      return await this.prisma.$transaction(async (tx) => {
+        // Get current counter value
+        const currentConfig = await tx.configuration.findUnique({
+          where: { 
+            key_tenantId_environment: {
+              key: counterKey,
+              tenantId: '',
+              environment: 'production'
+            }
+          }
+        });
 
-    return result.counter;
+        const currentValue = currentConfig ? parseInt(currentConfig.value) : 0;
+        const nextValue = currentValue + 1;
+
+        // Update counter
+        await tx.configuration.upsert({
+          where: { 
+            key_tenantId_environment: {
+              key: counterKey,
+              tenantId: '',
+              environment: 'production'
+            }
+          },
+          create: {
+            key: counterKey,
+            value: nextValue.toString(),
+            type: 'number',
+            tenantId: '',
+            environment: 'production'
+          },
+          update: {
+            value: nextValue.toString()
+          }
+        });
+
+        return nextValue;
+      });
+    } catch (error) {
+      this.logger.error('Failed to get next counter', error, { sellerId });
+      // Fallback to timestamp-based counter
+      return Date.now() % 10000;
+    }
   }
 
   private generateAttributeHash(attributeValues: Record<string, string>): string {
@@ -238,35 +304,94 @@ export class SkuGeneratorService {
     config: Partial<SkuConfiguration>,
     updatedBy: string
   ): Promise<void> {
-    await this.prisma.skuConfiguration.upsert({
-      where: { sellerId },
+    try {
+      // Update each configuration value separately
+      const updates: Promise<void>[] = [];
+      
+      if (config.prefix !== undefined) {
+        updates.push(this.upsertConfigValue(`sku.${sellerId}.prefix`, config.prefix));
+      }
+      if (config.suffix !== undefined) {
+        updates.push(this.upsertConfigValue(`sku.${sellerId}.suffix`, config.suffix));
+      }
+      if (config.pattern !== undefined) {
+        updates.push(this.upsertConfigValue(`sku.${sellerId}.pattern`, config.pattern));
+      }
+      if (config.template !== undefined) {
+        updates.push(this.upsertConfigValue(`sku.${sellerId}.template`, config.template));
+      }
+      if (config.counter !== undefined) {
+        updates.push(this.upsertConfigValue(`sku.${sellerId}.counter`, config.counter.toString()));
+      }
+      
+      // Set as active
+      updates.push(this.upsertConfigValue(`sku.${sellerId}.isActive`, 'true'));
+      
+      await Promise.all(updates);
+      
+      this.logger.log('SKU configuration updated', { sellerId, config });
+    } catch (error) {
+      this.logger.error('Failed to update SKU configuration', error, { sellerId, config });
+      throw error;
+    }
+  }
+
+  private async upsertConfigValue(key: string, value: string): Promise<void> {
+    await this.prisma.configuration.upsert({
+      where: {
+        key_tenantId_environment: {
+          key,
+          tenantId: '',
+          environment: 'production'
+        }
+      },
       create: {
-        sellerId,
-        ...config,
-        createdBy: updatedBy,
+        key,
+        value,
+        type: 'string',
+        tenantId: '',
+        environment: 'production'
       },
       update: {
-        ...config,
-        updatedBy,
-      },
+        value
+      }
     });
-
-    this.logger.log('SKU configuration updated', { sellerId, config });
   }
 
   async getSkuConfigurationForSeller(sellerId: string): Promise<SkuConfiguration | null> {
-    const config = await this.prisma.skuConfiguration.findUnique({
-      where: { sellerId },
-    });
+    try {
+      const configs = await this.prisma.configuration.findMany({
+        where: {
+          key: {
+            in: [
+              `sku.${sellerId}.prefix`,
+              `sku.${sellerId}.suffix`, 
+              `sku.${sellerId}.pattern`,
+              `sku.${sellerId}.template`,
+              `sku.${sellerId}.counter`,
+              `sku.${sellerId}.isActive`
+            ]
+          }
+        }
+      });
 
-    if (!config) return null;
+      if (configs.length === 0) return null;
 
-    return {
-      prefix: config.prefix,
-      suffix: config.suffix,
-      pattern: config.pattern as 'AUTO' | 'CUSTOM' | 'TEMPLATE',
-      template: config.template || undefined,
-      counter: config.counter,
-    };
+      const configMap = new Map(configs.map(c => [c.key, c.value]));
+      
+      const isActive = configMap.get(`sku.${sellerId}.isActive`) === 'true';
+      if (!isActive) return null;
+
+      return {
+        prefix: configMap.get(`sku.${sellerId}.prefix`) || '',
+        suffix: configMap.get(`sku.${sellerId}.suffix`) || '',
+        pattern: (configMap.get(`sku.${sellerId}.pattern`) as 'AUTO' | 'CUSTOM' | 'TEMPLATE') || 'AUTO',
+        template: configMap.get(`sku.${sellerId}.template`) || undefined,
+        counter: parseInt(configMap.get(`sku.${sellerId}.counter`) || '1'),
+      };
+    } catch (error) {
+      this.logger.error('Failed to get SKU configuration for seller', error, { sellerId });
+      return null;
+    }
   }
 }

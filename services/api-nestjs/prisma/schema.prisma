@@ -15,25 +15,25 @@ datasource db {
 // ================================
 
 model Tenant {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  type        String   // ENTERPRISE, BUSINESS, STARTER, TRIAL
-  status      String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
-  settings    Json     @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  type      String // ENTERPRISE, BUSINESS, STARTER, TRIAL
+  status    String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  userTenants     UserTenant[]
-  tenantFeatures  TenantFeature[]
-  apiKeys         ApiKey[]
+  userTenants    UserTenant[]
+  tenantFeatures TenantFeature[]
+  apiKeys        ApiKey[]
 
   @@map("tenants")
 }
 
 model UserTenant {
-  id       String @id @default(cuid())
+  id       String   @id @default(cuid())
   userId   String
   tenantId String
   roles    String[] @default([])
@@ -49,8 +49,8 @@ model UserTenant {
 }
 
 model Feature {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
   description String?
   isActive    Boolean @default(true)
 
@@ -80,32 +80,32 @@ model TenantFeature {
 // ================================
 
 model User {
-  id              String   @id @default(cuid())
-  email           String   @unique
+  id              String    @id @default(cuid())
+  email           String    @unique
   name            String
   phone           String?
   password        String
-  roles           String[] @default(["BUYER"])
-  status          String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, BANNED
-  isEmailVerified Boolean  @default(false)
-  isPhoneVerified Boolean  @default(false)
+  roles           String[]  @default(["BUYER"])
+  status          String    @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, BANNED
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
   lastLoginAt     DateTime?
   deletedAt       DateTime?
   deletedBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   sellerProfile SellerProfile?
   addresses     Address[]
   orders        Order[]
   userTenants   UserTenant[]
-  
+
   // New relations for extended functionality
   carts                   Cart[]
   mediaFiles              MediaFile[]
   reviews                 Review[]
-  reviewsModerated        Review[]                @relation("ReviewModerator")
+  reviewsModerated        Review[]                 @relation("ReviewModerator")
   reviewHelpful           ReviewHelpful[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
@@ -113,19 +113,20 @@ model User {
   campaignsCreated        Campaign[]
   jobsPosted              Job[]
   applications            Application[]
-  applicationsReviewed    Application[]           @relation("ApplicationReviewer")
+  applicationsReviewed    Application[]            @relation("ApplicationReviewer")
   featureFlagsCreated     FeatureFlag[]
-  auditLogsAsActor        AuditLog[]              @relation("AuditActor")
+  auditLogsAsActor        AuditLog[]               @relation("AuditActor")
   webhooksCreated         Webhook[]
   userRoles               UserRole[]
+  inventoryReservations   InventoryReservation[]
 
   @@map("users")
 }
 
 model Address {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   userId       String
-  type         String  @default("HOME") // HOME, WORK, OTHER
+  type         String   @default("HOME") // HOME, WORK, OTHER
   name         String
   phone        String
   addressLine1 String
@@ -134,7 +135,7 @@ model Address {
   state        String
   country      String
   postalCode   String
-  isDefault    Boolean @default(false)
+  isDefault    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -150,28 +151,28 @@ model Address {
 // ================================
 
 model SellerProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
+  id                String    @id @default(cuid())
+  userId            String    @unique
   businessName      String
-  businessType      String   // INDIVIDUAL, PARTNERSHIP, COMPANY, LLP
+  businessType      String // INDIVIDUAL, PARTNERSHIP, COMPANY, LLP
   gstNumber         String?
   panNumber         String
   businessAddress   Json
   bankDetails       Json
-  status            String   @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
-  verificationLevel String   @default("NONE") // NONE, BASIC, VERIFIED, PREMIUM
+  status            String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
+  verificationLevel String    @default("NONE") // NONE, BASIC, VERIFIED, PREMIUM
   approvedAt        DateTime?
   approvedBy        String?
   rejectedAt        DateTime?
   rejectedBy        String?
   rejectionReason   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products Product[]
-  brands   Brand[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  Product[]
+  brands    Brand[]
   cartItems CartItem[]
 
   @@map("seller_profiles")
@@ -191,7 +192,7 @@ model Category {
   sortOrder   Int      @default(0)
   imageUrl    String?
   level       Int      @default(0)
-  path        String   // Materialized path for efficient queries
+  path        String // Materialized path for efficient queries
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -206,28 +207,28 @@ model Category {
 }
 
 model Attribute {
-  id                  String @id @default(cuid())
-  name                String
-  key                 String @unique
-  description         String
-  type                String // STRING, NUMBER, BOOLEAN, ENUM, DATE, MULTI_SELECT
-  inputType           String // TEXT, TEXTAREA, NUMBER, SELECT, MULTI_SELECT, CHECKBOX, RADIO, DATE, COLOR
-  isRequired          Boolean @default(false)
-  isVariantAttribute  Boolean @default(false)
-  isFilterable        Boolean @default(true)
-  isSearchable        Boolean @default(false)
-  sortOrder           Int     @default(0)
-  options             String[] // For ENUM and MULTI_SELECT types
-  validationRules     Json?   // Custom validation rules
-  placeholder         String?
-  helpText            String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String
+  key                String   @unique
+  description        String
+  type               String // STRING, NUMBER, BOOLEAN, ENUM, DATE, MULTI_SELECT
+  inputType          String // TEXT, TEXTAREA, NUMBER, SELECT, MULTI_SELECT, CHECKBOX, RADIO, DATE, COLOR
+  isRequired         Boolean  @default(false)
+  isVariantAttribute Boolean  @default(false)
+  isFilterable       Boolean  @default(true)
+  isSearchable       Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  options            String[] // For ENUM and MULTI_SELECT types
+  validationRules    Json? // Custom validation rules
+  placeholder        String?
+  helpText           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Relations
-  categories      CategoryAttribute[]
-  productValues   ProductAttributeValue[]
-  variantValues   VariantAttributeValue[]
+  categories    CategoryAttribute[]
+  productValues ProductAttributeValue[]
+  variantValues VariantAttributeValue[]
 
   @@map("attributes")
 }
@@ -235,8 +236,8 @@ model Attribute {
 model CategoryAttribute {
   categoryId  String
   attributeId String
-  isRequired  Boolean @default(false)
-  sortOrder   Int     @default(0)
+  isRequired  Boolean  @default(false)
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
 
   // Relations
@@ -252,21 +253,21 @@ model CategoryAttribute {
 // ================================
 
 model Brand {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  slug        String   @unique
+  slug        String    @unique
   description String?
   logoUrl     String?
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   sellerId    String?
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
   approvedAt  DateTime?
   approvedBy  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   // Relations
-  seller     SellerProfile? @relation(fields: [sellerId], references: [id])
+  seller     SellerProfile?  @relation(fields: [sellerId], references: [id])
   categories CategoryBrand[]
   products   Product[]
 
@@ -291,39 +292,39 @@ model CategoryBrand {
 // ================================
 
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  slug        String   @unique
-  categoryId  String
-  brandId     String?
-  sellerId    String
-  status      String   @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ACTIVE, INACTIVE
-  isActive    Boolean  @default(false)
-  approvedAt  DateTime?
-  approvedBy  String?
-  rejectedAt  DateTime?
-  rejectedBy  String?
+  id              String    @id @default(cuid())
+  name            String
+  description     String
+  slug            String    @unique
+  categoryId      String
+  brandId         String?
+  sellerId        String
+  status          String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ACTIVE, INACTIVE
+  isActive        Boolean   @default(false)
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectedAt      DateTime?
+  rejectedBy      String?
   rejectionReason String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
-  category       Category                @relation(fields: [categoryId], references: [id])
-  brand          Brand?                  @relation(fields: [brandId], references: [id])
-  seller         SellerProfile           @relation(fields: [sellerId], references: [id])
+  category        Category                @relation(fields: [categoryId], references: [id])
+  brand           Brand?                  @relation(fields: [brandId], references: [id])
+  seller          SellerProfile           @relation(fields: [sellerId], references: [id])
   attributeValues ProductAttributeValue[]
-  variants       ProductVariant[]
-  images         ProductImage[]
+  variants        ProductVariant[]
+  images          ProductImage[]
 
   @@map("products")
 }
 
 model ProductAttributeValue {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   productId   String
   attributeId String
-  value       Json   // Flexible value storage
+  value       Json // Flexible value storage
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -354,13 +355,13 @@ model ProductImage {
 // ================================
 
 model ProductVariant {
-  id          String  @id @default(cuid())
-  productId   String
-  sku         String  @unique
-  variantKey  String  // Deterministic key based on variant attributes
-  isActive    Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  productId  String
+  sku        String   @unique
+  variantKey String // Deterministic key based on variant attributes
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -376,12 +377,12 @@ model ProductVariant {
 }
 
 model VariantAttributeValue {
-  id        String @id @default(cuid())
-  variantId String
+  id          String   @id @default(cuid())
+  variantId   String
   attributeId String
-  value     Json   // Flexible value storage
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  value       Json // Flexible value storage
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -445,7 +446,7 @@ model VariantInventory {
   updatedAt         DateTime @updatedAt
 
   // Relations
-  variant      ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  variant      ProductVariant         @relation(fields: [variantId], references: [id], onDelete: Cascade)
   reservations InventoryReservation[]
   movements    InventoryMovement[]
 
@@ -453,29 +454,56 @@ model VariantInventory {
 }
 
 model InventoryReservation {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   inventoryId String
   orderId     String?
-  quantity    Int
-  status      String   @default("ACTIVE") // ACTIVE, RELEASED, CONSUMED
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // Reservation details
+  quantity       Int
+  reservationKey String @unique // Idempotent key (e.g., cart_item_id)
+
+  // Expiry
+  expiresAt DateTime
+  isExpired Boolean  @default(false)
+
+  // Status
+  status String @default("ACTIVE") // ACTIVE, COMMITTED, RELEASED, EXPIRED
+
+  // Reference information
+  referenceType String // CART, ORDER, QUOTE
+  referenceId   String // ID of the referenced entity
+
+  // Metadata
+  metadata Json @default("{}")
+
+  // System Fields
+  createdBy String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   inventory VariantInventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
   order     Order?           @relation(fields: [orderId], references: [id])
+  user      User             @relation(fields: [createdBy], references: [id])
 
+  // Indexes
+  @@index([inventoryId])
+  @@index([reservationKey])
+  @@index([expiresAt])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
   @@map("inventory_reservations")
 }
 
 model InventoryMovement {
   id          String   @id @default(cuid())
   inventoryId String
-  type        String   // IN, OUT, RESERVED, RELEASED
+  type        String // IN, OUT, RESERVED, RELEASED
   quantity    Int
   reason      String
-  reference   String?  // Order ID, Return ID, etc.
+  reference   String? // Order ID, Return ID, etc.
   createdBy   String
   createdAt   DateTime @default(now())
 
@@ -490,20 +518,20 @@ model InventoryMovement {
 // ================================
 
 model CommissionRule {
-  id         String   @id @default(cuid())
-  name       String
-  type       String   // CATEGORY, SELLER, PRODUCT
-  entityId   String   // Category ID, Seller ID, or Product ID
-  rate       Decimal  @db.Decimal(5, 2) // Percentage
-  fixedAmount Decimal? @db.Decimal(10, 2)
-  minAmount  Decimal? @db.Decimal(10, 2)
-  maxAmount  Decimal? @db.Decimal(10, 2)
-  priority   Int      @default(0) // Higher priority wins
-  isActive   Boolean  @default(true)
-  validFrom  DateTime @default(now())
-  validTo    DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  type        String // CATEGORY, SELLER, PRODUCT
+  entityId    String // Category ID, Seller ID, or Product ID
+  rate        Decimal   @db.Decimal(5, 2) // Percentage
+  fixedAmount Decimal?  @db.Decimal(10, 2)
+  minAmount   Decimal?  @db.Decimal(10, 2)
+  maxAmount   Decimal?  @db.Decimal(10, 2)
+  priority    Int       @default(0) // Higher priority wins
+  isActive    Boolean   @default(true)
+  validFrom   DateTime  @default(now())
+  validTo     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("commission_rules")
 }
@@ -513,23 +541,23 @@ model CommissionRule {
 // ================================
 
 model Order {
-  id              String    @id @default(cuid())
-  orderNumber     String    @unique
-  userId          String
-  status          String    @default("PENDING") // PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
-  totalAmount     Decimal   @db.Decimal(10, 2)
-  discountAmount  Decimal   @default(0) @db.Decimal(10, 2)
-  taxAmount       Decimal   @default(0) @db.Decimal(10, 2)
-  shippingAmount  Decimal   @default(0) @db.Decimal(10, 2)
-  finalAmount     Decimal   @db.Decimal(10, 2)
-  paymentStatus   String    @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  id                String    @id @default(cuid())
+  orderNumber       String    @unique
+  userId            String
+  status            String    @default("PENDING") // PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+  totalAmount       Decimal   @db.Decimal(10, 2)
+  discountAmount    Decimal   @default(0) @db.Decimal(10, 2)
+  taxAmount         Decimal   @default(0) @db.Decimal(10, 2)
+  shippingAmount    Decimal   @default(0) @db.Decimal(10, 2)
+  finalAmount       Decimal   @db.Decimal(10, 2)
+  paymentStatus     String    @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
   shippingAddressId String
   billingAddressId  String?
-  notes           String?
-  cancelledAt     DateTime?
-  cancelReason    String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  notes             String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   user            User                   @relation(fields: [userId], references: [id])
@@ -544,21 +572,21 @@ model Order {
 }
 
 model OrderItem {
-  id              String  @id @default(cuid())
-  orderId         String
-  variantId       String
-  quantity        Int
-  unitPrice       Decimal @db.Decimal(10, 2)
-  totalPrice      Decimal @db.Decimal(10, 2)
-  discountAmount  Decimal @default(0) @db.Decimal(10, 2)
-  taxAmount       Decimal @default(0) @db.Decimal(10, 2)
-  commissionRate  Decimal @db.Decimal(5, 2)
-  commissionAmount Decimal @db.Decimal(10, 2)
+  id               String   @id @default(cuid())
+  orderId          String
+  variantId        String
+  quantity         Int
+  unitPrice        Decimal  @db.Decimal(10, 2)
+  totalPrice       Decimal  @db.Decimal(10, 2)
+  discountAmount   Decimal  @default(0) @db.Decimal(10, 2)
+  taxAmount        Decimal  @default(0) @db.Decimal(10, 2)
+  commissionRate   Decimal  @db.Decimal(5, 2)
+  commissionAmount Decimal  @db.Decimal(10, 2)
   // Snapshots for immutability
-  productSnapshot Json
-  variantSnapshot Json
-  pricingSnapshot Json
-  createdAt       DateTime @default(now())
+  productSnapshot  Json
+  variantSnapshot  Json
+  pricingSnapshot  Json
+  createdAt        DateTime @default(now())
 
   // Relations
   order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -572,18 +600,18 @@ model OrderItem {
 // ================================
 
 model Payment {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   orderId         String
-  paymentIntentId String   @unique
-  amount          Decimal  @db.Decimal(10, 2)
-  currency        String   @default("INR")
-  status          String   @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELLED
-  paymentMethod   String   // CARD, UPI, NETBANKING, WALLET, COD
+  paymentIntentId String    @unique
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("INR")
+  status          String    @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELLED
+  paymentMethod   String // CARD, UPI, NETBANKING, WALLET, COD
   gatewayResponse Json?
   failureReason   String?
   processedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -596,18 +624,18 @@ model Payment {
 // ================================
 
 model Shipment {
-  id            String   @id @default(cuid())
-  orderId       String
-  trackingNumber String  @unique
-  carrier       String
-  status        String   @default("PENDING") // PENDING, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED
+  id                String    @id @default(cuid())
+  orderId           String
+  trackingNumber    String    @unique
+  carrier           String
+  status            String    @default("PENDING") // PENDING, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED
   estimatedDelivery DateTime?
   actualDelivery    DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  order    Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tracking ShipmentTracking[]
 
   @@map("shipments")
@@ -634,10 +662,10 @@ model ShipmentTracking {
 
 model AuditLog {
   id         String   @id @default(cuid())
-  entityType String   // USER, PRODUCT, ORDER, etc.
+  entityType String // USER, PRODUCT, ORDER, etc.
   entityId   String
-  action     String   // CREATE, UPDATE, DELETE, APPROVE, REJECT
-  changes    Json?    // Before/after values
+  action     String // CREATE, UPDATE, DELETE, APPROVE, REJECT
+  changes    Json? // Before/after values
   actorId    String?
   actorType  String   @default("USER") // USER, SYSTEM, API
   ipAddress  String?
@@ -656,16 +684,16 @@ model AuditLog {
 // ================================
 
 model Cart {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   userId            String?
   sessionId         String?
-  subtotal          Float    @default(0)
-  discountAmount    Float    @default(0)
-  totalAmount       Float    @default(0)
-  appliedPromotions String[] @default([])
+  subtotal          Float     @default(0)
+  discountAmount    Float     @default(0)
+  totalAmount       Float     @default(0)
+  appliedPromotions String[]  @default([])
   expiresAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -709,7 +737,7 @@ model MediaFile {
   size         Int
   url          String
   cdnUrl       String?
-  type         String   // PRODUCT_IMAGE, VARIANT_IMAGE, BANNER_IMAGE, etc.
+  type         String // PRODUCT_IMAGE, VARIANT_IMAGE, BANNER_IMAGE, etc.
   entityId     String?
   entityType   String?
   metadata     Json     @default("{}")
@@ -731,10 +759,10 @@ model MediaFile {
 model Review {
   id                 String    @id @default(cuid())
   userId             String
-  type               String    // PRODUCT, SELLER
-  entityId           String    // productId or sellerId
+  type               String // PRODUCT, SELLER
+  entityId           String // productId or sellerId
   orderId            String?
-  rating             Int       // 1-5
+  rating             Int // 1-5
   title              String?
   comment            String?
   images             String[]  @default([])
@@ -749,9 +777,9 @@ model Review {
   updatedAt          DateTime  @updatedAt
 
   // Relations
-  user      User              @relation(fields: [userId], references: [id])
-  order     Order?            @relation(fields: [orderId], references: [id])
-  moderator User?             @relation("ReviewModerator", fields: [moderatedBy], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+  order     Order?          @relation(fields: [orderId], references: [id])
+  moderator User?           @relation("ReviewModerator", fields: [moderatedBy], references: [id])
   helpful   ReviewHelpful[]
 
   @@unique([userId, type, entityId])
@@ -759,9 +787,9 @@ model Review {
 }
 
 model ReviewHelpful {
-  id       String @id @default(cuid())
-  reviewId String
-  userId   String
+  id        String  @id @default(cuid())
+  reviewId  String
+  userId    String
   isHelpful Boolean
 
   // Relations
@@ -773,17 +801,17 @@ model ReviewHelpful {
 }
 
 model AggregatedRating {
-  id           String  @id @default(cuid())
-  entityType   String  // PRODUCT, SELLER
-  entityId     String
-  averageRating Float   @default(0)
-  totalReviews Int     @default(0)
-  rating1Count Int     @default(0)
-  rating2Count Int     @default(0)
-  rating3Count Int     @default(0)
-  rating4Count Int     @default(0)
-  rating5Count Int     @default(0)
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  entityType    String // PRODUCT, SELLER
+  entityId      String
+  averageRating Float    @default(0)
+  totalReviews  Int      @default(0)
+  rating1Count  Int      @default(0)
+  rating2Count  Int      @default(0)
+  rating3Count  Int      @default(0)
+  rating4Count  Int      @default(0)
+  rating5Count  Int      @default(0)
+  updatedAt     DateTime @updatedAt
 
   @@unique([entityType, entityId])
   @@map("aggregated_ratings")
@@ -794,18 +822,18 @@ model AggregatedRating {
 // ================================
 
 model Notification {
-  id       String    @id @default(cuid())
-  userId   String
-  type     String    // ORDER_CONFIRMATION, PAYMENT_SUCCESS, etc.
-  channel  String    // IN_APP, EMAIL, PUSH, SMS
-  priority String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
-  title    String
-  message  String
-  data     Json?     @default("{}")
-  isRead   Boolean   @default(false)
-  sentAt   DateTime?
-  readAt   DateTime?
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // ORDER_CONFIRMATION, PAYMENT_SUCCESS, etc.
+  channel   String // IN_APP, EMAIL, PUSH, SMS
+  priority  String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  title     String
+  message   String
+  data      Json?     @default("{}")
+  isRead    Boolean   @default(false)
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -814,13 +842,13 @@ model Notification {
 }
 
 model NotificationPreference {
-  id      String  @id @default(cuid())
-  userId  String
-  type    String  // Notification type
-  email   Boolean @default(true)
-  push    Boolean @default(true)
-  inApp   Boolean @default(true)
-  sms     Boolean @default(false)
+  id     String  @id @default(cuid())
+  userId String
+  type   String // Notification type
+  email  Boolean @default(true)
+  push   Boolean @default(true)
+  inApp  Boolean @default(true)
+  sms    Boolean @default(false)
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -830,16 +858,16 @@ model NotificationPreference {
 }
 
 model NotificationTemplate {
-  id          String @id @default(cuid())
-  type        String @unique
-  channel     String
-  subject     String?
-  title       String
-  message     String
-  variables   String[] @default([])
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  type      String   @unique
+  channel   String
+  subject   String?
+  title     String
+  message   String
+  variables String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("notification_templates")
 }
@@ -854,7 +882,7 @@ model Banner {
   description String?
   imageUrl    String
   linkUrl     String?
-  position    String    // HOMEPAGE_HERO, CATEGORY_TOP, SIDEBAR, etc.
+  position    String // HOMEPAGE_HERO, CATEGORY_TOP, SIDEBAR, etc.
   priority    Int       @default(0)
   isActive    Boolean   @default(true)
   startDate   DateTime?
@@ -872,19 +900,19 @@ model Banner {
 }
 
 model Campaign {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
-  type        String    // PROMOTIONAL, SEASONAL, PRODUCT_LAUNCH, etc.
-  status      String    @default("DRAFT") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  type        String // PROMOTIONAL, SEASONAL, PRODUCT_LAUNCH, etc.
+  status      String   @default("DRAFT") // DRAFT, ACTIVE, PAUSED, COMPLETED
   startDate   DateTime
   endDate     DateTime
   budget      Float?
-  targetRules Json?     @default("{}")
-  metrics     Json?     @default("{}")
+  targetRules Json?    @default("{}")
+  metrics     Json?    @default("{}")
   createdBy   String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   creator User @relation(fields: [createdBy], references: [id])
@@ -897,22 +925,22 @@ model Campaign {
 // ================================
 
 model Job {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
   description  String
   department   String
   location     String
-  type         String   // FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP
-  experience   String   // ENTRY, MID, SENIOR, EXECUTIVE
+  type         String // FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP
+  experience   String // ENTRY, MID, SENIOR, EXECUTIVE
   salary       String?
   requirements String[]
   benefits     String[]
-  status       String   @default("ACTIVE") // ACTIVE, PAUSED, CLOSED
+  status       String    @default("ACTIVE") // ACTIVE, PAUSED, CLOSED
   postedBy     String
-  postedAt     DateTime @default(now())
+  postedAt     DateTime  @default(now())
   closesAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Relations
   poster       User          @relation(fields: [postedBy], references: [id])
@@ -922,19 +950,19 @@ model Job {
 }
 
 model Application {
-  id         String    @id @default(cuid())
-  jobId      String
-  userId     String?
-  email      String
-  name       String
-  phone      String?
-  resumeUrl  String
+  id          String    @id @default(cuid())
+  jobId       String
+  userId      String?
+  email       String
+  name        String
+  phone       String?
+  resumeUrl   String
   coverLetter String?
-  status     String    @default("SUBMITTED") // SUBMITTED, REVIEWED, SHORTLISTED, REJECTED, HIRED
-  reviewedBy String?
-  reviewedAt DateTime?
-  notes      String?
-  appliedAt  DateTime  @default(now())
+  status      String    @default("SUBMITTED") // SUBMITTED, REVIEWED, SHORTLISTED, REJECTED, HIRED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  notes       String?
+  appliedAt   DateTime  @default(now())
 
   // Relations
   job      Job   @relation(fields: [jobId], references: [id])
@@ -949,17 +977,17 @@ model Application {
 // ================================
 
 model FeatureFlag {
-  id          String   @id @default(cuid())
-  key         String   @unique
-  name        String
-  description String?
-  isEnabled   Boolean  @default(false)
-  rolloutPercentage Int @default(0)
-  targetRules Json?    @default("{}")
-  environment String   @default("production")
-  createdBy   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  key               String   @unique
+  name              String
+  description       String?
+  isEnabled         Boolean  @default(false)
+  rolloutPercentage Int      @default(0)
+  targetRules       Json?    @default("{}")
+  environment       String   @default("production")
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relations
   creator User @relation(fields: [createdBy], references: [id])
@@ -972,18 +1000,18 @@ model FeatureFlag {
 // ================================
 
 model Webhook {
-  id          String   @id @default(cuid())
-  name        String
-  url         String
-  events      String[] // Array of event types to listen for
-  secret      String?
-  isActive    Boolean  @default(true)
-  retryCount  Int      @default(3)
-  timeout     Int      @default(30000) // milliseconds
-  headers     Json?    @default("{}")
-  createdBy   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  events     String[] // Array of event types to listen for
+  secret     String?
+  isActive   Boolean  @default(true)
+  retryCount Int      @default(3)
+  timeout    Int      @default(30000) // milliseconds
+  headers    Json?    @default("{}")
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
   creator    User              @relation(fields: [createdBy], references: [id])
@@ -1017,7 +1045,7 @@ model WebhookDelivery {
 
 model SearchIndex {
   id         String   @id @default(cuid())
-  entityType String   // PRODUCT, CATEGORY, BRAND
+  entityType String // PRODUCT, CATEGORY, BRAND
   entityId   String
   title      String
   content    String
@@ -1035,11 +1063,11 @@ model SearchIndex {
 // ================================
 
 model Promotion {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  type        String   // PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y
-  value       Decimal  @db.Decimal(10, 2)
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  type           String // PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y
+  value          Decimal  @db.Decimal(10, 2)
   minOrderAmount Decimal? @db.Decimal(10, 2)
   maxDiscount    Decimal? @db.Decimal(10, 2)
   usageLimit     Int?
@@ -1057,12 +1085,12 @@ model Promotion {
 }
 
 model PromotionUsage {
-  id          String   @id @default(cuid())
-  promotionId String
-  userId      String
-  orderId     String
-  discountAmount Decimal @db.Decimal(10, 2)
-  usedAt      DateTime @default(now())
+  id             String   @id @default(cuid())
+  promotionId    String
+  userId         String
+  orderId        String
+  discountAmount Decimal  @db.Decimal(10, 2)
+  usedAt         DateTime @default(now())
 
   // Relations
   promotion Promotion @relation(fields: [promotionId], references: [id])
@@ -1075,30 +1103,29 @@ model PromotionUsage {
 // ================================
 
 model DomainEvent {
-  id          String   @id @default(cuid())
-  eventType   String
-  aggregateId String
+  id            String    @id @default(cuid())
+  eventType     String
+  aggregateId   String
   aggregateType String
-  eventData   Json
-  version     Int      @default(1)
-  occurredAt  DateTime @default(now())
-  processedAt DateTime?
-  isProcessed Boolean  @default(false)
+  eventData     Json
+  version       Int       @default(1)
+  occurredAt    DateTime  @default(now())
+  processedAt   DateTime?
+  isProcessed   Boolean   @default(false)
 
   @@map("domain_events")
 }
-
 
 // ================================
 // ADVANCED AUTHORIZATION (RBAC + ABAC)
 // ================================
 
 model Role {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   tenantId    String
-  isActive    Boolean @default(true)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1111,12 +1138,12 @@ model Role {
 }
 
 model Permission {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String   @id @default(cuid())
+  name        String   @unique
   resource    String
   action      String
   description String?
-  conditions  Json   @default("[]") // ABAC conditions
+  conditions  Json     @default("[]") // ABAC conditions
   createdAt   DateTime @default(now())
 
   // Relations
@@ -1126,10 +1153,10 @@ model Permission {
 }
 
 model UserRole {
-  id       String @id @default(cuid())
-  userId   String
-  roleId   String
-  tenantId String
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  tenantId   String
   assignedAt DateTime @default(now())
   assignedBy String?
 
@@ -1159,14 +1186,14 @@ model RolePermission {
 // ================================
 
 model Configuration {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   key         String
   value       String
-  type        String @default("string") // string, number, boolean, json
-  tenantId    String @default("")
-  environment String @default("development")
+  type        String   @default("string") // string, number, boolean, json
+  tenantId    String   @default("")
+  environment String   @default("development")
   description String?
-  isSecret    Boolean @default(false)
+  isSecret    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1179,14 +1206,14 @@ model Configuration {
 // ================================
 
 model SagaInstance {
-  id            String @id @default(cuid())
+  id            String   @id @default(cuid())
   sagaType      String
   tenantId      String
   userId        String
   status        String // PENDING, RUNNING, COMPLETED, FAILED, COMPENSATING, COMPENSATED
   data          Json
-  stepResults   Json   @default("{}")
-  currentStep   Int    @default(0)
+  stepResults   Json     @default("{}")
+  currentStep   Int      @default(0)
   correlationId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -1199,7 +1226,7 @@ model SagaInstance {
 // ================================
 
 model ProductReadModel {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String
   sellerId    String
   name        String
@@ -1208,12 +1235,12 @@ model ProductReadModel {
   status      String
   categoryId  String
   brandId     String?
-  images      Json   @default("[]")
-  variants    Json   @default("[]")
-  pricing     Json   @default("{}")
-  inventory   Json   @default("{}")
-  ratings     Json   @default("{}")
-  version     Int    @default(1)
+  images      Json     @default("[]")
+  variants    Json     @default("[]")
+  pricing     Json     @default("{}")
+  inventory   Json     @default("{}")
+  ratings     Json     @default("{}")
+  version     Int      @default(1)
   lastUpdated DateTime @default(now())
 
   @@unique([slug, tenantId])
@@ -1221,17 +1248,17 @@ model ProductReadModel {
 }
 
 model OrderReadModel {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
   tenantId    String
   userId      String
   orderNumber String
   status      String
   totalAmount Decimal
-  items       Json   @default("[]")
-  shipping    Json   @default("{}")
-  payment     Json   @default("{}")
-  timeline    Json   @default("[]")
-  version     Int    @default(1)
+  items       Json     @default("[]")
+  shipping    Json     @default("{}")
+  payment     Json     @default("{}")
+  timeline    Json     @default("[]")
+  version     Int      @default(1)
   lastUpdated DateTime @default(now())
 
   @@unique([orderNumber, tenantId])
@@ -1239,32 +1266,32 @@ model OrderReadModel {
 }
 
 model InventoryReadModel {
-  id            String @id @default(cuid())
-  tenantId      String
-  variantId     String
-  productId     String
-  sellerId      String
-  totalStock    Int
+  id             String   @id @default(cuid())
+  tenantId       String
+  variantId      String
+  productId      String
+  sellerId       String
+  totalStock     Int
   availableStock Int
-  reservedStock Int
-  lowStockAlert Boolean @default(false)
-  version       Int     @default(1)
-  lastUpdated   DateTime @default(now())
+  reservedStock  Int
+  lowStockAlert  Boolean  @default(false)
+  version        Int      @default(1)
+  lastUpdated    DateTime @default(now())
 
   @@unique([variantId, tenantId])
   @@map("inventory_read_models")
 }
 
 model FailedProjection {
-  id          String @id @default(cuid())
+  id          String    @id @default(cuid())
   eventId     String
   eventType   String
   handlerName String
   error       String
   eventData   Json
   tenantId    String
-  retryCount  Int    @default(0)
-  createdAt   DateTime @default(now())
+  retryCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
   lastRetryAt DateTime?
 
   @@map("failed_projections")
@@ -1275,7 +1302,7 @@ model FailedProjection {
 // ================================
 
 model ArchivedData {
-  id         String @id @default(cuid())
+  id         String   @id @default(cuid())
   entityType String
   entityId   String
   tableName  String
@@ -1293,16 +1320,16 @@ model ArchivedData {
 // ================================
 
 model ApiKey {
-  id          String   @id @default(cuid())
-  key         String   @unique
+  id          String    @id @default(cuid())
+  key         String    @unique
   name        String
-  type        String   // PUBLIC, INTERNAL, ADMIN, PARTNER
+  type        String // PUBLIC, INTERNAL, ADMIN, PARTNER
   permissions String[] // API layers this key can access
   tenantId    String
-  isActive    Boolean  @default(true)
+  isActive    Boolean   @default(true)
   expiresAt   DateTime?
   lastUsedAt  DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   createdBy   String
 
   // Relations
