@@ -10,13 +10,9 @@ interface ReviewStepProps extends BaseStepProps {
 }
 
 const ReviewStep: React.FC<ReviewStepProps> = ({ 
-  seller: _seller, 
-  onSave: _onSave, 
-  canEdit: _canEdit,
-  isLoading: _isLoading,
-  onSubmitApplication: _onSubmitApplication,
-  canSubmit: _canSubmit,
-  submitting: _submitting
+  onSubmitApplication,
+  canSubmit,
+  submitting
 }) => {
   return (
     <div className="space-y-6">
@@ -26,6 +22,15 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
       >
         <InfoCard type="info" title="Coming Soon">
           Review interface will be implemented here with application summary and submission.
+          {canSubmit && (
+            <button
+              onClick={onSubmitApplication}
+              disabled={submitting}
+              className="mt-3 px-4 py-2 bg-[#FF6F61] text-white rounded-lg hover:bg-[#E55A4F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Submitting...' : 'Submit Application'}
+            </button>
+          )}
         </InfoCard>
       </SectionCard>
     </div>

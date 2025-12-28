@@ -3,7 +3,7 @@ import SectionCard from '../components/SectionCard';
 import InfoCard from '../components/InfoCard';
 import type { BaseStepProps } from '../types';
 
-const TaxStep: React.FC<BaseStepProps> = ({ seller: _seller, onSave: _onSave, canEdit: _canEdit, isLoading: _isLoading }) => {
+const TaxStep: React.FC<BaseStepProps> = () => {
   return (
     <div className="space-y-6">
       <SectionCard

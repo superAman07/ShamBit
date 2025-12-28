@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowRight, Save, CheckCircle, AlertCircle, Clock, MapPin, Building2, Calendar, Tag, Info } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { ArrowRight, Save, CheckCircle, AlertCircle, MapPin, Building2, Calendar, Tag, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SectionCard from '../components/SectionCard';
 import InfoCard from '../components/InfoCard';
@@ -25,8 +25,7 @@ type BusinessFormData = {
 const BusinessStepEnhanced: React.FC<BaseStepProps> = ({ 
   seller, 
   onSave, 
-  canEdit, 
-  isLoading = false 
+  canEdit
 }) => {
   const [formData, setFormData] = useState<BusinessFormData>({
     businessName: seller.businessDetails?.businessName || '',
@@ -46,8 +45,6 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [autoSaving, setAutoSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [showSuggestions, setShowSuggestions] = useState<Record<string, boolean>>({});
 
@@ -89,35 +86,6 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
     'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Lakshadweep', 'Puducherry'
   ];
 
-  // Auto-save functionality
-  const autoSave = useCallback(async () => {
-    if (!canEdit || autoSaving) return;
-    
-    try {
-      setAutoSaving(true);
-      await onSave(formData);
-      setLastSaved(new Date());
-    } catch (error) {
-      console.error('Auto-save failed:', error);
-    } finally {
-      setAutoSaving(false);
-    }
-  }, [formData, onSave, canEdit, autoSaving]);
-
-  // Auto-save after 2 seconds of inactivity
-  useEffect(() => {
-    if (!canEdit) return;
-    
-    const hasChanges = Object.keys(touched).some(key => touched[key]);
-    if (!hasChanges) return;
-
-    const timer = setTimeout(() => {
-      autoSave();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [formData, touched, autoSave, canEdit]);
-
   // Calculate completion percentage
   const completionPercentage = useMemo(() => {
     const requiredFields = [
@@ -133,6 +101,11 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
     const completedFields = requiredFields.filter(field => field && field.toString().trim()).length;
     return Math.round((completedFields / requiredFields.length) * 100);
   }, [formData]);
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    return Object.keys(touched).some(key => touched[key]);
+  }, [touched]);
 
   // Enhanced validation with better error messages
   const validateField = useCallback((field: string, value: string): string => {
@@ -250,7 +223,7 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
     try {
       setSaving(true);
       
-      // Convert yearOfEstablishment back to number for API
+      // Normalize payload: Convert yearOfEstablishment from string to number or null
       const dataToSave = {
         ...formData,
         yearOfEstablishment: formData.yearOfEstablishment && formData.yearOfEstablishment.trim() !== '' 
@@ -259,7 +232,9 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
       };
       
       await onSave(dataToSave, options);
-      setLastSaved(new Date());
+      
+      // Clear touched state after successful save
+      setTouched({});
       
       // Show success feedback
       if (saveAsDraft) {
@@ -293,28 +268,18 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
             </div>
           </div>
           
-          {/* Auto-save status */}
           <div className="flex items-center gap-3">
+            {/* Unsaved changes indicator */}
             <AnimatePresence>
-              {autoSaving && (
+              {hasUnsavedChanges && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
-                  className="flex items-center gap-2 text-sm text-blue-600"
+                  className="flex items-center gap-2 text-sm text-amber-600"
                 >
-                  <Clock className="w-4 h-4 animate-spin" />
-                  Saving...
-                </motion.div>
-              )}
-              {lastSaved && !autoSaving && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 text-sm text-green-600"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Saved {lastSaved.toLocaleTimeString()}
+                  <AlertCircle className="w-4 h-4" />
+                  Unsaved changes
                 </motion.div>
               )}
             </AnimatePresence>
@@ -770,7 +735,7 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave({ saveAsDraft: true })}
-                disabled={saving || isLoading}
+                disabled={saving}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-4 h-4" />
@@ -780,14 +745,11 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave()}
-                disabled={saving || isLoading}
+                disabled={saving}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#FF6F61] text-white rounded-lg hover:bg-[#E55A4F] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving || isLoading ? (
-                  <>
-                    <Clock className="w-4 h-4 animate-spin" />
-                    Saving...
-                  </>
+                {saving ? (
+                  'Saving...'
                 ) : (
                   <>
                     Save & Continue
@@ -825,8 +787,8 @@ const BusinessStepEnhanced: React.FC<BaseStepProps> = ({
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
-                <p className="font-medium text-gray-900 mb-1">Auto-Save</p>
-                <p className="text-gray-600">Your progress is automatically saved every 2 seconds</p>
+                <p className="font-medium text-gray-900 mb-1">Manual Save</p>
+                <p className="text-gray-600">Click "Save as Draft" or "Save & Continue" to save your progress</p>
               </div>
             </div>
           </div>
