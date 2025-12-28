@@ -216,7 +216,13 @@ export class ProductController {
     @CurrentUser('id') sellerId: string,
     @CurrentUser('role') userRole: UserRole,
   ): Promise<ProductListResponseDto> {
-    const filters = { ...query, sellerId };
+    const filters: any = { ...query, sellerId };
+    
+    // Parse tags if provided
+    if (query.tags) {
+      filters.tags = query.tags.split(',');
+    }
+    
     const pagination = {
       page: query.page || 1,
       limit: query.limit || 20,
@@ -470,7 +476,13 @@ export class ProductController {
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') userRole?: UserRole,
   ): Promise<ProductListResponseDto> {
-    const filters = { ...query, categoryId };
+    const filters: any = { ...query, categoryId };
+    
+    // Parse tags if provided
+    if (query.tags) {
+      filters.tags = query.tags.split(',');
+    }
+    
     const pagination = {
       page: query.page || 1,
       limit: query.limit || 20,
@@ -498,7 +510,13 @@ export class ProductController {
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') userRole?: UserRole,
   ): Promise<ProductListResponseDto> {
-    const filters = { ...query, brandId };
+    const filters: any = { ...query, brandId };
+    
+    // Parse tags if provided
+    if (query.tags) {
+      filters.tags = query.tags.split(',');
+    }
+    
     const pagination = {
       page: query.page || 1,
       limit: query.limit || 20,

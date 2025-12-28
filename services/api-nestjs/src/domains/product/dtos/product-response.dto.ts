@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductStatus } from '../enums/product-status.enum';
 import { ProductVisibility } from '../enums/product-visibility.enum';
 import { ProductModerationStatus } from '../enums/product-moderation-status.enum';
-import { ProductMetadata } from '../entities/product.entity';
+import type { ProductMetadata } from '../entities/product.entity';
 
 export class ProductAttributeValueResponseDto {
   @ApiProperty({ example: 'val_123' })
@@ -133,7 +133,7 @@ export class ProductResponseDto {
   @ApiProperty({ example: ['iphone', 'smartphone', 'apple'] })
   seoKeywords: string[];
 
-  @ApiPropertyOptional({ type: 'object' })
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   metaData?: ProductMetadata;
 
   @ApiProperty({ example: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'] })
@@ -282,18 +282,21 @@ export class ProductStatisticsDto {
 
   @ApiProperty({ 
     type: 'object',
+    additionalProperties: true,
     example: { 'cat_electronics': 450, 'cat_clothing': 320 }
   })
   productsByCategory: Record<string, number>;
 
   @ApiProperty({ 
     type: 'object',
+    additionalProperties: true,
     example: { 'brand_apple': 125, 'brand_samsung': 98 }
   })
   productsByBrand: Record<string, number>;
 
   @ApiProperty({ 
     type: 'object',
+    additionalProperties: true,
     example: { 'seller_123': 45, 'seller_456': 32 }
   })
   productsBySeller: Record<string, number>;

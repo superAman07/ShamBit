@@ -1,8 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../../infrastructure/database/prisma.service';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
-import { RefundRepository } from '../repositories/refund.repository';
+// Temporary interface to avoid circular dependency
+interface IRefundRepository {
+  createLedgerEntry(data: any, tx?: any): Promise<any>;
+  findLedgerEntriesByRefundId(refundId: string, options?: any): Promise<any[]>;
+  findLedgerEntriesByAccount(accountType: any, accountId?: string, currency?: string): Promise<any[]>;
+  findLastLedgerEntry(refundId: string, accountType: any, accountId?: string, tx?: any): Promise<any>;
+  findLedgerEntriesWithFilters(filters: any): Promise<any[]>;
+  findById(id: string): Promise<any>;
+}
+
 import { RefundLedgerEntry } from '../entities/refund.entity';
 import { CreateRefundLedgerEntryDto } from '../dtos/create-refund-ledger-entry.dto';
 
@@ -33,7 +42,7 @@ export interface LedgerSummary {
 export class RefundLedgerService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly refundRepository: RefundRepository,
+    private readonly refundRepository: IRefundRepository,
     private readonly logger: LoggerService,
   ) {}
 
@@ -539,7 +548,7 @@ export class RefundLedgerService {
       
       if (!balanceMap.has(key)) {
         balanceMap.set(key, {
-          accountType: entry.accountType,
+          accountType: entry.accountType as RefundAccountType,
           accountId: entry.accountId,
           balance: 0,
           currency: entry.currency,
@@ -571,3 +580,5 @@ export class RefundLedgerService {
     // This would calculate total fees from fee-related entries
     // Implementation depends on how fees are tracked in the ledger
     return 0; // Placeholder
+  }
+}

@@ -22,6 +22,7 @@ export interface TenantAwareEntity extends BaseEntity {
 export enum UserRole {
   ADMIN = 'ADMIN',
   SUPER_ADMIN = 'SUPER_ADMIN',
+  MODERATOR = 'MODERATOR',
   SELLER = 'SELLER',
   BUYER = 'BUYER',
   CUSTOMER = 'CUSTOMER',

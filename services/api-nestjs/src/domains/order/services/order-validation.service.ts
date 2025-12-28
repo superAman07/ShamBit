@@ -1,94 +1,50 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
-
-export interface OrderValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-}
 
 @Injectable()
 export class OrderValidationService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly logger: LoggerService,
+    private readonly logger: LoggerService
   ) {}
 
-  async validateOrder(orderData: any): Promise<OrderValidationResult> {
+  async validateOrderStructure(createOrderDto: any): Promise<{ isValid: boolean; errors: string[] }> {
     const errors: string[] = [];
-    const warnings: string[] = [];
 
-    try {
-      // Basic validation
-      if (!orderData.customerId) {
-        errors.push('Customer ID is required');
-      }
-
-      if (!orderData.items || orderData.items.length === 0) {
-        errors.push('Order must have at least one item');
-      }
-
-      // Validate items
-      if (orderData.items) {
-        for (const item of orderData.items) {
-          if (!item.variantId) {
-            errors.push('Item variant ID is required');
-          }
-          if (!item.quantity || item.quantity <= 0) {
-            errors.push('Item quantity must be greater than 0');
-          }
-        }
-      }
-
-      return {
-        isValid: errors.length === 0,
-        errors,
-        warnings,
-      };
-    } catch (error) {
-      this.logger.error('Order validation failed', error, { orderData });
-      return {
-        isValid: false,
-        errors: ['Validation failed due to system error'],
-        warnings,
-      };
+    if (!createOrderDto.customerId) {
+      errors.push('Customer ID is required');
     }
+
+    if (!createOrderDto.items || createOrderDto.items.length === 0) {
+      errors.push('At least one item is required');
+    }
+
+    if (!createOrderDto.shippingAddress) {
+      errors.push('Shipping address is required');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    };
   }
 
-  async validateOrderUpdate(orderId: string, updateData: any): Promise<OrderValidationResult> {
-    const errors: string[] = [];
-    const warnings: string[] = [];
+  async validateCustomer(customerId: string): Promise<void> {
+    // TODO: Implement customer validation
+    this.logger.log('OrderValidationService.validateCustomer', { customerId });
+  }
 
-    try {
-      // Check if order exists and can be updated
-      const order = await this.prisma.order.findUnique({
-        where: { id: orderId },
-      });
+  async validateVariants(items: any[]): Promise<void> {
+    // TODO: Implement variant validation
+    this.logger.log('OrderValidationService.validateVariants', { itemCount: items.length });
+  }
 
-      if (!order) {
-        errors.push('Order not found');
-        return { isValid: false, errors, warnings };
-      }
+  async validateInventoryAvailability(items: any[]): Promise<void> {
+    // TODO: Implement inventory validation
+    this.logger.log('OrderValidationService.validateInventoryAvailability', { itemCount: items.length });
+  }
 
-      // Check if order status allows updates
-      const nonUpdatableStatuses = ['DELIVERED', 'CANCELLED', 'REFUNDED'];
-      if (nonUpdatableStatuses.includes(order.status)) {
-        errors.push(`Cannot update order with status: ${order.status}`);
-      }
-
-      return {
-        isValid: errors.length === 0,
-        errors,
-        warnings,
-      };
-    } catch (error) {
-      this.logger.error('Order update validation failed', error, { orderId, updateData });
-      return {
-        isValid: false,
-        errors: ['Validation failed due to system error'],
-        warnings,
-      };
-    }
+  async validateBusinessRules(createOrderDto: any): Promise<void> {
+    // TODO: Implement business rules validation
+    this.logger.log('OrderValidationService.validateBusinessRules', { customerId: createOrderDto.customerId });
   }
 }

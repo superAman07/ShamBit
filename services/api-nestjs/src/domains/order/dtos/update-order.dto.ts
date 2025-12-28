@@ -1,82 +1,35 @@
-import { IsOptional, IsString, IsEnum, IsNumber, IsDateString, ValidateNested, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderStatus } from '../enums/order-status.enum';
 
 export class UpdateOrderDto {
-  @ApiPropertyOptional({ description: 'Order notes' })
+  @ApiPropertyOptional({ example: 'Please deliver to front door' })
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ description: 'Shipping method' })
+  @ApiPropertyOptional({ example: 'CARD' })
   @IsOptional()
   @IsString()
-  shippingMethod?: string;
+  paymentMethod?: string;
 
-  @ApiPropertyOptional({ description: 'Tracking number' })
+  @ApiPropertyOptional({ example: { source: 'mobile_app' } })
   @IsOptional()
-  @IsString()
-  trackingNumber?: string;
+  metadata?: Record<string, any>;
 
-  @ApiPropertyOptional({ description: 'Estimated delivery date' })
-  @IsOptional()
-  @IsDateString()
-  estimatedDelivery?: string;
-
-  @ApiPropertyOptional({ description: 'Order currency' })
+  @ApiPropertyOptional({ example: 'USD' })
   @IsOptional()
   @IsString()
   currency?: string;
-
-  @ApiPropertyOptional({ description: 'Order metadata' })
-  @IsOptional()
-  metadata?: Record<string, any>;
 }
 
 export class OrderStatusUpdateDto {
-  @ApiProperty({ 
-    description: 'New order status',
-    enum: OrderStatus
-  })
+  @ApiPropertyOptional({ enum: OrderStatus, example: OrderStatus.CONFIRMED })
   @IsEnum(OrderStatus)
   status: OrderStatus;
 
-  @ApiPropertyOptional({ description: 'Reason for status change' })
+  @ApiPropertyOptional({ example: 'Payment confirmed' })
   @IsOptional()
   @IsString()
   reason?: string;
-
-  @ApiPropertyOptional({ description: 'Additional notes' })
-  @IsOptional()
-  @IsString()
-  notes?: string;
-}
-
-export class UpdateOrderItemDto {
-  @ApiProperty({ description: 'Order item ID' })
-  @IsString()
-  orderItemId: string;
-
-  @ApiPropertyOptional({ description: 'Updated quantity' })
-  @IsOptional()
-  @IsNumber()
-  quantity?: number;
-
-  @ApiPropertyOptional({ description: 'Updated unit price' })
-  @IsOptional()
-  @IsNumber()
-  unitPrice?: number;
-}
-
-export class BulkUpdateOrderDto {
-  @ApiProperty({ description: 'Array of order IDs to update' })
-  @IsArray()
-  @IsString({ each: true })
-  orderIds: string[];
-
-  @ApiProperty({ description: 'Status update data' })
-  @ValidateNested()
-  @Type(() => OrderStatusUpdateDto)
-  statusUpdate: OrderStatusUpdateDto;
 }

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { ProjectionHandler } from '../../../infrastructure/projections/projection.service';
-import { DomainEvent } from '../../../common/types/domain.types';
+import type { DomainEvent } from '../../../common/types/domain.types';
 
 @Injectable()
 export class ProductReadModelHandler implements ProjectionHandler {
@@ -96,10 +96,7 @@ export class ProductReadModelHandler implements ProjectionHandler {
 
     await this.prisma.productReadModel.update({
       where: {
-        id_tenantId: {
-          id: product.id,
-          tenantId: event.metadata.tenantId,
-        },
+        id: product.id,
       },
       data: updateData,
     });
@@ -112,10 +109,7 @@ export class ProductReadModelHandler implements ProjectionHandler {
 
     await this.prisma.productReadModel.delete({
       where: {
-        id_tenantId: {
-          id: productId,
-          tenantId: event.metadata.tenantId,
-        },
+        id: productId,
       },
     });
 
@@ -172,10 +166,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
     const productReadModel = await this.prisma.productReadModel.findUnique({
       where: {
-        id_tenantId: {
-          id: productId,
-          tenantId: event.metadata.tenantId,
-        },
+        id: productId,
       },
     });
 
@@ -194,10 +185,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
       await this.prisma.productReadModel.update({
         where: {
-          id_tenantId: {
-            id: productId,
-            tenantId: event.metadata.tenantId,
-          },
+          id: productId,
         },
         data: {
           variants,
@@ -216,10 +204,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
     const productReadModel = await this.prisma.productReadModel.findUnique({
       where: {
-        id_tenantId: {
-          id: productId,
-          tenantId: event.metadata.tenantId,
-        },
+        id: productId,
       },
     });
 
@@ -240,10 +225,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
         await this.prisma.productReadModel.update({
           where: {
-            id_tenantId: {
-              id: productId,
-              tenantId: event.metadata.tenantId,
-            },
+            id: productId,
           },
           data: {
             variants,
@@ -263,10 +245,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
     const productReadModel = await this.prisma.productReadModel.findUnique({
       where: {
-        id_tenantId: {
-          id: productId,
-          tenantId: event.metadata.tenantId,
-        },
+        id: productId,
       },
     });
 
@@ -279,10 +258,7 @@ export class ProductVariantReadModelHandler implements ProjectionHandler {
 
       await this.prisma.productReadModel.update({
         where: {
-          id_tenantId: {
-            id: productId,
-            tenantId: event.metadata.tenantId,
-          },
+          id: productId,
         },
         data: {
           variants: filteredVariants,

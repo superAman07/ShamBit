@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PrismaService } from '../../../infrastructure/database/prisma.service';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 import { CryptoService } from '../../../infrastructure/security/crypto.service';
 

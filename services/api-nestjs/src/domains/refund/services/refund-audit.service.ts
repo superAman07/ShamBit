@@ -1,9 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../infrastructure/database/prisma.service';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
-import { RefundRepository } from '../repositories/refund.repository';
 import { RefundAuditLog } from '../entities/refund.entity';
+
+// Temporary interface to avoid circular dependency
+interface IRefundRepository {
+  createAuditLog(data: any, tx?: any): Promise<RefundAuditLog>;
+  findAuditLogs(filters: any): Promise<RefundAuditLog[]>;
+  findAuditLogsByRefundId(refundId: string): Promise<RefundAuditLog[]>;
+  findById(id: string): Promise<any>;
+}
 
 import { RefundAuditAction } from '../enums/refund-status.enum';
 
@@ -43,7 +50,7 @@ export interface AuditTrail {
 export class RefundAuditService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly refundRepository: RefundRepository,
+    private readonly refundRepository: IRefundRepository,
     private readonly logger: LoggerService,
   ) {}
 
@@ -246,7 +253,7 @@ export class RefundAuditService {
       timestamp: log.createdAt,
       action: log.action as RefundAuditAction,
       userId: log.userId,
-      userName: log.user?.name || log.userId, // Assuming user relation is populated
+      userName: log.userId, // Would need to fetch user details separately if needed
       changes: log.getChanges(),
       reason: log.reason,
       metadata: log.metadata,

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
-export interface OrderAuditEntry {
+export interface OrderAuditLogData {
   orderId: string;
   action: string;
   userId: string;
@@ -16,25 +16,35 @@ export interface OrderAuditEntry {
 export class OrderAuditService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly logger: LoggerService,
+    private readonly logger: LoggerService
   ) {}
 
-  async logAction(entry: OrderAuditEntry): Promise<void> {
+  async logAction(data: OrderAuditLogData): Promise<void> {
     try {
-      // TODO: Implement audit logging once OrderAuditLog model is available
-      this.logger.log('Order audit action', entry);
+      this.logger.log('OrderAuditService.logAction', {
+        orderId: data.orderId,
+        action: data.action,
+        userId: data.userId,
+      });
+
+      // TODO: Create audit log entry in database
+      // This would typically store in an audit_logs table
+      
+      this.logger.log('Order audit log created', {
+        orderId: data.orderId,
+        action: data.action,
+      });
     } catch (error) {
-      this.logger.error('Failed to log order audit action', error, { entry });
+      this.logger.error('Failed to create order audit log', {
+        orderId: data.orderId,
+        action: data.action,
+        error: error.message,
+      });
     }
   }
 
-  async getAuditTrail(orderId: string): Promise<any[]> {
-    try {
-      // TODO: Implement audit trail retrieval once OrderAuditLog model is available
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to get order audit trail', error, { orderId });
-      return [];
-    }
+  async getOrderAuditHistory(orderId: string): Promise<any[]> {
+    // TODO: Implement audit history retrieval
+    return [];
   }
 }

@@ -1,15 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PrismaService } from '../../../infrastructure/database/prisma.service';
+import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 import { QueueService } from '../../../infrastructure/queue/queue.service';
 
-import { RefundRepository } from '../repositories/refund.repository';
+// Temporary interface to avoid circular dependency
+interface IRefundRepository {
+  findById(id: string): Promise<any>;
+  update(id: string, data: any, tx?: any): Promise<any>;
+  createJob(data: any, tx?: any): Promise<any>;
+  findJobById(jobId: string): Promise<any>;
+  updateJob(jobId: string, data: any, tx?: any): Promise<any>;
+  findScheduledJobs(currentDate: Date): Promise<any[]>;
+  findRetryJobs(currentDate: Date): Promise<any[]>;
+  deleteCompletedJobs(cutoffDate: Date): Promise<number>;
+}
+
+// Temporary interface to avoid circular dependency
+interface IPaymentGatewayService {
+  getGateway(provider: string): Promise<any>;
+}
+
 import { RefundOrchestrationService } from './refund-orchestration.service';
 import { RefundAuditService } from './refund-audit.service';
 import { NotificationService } from '../../../infrastructure/notifications/notification.service';
-import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
+// import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
 
 import { RefundJob } from '../entities/refund-job.entity';
 import { CreateRefundJobDto } from '../dtos/create-refund-job.dto';
@@ -38,10 +54,10 @@ export interface RefundJobResult {
 export class RefundJobService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly refundRepository: RefundRepository,
+    private readonly refundRepository: IRefundRepository,
     private readonly refundAuditService: RefundAuditService,
     private readonly notificationService: NotificationService,
-    private readonly paymentGatewayService: PaymentGatewayService,
+    private readonly paymentGatewayService: IPaymentGatewayService,
     private readonly queueService: QueueService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,

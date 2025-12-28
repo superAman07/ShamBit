@@ -136,8 +136,15 @@ export class ReviewService {
     return { reviews: [], total: 0 };
   }
 
-  async findById(id: string) {
-    return this.reviewRepository.findById(id);
+  async findById(id: string): Promise<Review | null> {
+    const review = await this.reviewRepository.findById(id);
+    if (!review) return null;
+    
+    return {
+      ...review,
+      type: review.type as ReviewType,
+      status: review.status as ReviewStatus,
+    } as Review;
   }
 
   async updateReview(id: string, updateDto: any, userId: string) {

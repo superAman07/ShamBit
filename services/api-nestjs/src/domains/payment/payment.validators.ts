@@ -8,7 +8,6 @@ import {
   canTransitionPaymentTransactionStatus 
 } from './enums/payment-status.enum';
 import { PaymentIntent } from './entities/payment-intent.entity';
-import { PaymentTransaction } from './entities/payment-transaction.entity';
 
 export class PaymentValidators {
   

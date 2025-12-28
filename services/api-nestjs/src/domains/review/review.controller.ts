@@ -13,11 +13,13 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { ReviewService, CreateReviewDto } from './review.service';
+import { ReviewService } from './review.service';
+import type { CreateReviewDto } from './review.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser } from '../../common/decorators';
-import { UserRole, PaginationQuery } from '../../common/types';
+import { UserRole } from '../../common/types';
+import type { PaginationQuery } from '../../common/types';
 
 @ApiTags('Reviews')
 @Controller('reviews')

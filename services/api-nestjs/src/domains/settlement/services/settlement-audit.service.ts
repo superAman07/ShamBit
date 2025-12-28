@@ -1,7 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
-import { SettlementAuditRepository } from '../repositories/settlement-audit.repository';
-import { SettlementAuditLog } from '../entities/settlement-audit-log.entity';
+
+// Temporary interfaces to avoid circular dependency
+interface ISettlementAuditRepository {
+  create(data: any, tx?: any): Promise<SettlementAuditLog>;
+  findAll(filters: any, options: any, limit: number, offset: number): Promise<{
+    auditLogs: SettlementAuditLog[];
+    total: number;
+  }>;
+}
+
+interface SettlementAuditLog {
+  id: string;
+  settlementId?: string | null;
+  action: string;
+  userId: string;
+  oldValues?: any;
+  newValues?: any;
+  reason?: string;
+  metadata?: any;
+  user?: {
+    id: string;
+    name: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface AuditLogFilters {
   settlementId?: string;
@@ -19,7 +43,7 @@ export interface AuditLogOptions {
 @Injectable()
 export class SettlementAuditService {
   constructor(
-    private readonly settlementAuditRepository: SettlementAuditRepository,
+    private readonly settlementAuditRepository: ISettlementAuditRepository,
     private readonly logger: LoggerService,
   ) {}
 

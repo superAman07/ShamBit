@@ -269,8 +269,8 @@ export class PaymentWebhookProcessedEvent {
     public readonly webhookId: string,
     public readonly eventType: string,
     public readonly gatewayProvider: string,
-    public readonly paymentIntentId?: string,
     public readonly processingResult: 'SUCCESS' | 'FAILURE' | 'IGNORED',
+    public readonly paymentIntentId?: string,
     public readonly processingMessage?: string,
     public readonly timestamp: Date = new Date(),
   ) {}

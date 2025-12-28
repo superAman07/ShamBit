@@ -2,18 +2,67 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
-import { SettlementJobRepository } from '../repositories/settlement-job.repository';
-import { SettlementService } from '../settlement.service';
-import { SettlementCalculationService } from './settlement-calculation.service';
-import { PaymentGatewayService } from '../../payment/services/payment-gateway.service';
+// Temporary interfaces to avoid circular dependency
+interface ISettlementJobRepository {
+  create(data: any): Promise<SettlementJob>;
+  findById(id: string): Promise<SettlementJob | null>;
+  update(id: string, data: any): Promise<SettlementJob>;
+  findPendingJobs(): Promise<SettlementJob[]>;
+  findFailedJobsForRetry(): Promise<SettlementJob[]>;
+  findByGatewaySettlementId(gatewaySettlementId: string): Promise<SettlementJob | null>;
+  findByType(type: string, status?: string, limit?: number): Promise<SettlementJob[]>;
+  findBySeller(sellerId: string, status?: string, limit?: number): Promise<SettlementJob[]>;
+  getStatistics(): Promise<{
+    total: number;
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    byStatus: Record<string, number>;
+    byType: Record<string, number>;
+  }>;
+  deleteOldJobs(cutoffDate: Date): Promise<number>;
+}
 
-import { SettlementJob } from '../entities/settlement-job.entity';
+interface IPaymentGatewayService {
+  getGateway(provider: string): any;
+}
+
+interface SettlementJob {
+  id: string;
+  type: string;
+  status: string;
+  sellerId: string;
+  settlementId?: string;
+  payload: any;
+  options: any;
+  periodStart?: Date;
+  periodEnd?: Date;
+  retryCount: number;
+  maxRetries: number;
+  nextRetryAt?: Date;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface CreateSettlementJobDto {
+  type: string;
+  sellerId: string;
+  settlementId?: string;
+  payload?: any;
+  options?: any;
+  periodStart?: Date;
+  periodEnd?: Date;
+  maxRetries?: number;
+  createdBy: string;
+}
+
+import { SettlementCalculationService } from './settlement-calculation.service';
 import { 
   SettlementJobType,
   SettlementJobStatus,
 } from '../enums/settlement-status.enum';
-
-import { CreateSettlementJobDto } from '../dtos/create-settlement-job.dto';
 import { PaymentGatewayProvider } from '../../payment/enums/payment-status.enum';
 
 import {
@@ -25,9 +74,9 @@ import {
 @Injectable()
 export class SettlementJobService {
   constructor(
-    private readonly settlementJobRepository: SettlementJobRepository,
+    private readonly settlementJobRepository: ISettlementJobRepository,
     private readonly settlementCalculationService: SettlementCalculationService,
-    private readonly paymentGatewayService: PaymentGatewayService,
+    private readonly paymentGatewayService: IPaymentGatewayService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
@@ -364,7 +413,7 @@ export class SettlementJobService {
         errorMessage
       ));
 
-      this.logger.error('Settlement job permanently failed', {
+      this.logger.error('Settlement job permanently failed', errorMessage, {
         jobId,
         retryCount: newRetryCount,
         maxRetries: job.maxRetries,

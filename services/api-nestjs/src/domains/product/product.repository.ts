@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { CreateProductDto, ProductResponseDto, ProductStatus } from './dto/product.dto';
+import { CreateProductDto, ProductStatus } from './dto/product.dto';
 import { PaginationQuery } from '../../common/types';
+import { Product } from '@prisma/client';
 
 @Injectable()
 export class ProductRepository {
@@ -41,7 +42,7 @@ export class ProductRepository {
     };
   }
 
-  async findById(id: string): Promise<ProductResponseDto | null> {
+  async findById(id: string): Promise<any | null> {
     return this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -58,7 +59,7 @@ export class ProductRepository {
     });
   }
 
-  async findBySlug(slug: string): Promise<ProductResponseDto | null> {
+  async findBySlug(slug: string): Promise<any | null> {
     return this.prisma.product.findUnique({
       where: { slug },
       include: {
@@ -77,19 +78,29 @@ export class ProductRepository {
   }
 
   async create(data: CreateProductDto & { sellerId: string; status: ProductStatus }) {
+    const { images, ...productData } = data;
+    
     return this.prisma.product.create({
       data: {
-        ...data,
-        attributeValues: data.attributeValues || {},
+        ...productData,
+        attributeValues: productData.attributeValues || {},
+        images: images ? {
+          create: images.map((url: string, index: number) => ({
+            url,
+            displayOrder: index,
+            isActive: true,
+          }))
+        } : undefined,
       },
       include: {
         category: true,
         brand: true,
+        images: true,
       },
     });
   }
 
-  async update(id: string, data: Partial<CreateProductDto & { status: ProductStatus; approvedAt?: Date; approvedBy?: string; rejectedAt?: Date; rejectedBy?: string; rejectionReason?: string }>) {
+  async update(id: string, data: any) {
     return this.prisma.product.update({
       where: { id },
       data: {

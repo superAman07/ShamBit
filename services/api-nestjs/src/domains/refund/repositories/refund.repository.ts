@@ -1,208 +1,86 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { LoggerService } from '../../../infrastructure/observability/logger.service';
-import { RefundFilters, PaginationOptions, RefundIncludeOptions } from '../interfaces/refund-repository.interface';
 
 @Injectable()
 export class RefundRepository {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly logger: LoggerService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string, includes?: RefundIncludeOptions) {
-    try {
-      // Note: This is a placeholder implementation since the refund model doesn't exist in the main schema
-      // In a real implementation, this would use this.prisma.refund.findUnique
-      return null;
-    } catch (error) {
-      this.logger.error('Failed to find refund by ID', error, { id });
-      throw error;
-    }
+  async findById(id: string, includes: any = {}): Promise<any | null> {
+    // TODO: Implement refund lookup
+    return null;
   }
 
-  async findAll(filters: RefundFilters, pagination: PaginationOptions, includes: RefundIncludeOptions) {
-    try {
-      // Placeholder implementation
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to find refunds', error, { filters, pagination });
-      throw error;
-    }
+  async findAll(filters: any = {}, pagination: any = {}, includes: any = {}): Promise<any> {
+    // TODO: Implement refund listing
+    return { data: [], total: 0 };
   }
 
-  async findByOrderId(orderId: string) {
-    try {
-      // Placeholder implementation
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to find refunds by order ID', error, { orderId });
-      throw error;
-    }
+  async create(data: any): Promise<any> {
+    // TODO: Implement refund creation
+    return { id: 'temp_refund_id', ...data };
   }
 
-  async findByIdempotencyKey(idempotencyKey: string) {
-    try {
-      // Placeholder implementation
-      return null;
-    } catch (error) {
-      this.logger.error('Failed to find refund by idempotency key', error, { idempotencyKey });
-      throw error;
-    }
+  async update(id: string, data: any): Promise<any> {
+    // TODO: Implement refund update
+    return { id, ...data };
   }
 
-  async create(data: any, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id: 'placeholder-id',
-        ...data,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to create refund', error, { data });
-      throw error;
-    }
+  async findByGatewayRefundId(gatewayRefundId: string): Promise<any | null> {
+    // TODO: Implement gateway refund lookup
+    return null;
   }
 
-  async update(id: string, data: any, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id,
-        ...data,
-        updatedAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to update refund', error, { id, data });
-      throw error;
-    }
+  async createWebhook(webhookData: any, tx?: any): Promise<any> {
+    // TODO: Implement webhook creation
+    return { id: 'temp_webhook_id', ...webhookData };
   }
 
-  async updateStatus(id: string, status: string, updatedBy: string, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id,
-        status,
-        updatedBy,
-        updatedAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to update refund status', error, { id, status });
-      throw error;
-    }
+  async updateWebhook(webhookId: string, updateData: any, tx?: any): Promise<void> {
+    // TODO: Implement webhook update
   }
 
-  async createItem(data: any, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id: 'placeholder-item-id',
-        ...data,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to create refund item', error, { data });
-      throw error;
-    }
+  async findWebhookByIdAndEventType(webhookId: string, eventType: string): Promise<any | null> {
+    // TODO: Implement webhook lookup
+    return null;
   }
 
-  async updateItem(id: string, data: any, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id,
-        ...data,
-        updatedAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to update refund item', error, { id, data });
-      throw error;
-    }
+  async findWebhookById(webhookId: string): Promise<any | null> {
+    // TODO: Implement webhook lookup
+    return null;
   }
 
-  async createLedgerEntry(data: any, tx?: any) {
-    try {
-      // Placeholder implementation
-      return {
-        id: 'placeholder-ledger-id',
-        ...data,
-        createdAt: new Date(),
-      };
-    } catch (error) {
-      this.logger.error('Failed to create ledger entry', error, { data });
-      throw error;
-    }
+  async findWebhooksByRefundId(refundId: string): Promise<any[]> {
+    // TODO: Implement webhook listing
+    return [];
   }
 
-  async findReadyForProcessing() {
-    try {
-      // Placeholder implementation
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to find refunds ready for processing', error);
-      throw error;
-    }
+  async findFailedWebhooks(limit: number, olderThan: Date): Promise<any[]> {
+    // TODO: Implement failed webhook lookup
+    return [];
   }
 
-  async findRetryableRefunds() {
-    try {
-      // Placeholder implementation
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to find retryable refunds', error);
-      throw error;
-    }
+  async deleteOldWebhooks(cutoffDate: Date): Promise<number> {
+    // TODO: Implement webhook cleanup
+    return 0;
   }
 
-  async getRefundCountForYear(year: number) {
-    try {
-      // Placeholder implementation
-      return 0;
-    } catch (error) {
-      this.logger.error('Failed to get refund count for year', error, { year });
-      throw error;
-    }
+  async findWebhooksByDateRange(dateFrom: Date, dateTo: Date): Promise<any[]> {
+    // TODO: Implement webhook date range lookup
+    return [];
   }
 
-  async findMany(filters: any = {}, pagination: any = {}) {
-    try {
-      // Placeholder implementation
-      return [];
-    } catch (error) {
-      this.logger.error('Failed to find refunds', error, { filters, pagination });
-      throw error;
-    }
+  async createItem(itemData: any): Promise<any> {
+    // TODO: Implement refund item creation
+    return { id: 'temp_refund_item_id', ...itemData };
   }
 
-  private buildWhereClause(filters: any): any {
-    const where: any = {};
+  async createLedgerEntry(entryData: any): Promise<any> {
+    // TODO: Implement ledger entry creation
+    return { id: 'temp_ledger_entry_id', ...entryData };
+  }
 
-    if (filters.orderId) {
-      where.orderId = filters.orderId;
-    }
-
-    if (filters.status) {
-      where.status = Array.isArray(filters.status) ? { in: filters.status } : filters.status;
-    }
-
-    if (filters.refundType) {
-      where.refundType = filters.refundType;
-    }
-
-    if (filters.dateFrom || filters.dateTo) {
-      where.createdAt = {};
-      if (filters.dateFrom) {
-        where.createdAt.gte = filters.dateFrom;
-      }
-      if (filters.dateTo) {
-        where.createdAt.lte = filters.dateTo;
-      }
-    }
-
-    return where;
+  async getRefundCountForYear(year: number): Promise<number> {
+    // TODO: Implement refund count for year
+    return 0;
   }
 }

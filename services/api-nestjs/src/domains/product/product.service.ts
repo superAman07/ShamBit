@@ -183,6 +183,11 @@ export class ProductService {
       version: 1,
       createdBy,
     };
+    
+    // Convert scheduledPublishAt string to Date if provided
+    if (createProductDto.scheduledPublishAt) {
+      productData.scheduledPublishAt = new Date(createProductDto.scheduledPublishAt);
+    }
 
     // Create the product
     const product = await this.productRepository.create(productData);
@@ -289,11 +294,18 @@ export class ProductService {
     }
 
     // Increment version for optimistic locking
-    const updatedProduct = await this.productRepository.update(id, {
+    const updateData = {
       ...updateProductDto,
       version: existingProduct.version + 1,
       updatedBy,
-    });
+    };
+    
+    // Convert scheduledPublishAt string to Date if provided
+    if (updateProductDto.scheduledPublishAt) {
+      updateData.scheduledPublishAt = new Date(updateProductDto.scheduledPublishAt);
+    }
+    
+    const updatedProduct = await this.productRepository.update(id, updateData);
 
     // Handle attribute values if provided
     if (updateProductDto.attributeValues) {

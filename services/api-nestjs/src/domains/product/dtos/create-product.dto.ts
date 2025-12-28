@@ -96,7 +96,8 @@ export class CreateProductDto {
   @ApiPropertyOptional({ 
     type: 'object',
     description: 'Additional metadata as JSON',
-    example: { weight: 221, dimensions: { length: 159.9, width: 76.7, height: 8.25 } }
+    example: { weight: 221, dimensions: { length: 159.9, width: 76.7, height: 8.25 } },
+    additionalProperties: true
   })
   @IsOptional()
   @IsObject()
