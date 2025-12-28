@@ -86,7 +86,7 @@ export class DataLifecycleService {
 
     try {
       // Delete archived data older than specified days
-      const deletedCount = await this.prisma.archivedData.deleteMany({
+      const deletedCount = await (this.prisma as any).archivedData.deleteMany({
         where: {
           archivedAt: {
             lt: cutoffDate,
@@ -120,7 +120,7 @@ export class DataLifecycleService {
           data: {
             deletedAt: new Date(),
             deletedBy: 'system',
-          },
+          } as any,
         });
         return orderResult.count;
 
@@ -133,7 +133,7 @@ export class DataLifecycleService {
           data: {
             deletedAt: new Date(),
             deletedBy: 'system',
-          },
+          } as any,
         });
         return productResult.count;
 
@@ -146,7 +146,7 @@ export class DataLifecycleService {
           data: {
             deletedAt: new Date(),
             deletedBy: 'system',
-          },
+          } as any,
         });
         return userResult.count;
 
@@ -155,7 +155,7 @@ export class DataLifecycleService {
           where: whereClause,
           data: {
             deletedAt: new Date(),
-          },
+          } as any,
         });
         return auditResult.count;
 
@@ -203,8 +203,12 @@ export class DataLifecycleService {
 
       case 'DomainEvent':
         tableName = 'domain_events';
-        records = await this.prisma.domainEvent.findMany({
-          where: whereClause,
+        // DomainEvent uses `occurredAt` in the generated types, map our createdAt cutoff
+        records = await (this.prisma as any).domainEvent.findMany({
+          where: {
+            occurredAt: (whereClause as any).createdAt,
+            ...(conditions || {}),
+          },
         });
         break;
 
@@ -219,7 +223,7 @@ export class DataLifecycleService {
 
     // Store in archive table
     for (const record of records) {
-      await this.prisma.archivedData.create({
+      await (this.prisma as any).archivedData.create({
         data: {
           entityType,
           entityId: record.id,
@@ -246,7 +250,7 @@ export class DataLifecycleService {
         });
         break;
       case 'DomainEvent':
-        await this.prisma.domainEvent.deleteMany({
+        await (this.prisma as any).domainEvent.deleteMany({
           where: { id: { in: recordIds } },
         });
         break;
@@ -306,7 +310,7 @@ export class DataLifecycleService {
 
   async restoreFromArchive(entityType: string, entityId: string): Promise<boolean> {
     try {
-      const archivedData = await this.prisma.archivedData.findFirst({
+      const archivedData = await (this.prisma as any).archivedData.findFirst({
         where: {
           entityType,
           entityId,
@@ -322,24 +326,24 @@ export class DataLifecycleService {
         case 'Order':
           await this.prisma.order.create({
             data: archivedData.data as any,
-          });
+              });
           break;
         case 'AuditLog':
           await this.prisma.auditLog.create({
             data: archivedData.data as any,
-          });
+              });
           break;
         case 'DomainEvent':
-          await this.prisma.domainEvent.create({
+          await (this.prisma as any).domainEvent.create({
             data: archivedData.data as any,
-          });
+              });
           break;
         default:
           return false;
       }
 
       // Remove from archive
-      await this.prisma.archivedData.delete({
+      await (this.prisma as any).archivedData.delete({
         where: { id: archivedData.id },
       });
 

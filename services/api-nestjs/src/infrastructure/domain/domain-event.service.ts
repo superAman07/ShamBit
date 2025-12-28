@@ -25,10 +25,11 @@ export class DomainEventService {
         aggregateId: domainEvent.aggregateId,
         aggregateType: domainEvent.aggregateType,
         version: domainEvent.version,
-        data: domainEvent.data,
-        metadata: domainEvent.metadata,
-        tenantId: domainEvent.metadata.tenantId,
-        createdAt: domainEvent.metadata.timestamp,
+        // Persist both payload and metadata inside `eventData` JSON column
+        eventData: {
+          payload: domainEvent.data,
+          metadata: domainEvent.metadata,
+        },
       },
     });
 
@@ -45,19 +46,24 @@ export class DomainEventService {
       where: {
         aggregateId,
         ...(fromVersion && { version: { gte: fromVersion } }),
-        ...(tenantId && { tenantId }),
       },
       orderBy: { version: 'asc' },
     });
 
-    return events.map(event => ({
+    // If tenantId was provided, filter by metadata.tenantId after fetch
+    const filtered = tenantId
+      ? events.filter(e => ((e.eventData as any)?.metadata?.tenantId ?? '') === tenantId)
+      : events;
+
+    return filtered.map(event => ({
       eventId: event.id,
       eventType: event.eventType,
       aggregateId: event.aggregateId,
       aggregateType: event.aggregateType,
       version: event.version,
-      data: event.data,
-      metadata: event.metadata as any,
+      // `eventData` stores both payload and metadata
+      data: (event.eventData as any)?.payload ?? (event.eventData as any),
+      metadata: (event.eventData as any)?.metadata ?? ({ tenantId: '', userId: '', timestamp: event.occurredAt } as any),
     }));
   }
 

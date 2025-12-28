@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { FeatureFlagService, CreateFeatureFlagDto } from './feature-flag.service';
+import { FeatureFlagService } from './feature-flag.service';
+import type { CreateFeatureFlagDto } from './feature-flag.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser, Public } from '../../common/decorators';

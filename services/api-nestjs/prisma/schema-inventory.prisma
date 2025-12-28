@@ -1,0 +1,225 @@
+// ================================
+// INVENTORY SYSTEM SCHEMA
+// ================================
+
+model Inventory {
+  id          String   @id @default(cuid())
+  variantId   String
+  sellerId    String
+  warehouseId String?  // Future-ready for multi-warehouse
+  
+  // Derived quantities (never directly updated)
+  availableQuantity Int @default(0)
+  reservedQuantity  Int @default(0)
+  totalQuantity     Int @default(0) // availableQuantity + reservedQuantity
+  
+  // Thresholds
+  lowStockThreshold  Int? @default(10)
+  outOfStockThreshold Int? @default(0)
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // Versioning for optimistic locking
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  variant       ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  seller        User               @relation(fields: [sellerId], references: [id])
+  warehouse     Warehouse?         @relation(fields: [warehouseId], references: [id])
+  ledgerEntries InventoryLedger[]
+  reservations  InventoryReservation[]
+  auditLogs     InventoryAuditLog[]
+  
+  // Constraints
+  @@unique([variantId, sellerId, warehouseId])
+  @@index([variantId])
+  @@index([sellerId])
+  @@index([warehouseId])
+  @@index([availableQuantity])
+  @@index([totalQuantity])
+  @@index([createdAt])
+  @@index([updatedAt])
+  
+  @@map("inventory")
+}
+
+model InventoryLedger {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Movement details
+  type        String   // INBOUND, OUTBOUND, RESERVATION, RELEASE, ADJUSTMENT
+  quantity    Int      // Positive for inbound, negative for outbound
+  
+  // Running balance after this entry
+  runningBalance Int
+  
+  // Reference information
+  referenceType String?  // ORDER, REFUND, ADMIN, IMPORT, RESERVATION
+  referenceId   String?  // ID of the referenced entity
+  
+  // Metadata
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [createdBy], references: [id])
+  
+  // Indexes for performance
+  @@index([inventoryId])
+  @@index([inventoryId, createdAt])
+  @@index([type])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  
+  @@map("inventory_ledger")
+}
+
+model InventoryReservation {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Reservation details
+  quantity    Int
+  reservationKey String @unique // Idempotent key (e.g., cart_item_id)
+  
+  // Expiry
+  expiresAt   DateTime
+  isExpired   Boolean  @default(false)
+  
+  // Status
+  status      String   @default("ACTIVE") // ACTIVE, COMMITTED, RELEASED, EXPIRED
+  
+  // Reference information
+  referenceType String  // CART, ORDER, QUOTE
+  referenceId   String  // ID of the referenced entity
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([inventoryId])
+  @@index([reservationKey])
+  @@index([expiresAt])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  
+  @@map("inventory_reservations")
+}
+
+model InventoryAuditLog {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Audit details
+  action      String   // CREATE, UPDATE, RESERVE, RELEASE, COMMIT, ADJUST
+  userId      String
+  
+  // State changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([inventoryId])
+  @@index([inventoryId, createdAt])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  
+  @@map("inventory_audit_logs")
+}
+
+// Future-ready warehouse model
+model Warehouse {
+  id          String @id @default(cuid())
+  name        String
+  code        String @unique
+  address     Json   // Structured address
+  isActive    Boolean @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  inventory   Inventory[]
+  
+  @@map("warehouses")
+}
+
+// Inventory movement jobs for bulk operations
+model InventoryMovementJob {
+  id          String   @id @default(cuid())
+  type        String   // BULK_ADJUSTMENT, IMPORT, EXPORT, RECOUNT
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  
+  // Job configuration
+  filters     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Progress tracking
+  totalItems  Int      @default(0)
+  processedItems Int   @default(0)
+  successfulItems Int  @default(0)
+  failedItems Int      @default(0)
+  
+  // Results
+  errorMessage String?
+  results     Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([createdBy])
+  @@index([createdAt])
+  
+  @@map("inventory_movement_jobs")
+}

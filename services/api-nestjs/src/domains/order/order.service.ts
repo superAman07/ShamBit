@@ -1,425 +1,714 @@
 import {
   Injectable,
   NotFoundException,
+  ConflictException,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { OrderRepository } from './order.repository';
-import { OrderItemService } from './order-item.service';
-import { OrderStateMachine } from './order-state-machine.service';
-import { InventoryService } from '../inventory/inventory.service';
-import { CommissionService } from '../pricing/commission.service';
+import { OrderRepository } from './repositories/order.repository';
+import { OrderAuditService } from './services/order-audit.service';
+import { OrderOrchestrationService } from './services/order-orchestration.service';
+import { OrderValidationService } from './services/order-validation.service';
+import { OrderFulfillmentService } from './services/order-fulfillment.service';
+import { OrderRefundService } from './services/order-refund.service';
+import { InventoryReservationService } from '../inventory/services/inventory-reservation.service';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
+
+import { Order } from './entities/order.entity';
+import { OrderItem } from './entities/order-item.entity';
+import { OrderStatus, OrderItemStatus, canTransitionOrderStatus } from './enums/order-status.enum';
+import { OrderPolicies } from './order.policies';
+import { OrderValidators } from './order.validators';
+
+import { CreateOrderDto } from './dtos/create-order.dto';
+import { UpdateOrderDto, OrderStatusUpdateDto } from './dtos/update-order.dto';
+import { CancelOrderDto } from './dtos/cancel-order.dto';
+import { RefundOrderDto } from './dtos/refund-order.dto';
+
+import {
+  OrderFilters,
+  PaginationOptions,
+  OrderIncludeOptions,
+} from './interfaces/order-repository.interface';
+
+import {
+  OrderUpdatedEvent,
+  OrderStatusChangedEvent,
+  OrderConfirmedEvent,
+  OrderCancelledEvent,
+  OrderShippedEvent,
+  OrderDeliveredEvent,
+  OrderExpiredEvent,
+} from './events/order.events';
+
 import { UserRole } from '../../common/types';
-
-export enum OrderStatus {
-  DRAFT = 'DRAFT',
-  PENDING_PAYMENT = 'PENDING_PAYMENT',
-  PAYMENT_CONFIRMED = 'PAYMENT_CONFIRMED',
-  PROCESSING = 'PROCESSING',
-  SHIPPED = 'SHIPPED',
-  DELIVERED = 'DELIVERED',
-  CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED',
-  RETURNED = 'RETURNED',
-}
-
-export interface OrderItem {
-  variantId: string;
-  sellerId: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  // Immutable snapshots
-  productSnapshot: {
-    id: string;
-    name: string;
-    description: string;
-    slug: string;
-    categoryId: string;
-    brandId: string;
-  };
-  variantSnapshot: {
-    id: string;
-    sku: string;
-    attributeValues: Record<string, any>;
-  };
-  commissionSnapshot: {
-    baseAmount: number;
-    commissionAmount: number;
-    commissionRate: number;
-    netAmount: number;
-  };
-}
-
-export interface CreateOrderDto {
-  items: {
-    variantId: string;
-    sellerId: string;
-    quantity: number;
-  }[];
-  shippingAddressId: string;
-  billingAddressId?: string;
-  notes?: string;
-}
-
-export interface Order {
-  id: string;
-  orderNumber: string;
-  userId: string;
-  status: OrderStatus;
-  items: OrderItem[];
-  subtotal: number;
-  shippingCost: number;
-  taxAmount: number;
-  totalAmount: number;
-  shippingAddressId: string;
-  billingAddressId?: string;
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 @Injectable()
 export class OrderService {
   constructor(
     private readonly orderRepository: OrderRepository,
-    private readonly orderItemService: OrderItemService,
-    private readonly orderStateMachine: OrderStateMachine,
-    private readonly inventoryService: InventoryService,
-    private readonly commissionService: CommissionService,
+    private readonly orderAuditService: OrderAuditService,
+    private readonly orderOrchestrationService: OrderOrchestrationService,
+    private readonly orderValidationService: OrderValidationService,
+    private readonly orderFulfillmentService: OrderFulfillmentService,
+    private readonly orderRefundService: OrderRefundService,
+    private readonly inventoryReservationService: InventoryReservationService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
 
-  async createOrder(createOrderDto: CreateOrderDto, userId: string): Promise<Order> {
-    this.logger.log('OrderService.createOrder', { createOrderDto, userId });
+  // ============================================================================
+  // BASIC CRUD OPERATIONS
+  // ============================================================================
 
-    // Validate order items
-    if (!createOrderDto.items || createOrderDto.items.length === 0) {
-      throw new BadRequestException('Order must contain at least one item');
-    }
+  async findAll(
+    filters: OrderFilters = {},
+    pagination: PaginationOptions = {},
+    includes: OrderIncludeOptions = {},
+    userId?: string,
+    userRole?: UserRole
+  ) {
+    this.logger.log('OrderService.findAll', { filters, pagination, userId });
 
-    // Generate unique order number
-    const orderNumber = await this.generateOrderNumber();
+    // Apply access control filters
+    const enhancedFilters = await this.applyAccessFilters(filters, userId, userRole);
 
-    // Create order with DRAFT status
-    const order = await this.orderRepository.create({
-      orderNumber,
-      userId,
-      status: OrderStatus.DRAFT,
-      shippingAddressId: createOrderDto.shippingAddressId,
-      billingAddressId: createOrderDto.billingAddressId || createOrderDto.shippingAddressId,
-      notes: createOrderDto.notes,
-      subtotal: 0,
-      shippingCost: 0,
-      taxAmount: 0,
-      totalAmount: 0,
-    });
-
-    try {
-      // Process order items with snapshots
-      const orderItems: OrderItem[] = [];
-      let subtotal = 0;
-
-      for (const itemDto of createOrderDto.items) {
-        const orderItem = await this.createOrderItemWithSnapshots(
-          order.id,
-          itemDto,
-          userId,
-        );
-        orderItems.push(orderItem);
-        subtotal += orderItem.totalPrice;
-      }
-
-      // Calculate shipping and tax (simplified for now)
-      const shippingCost = this.calculateShippingCost(orderItems);
-      const taxAmount = this.calculateTax(subtotal, shippingCost);
-      const totalAmount = subtotal + shippingCost + taxAmount;
-
-      // Update order totals
-      const updatedOrder = await this.orderRepository.update(order.id, {
-        subtotal,
-        shippingCost,
-        taxAmount,
-        totalAmount,
-      });
-
-      // Emit order created event
-      this.eventEmitter.emit('order.created', {
-        orderId: order.id,
-        orderNumber,
-        userId,
-        totalAmount,
-        itemCount: orderItems.length,
-        timestamp: new Date(),
-      });
-
-      this.logger.log('Order created successfully', {
-        orderId: order.id,
-        orderNumber,
-        totalAmount,
-      });
-
-      return { ...updatedOrder, items: orderItems };
-    } catch (error) {
-      // Cleanup order if item processing fails
-      await this.orderRepository.delete(order.id);
-      throw error;
-    }
+    return this.orderRepository.findAll(enhancedFilters, pagination, includes);
   }
 
-  async processPayment(orderId: string, userId: string): Promise<Order> {
-    this.logger.log('OrderService.processPayment', { orderId, userId });
-
-    const order = await this.findById(orderId, userId);
-
-    // Validate order status
-    if (order.status !== OrderStatus.DRAFT) {
-      throw new BadRequestException('Order is not in draft status');
-    }
-
-    // Reserve inventory for all items
-    const reservationIds: string[] = [];
-    const reservationExpiry = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
-
-    try {
-      for (const item of order.items) {
-        const reservationId = await this.inventoryService.reserveStock({
-          variantId: item.variantId,
-          sellerId: item.sellerId,
-          quantity: item.quantity,
-          orderId: order.id,
-          expiresAt: reservationExpiry,
-        });
-        reservationIds.push(reservationId);
-      }
-
-      // Update order status to pending payment
-      const updatedOrder = await this.orderRepository.update(orderId, {
-        status: OrderStatus.PENDING_PAYMENT,
-      });
-
-      // Store reservation IDs for later confirmation/release
-      await this.orderRepository.updateMetadata(orderId, {
-        reservationIds,
-        reservationExpiry: reservationExpiry.toISOString(),
-      });
-
-      // Emit payment processing event
-      this.eventEmitter.emit('order.payment_processing', {
-        orderId,
-        userId,
-        totalAmount: order.totalAmount,
-        reservationIds,
-        timestamp: new Date(),
-      });
-
-      this.logger.log('Order payment processing initiated', {
-        orderId,
-        reservationCount: reservationIds.length,
-      });
-
-      return { ...updatedOrder, items: order.items };
-    } catch (error) {
-      // Release any successful reservations
-      for (const reservationId of reservationIds) {
-        try {
-          await this.inventoryService.releaseReservation(
-            reservationId,
-            'Order payment processing failed',
-          );
-        } catch (releaseError) {
-          this.logger.error('Failed to release reservation', {
-            reservationId,
-            error: releaseError,
-          });
-        }
-      }
-      throw error;
-    }
-  }
-
-  async confirmPayment(orderId: string, paymentId: string): Promise<Order> {
-    this.logger.log('OrderService.confirmPayment', { orderId, paymentId });
-
-    const order = await this.orderRepository.findById(orderId);
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
-    if (order.status !== OrderStatus.PENDING_PAYMENT) {
-      throw new BadRequestException('Order is not pending payment');
-    }
-
-    // Get reservation IDs from metadata
-    const metadata = await this.orderRepository.getMetadata(orderId);
-    const reservationIds = metadata?.reservationIds || [];
-
-    try {
-      // Confirm all inventory reservations
-      for (const reservationId of reservationIds) {
-        await this.inventoryService.confirmReservation(
-          reservationId,
-          `Payment confirmed for order ${order.orderNumber}`,
-        );
-      }
-
-      // Update order status
-      const updatedOrder = await this.orderRepository.update(orderId, {
-        status: OrderStatus.PAYMENT_CONFIRMED,
-        paymentId,
-        paidAt: new Date(),
-      });
-
-      // Clear reservation metadata
-      await this.orderRepository.updateMetadata(orderId, {
-        reservationIds: null,
-        reservationExpiry: null,
-      });
-
-      // Emit payment confirmed event
-      this.eventEmitter.emit('order.payment_confirmed', {
-        orderId,
-        orderNumber: order.orderNumber,
-        userId: order.userId,
-        paymentId,
-        totalAmount: order.totalAmount,
-        timestamp: new Date(),
-      });
-
-      this.logger.log('Order payment confirmed', { orderId, paymentId });
-
-      return updatedOrder;
-    } catch (error) {
-      this.logger.error('Failed to confirm payment', { orderId, error });
-      throw new BadRequestException('Failed to confirm payment');
-    }
-  }
-
-  async cancelOrder(
-    orderId: string,
-    userId: string,
-    reason: string,
-    userRole?: UserRole,
+  async findById(
+    id: string,
+    includes: OrderIncludeOptions = {},
+    userId?: string,
+    userRole?: UserRole
   ): Promise<Order> {
-    this.logger.log('OrderService.cancelOrder', { orderId, userId, reason });
-
-    const order = await this.findById(orderId, userId, userRole);
-
-    // Validate cancellation is allowed
-    if (!this.orderStateMachine.canTransition(order.status, OrderStatus.CANCELLED)) {
-      throw new BadRequestException(`Cannot cancel order in ${order.status} status`);
-    }
-
-    // Release inventory reservations if they exist
-    const metadata = await this.orderRepository.getMetadata(orderId);
-    const reservationIds = metadata?.reservationIds || [];
-
-    for (const reservationId of reservationIds) {
-      try {
-        await this.inventoryService.releaseReservation(reservationId, reason);
-      } catch (error) {
-        this.logger.error('Failed to release reservation during cancellation', {
-          reservationId,
-          error,
-        });
-      }
-    }
-
-    // Update order status
-    const updatedOrder = await this.orderRepository.update(orderId, {
-      status: OrderStatus.CANCELLED,
-      cancelledAt: new Date(),
-      cancellationReason: reason,
-    });
-
-    // Emit order cancelled event
-    this.eventEmitter.emit('order.cancelled', {
-      orderId,
-      orderNumber: order.orderNumber,
-      userId: order.userId,
-      reason,
-      timestamp: new Date(),
-    });
-
-    this.logger.log('Order cancelled successfully', { orderId, reason });
-
-    return updatedOrder;
-  }
-
-  async findById(orderId: string, userId?: string, userRole?: UserRole): Promise<Order> {
-    const order = await this.orderRepository.findById(orderId);
+    const order = await this.orderRepository.findById(id, includes);
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
     // Check access permissions
-    if (userId && userRole !== UserRole.ADMIN && order.userId !== userId) {
-      throw new ForbiddenException('Access denied to this order');
-    }
+    await this.checkOrderAccess(order, userId, userRole);
 
     return order;
   }
 
-  async findByUser(userId: string, page = 1, limit = 20): Promise<Order[]> {
-    return this.orderRepository.findByUser(userId, page, limit);
+  async findByOrderNumber(
+    orderNumber: string,
+    includes: OrderIncludeOptions = {},
+    userId?: string,
+    userRole?: UserRole
+  ): Promise<Order> {
+    const order = await this.orderRepository.findByOrderNumber(orderNumber, includes);
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Check access permissions
+    await this.checkOrderAccess(order, userId, userRole);
+
+    return order;
   }
 
-  private async createOrderItemWithSnapshots(
-    orderId: string,
-    itemDto: CreateOrderDto['items'][0],
-    userId: string,
-  ): Promise<OrderItem> {
-    // This would fetch product, variant, and pricing data
-    // and create immutable snapshots for the order item
-    // Implementation depends on your product and variant services
+  async findByCustomer(
+    customerId: string,
+    filters: OrderFilters = {},
+    pagination: PaginationOptions = {},
+    includes: OrderIncludeOptions = {}
+  ) {
+    return this.orderRepository.findByCustomer(customerId, filters, pagination, includes);
+  }
+
+  // ============================================================================
+  // ORDER CREATION (ORCHESTRATED)
+  // ============================================================================
+
+  async create(createOrderDto: CreateOrderDto, createdBy: string) {
+    this.logger.log('OrderService.create', { createOrderDto, createdBy });
+
+    // SAFETY: Validate all monetary values are properly formatted
+    for (const item of createOrderDto.items) {
+      OrderValidators.validateMonetaryValues(item.unitPrice || 0, 'item unit price');
+    }
+
+    // Validate permissions
+    await this.validateOrderCreationPermissions(createOrderDto, createdBy);
+
+    // Use orchestration service for complex order creation
+    const result = await this.orderOrchestrationService.createOrder(createOrderDto, createdBy);
+
+    if (!result.success) {
+      throw new BadRequestException(result.error || 'Order creation failed');
+    }
+
+    this.logger.log('Order created successfully', { orderId: result.order!.id });
+    return result.order!;
+  }
+
+  // ============================================================================
+  // ORDER UPDATES
+  // ============================================================================
+
+  async update(
+    id: string,
+    updateOrderDto: UpdateOrderDto,
+    updatedBy: string
+  ): Promise<Order> {
+    this.logger.log('OrderService.update', { id, updateOrderDto, updatedBy });
+
+    const existingOrder = await this.findById(id);
+
+    // Check permissions
+    await this.checkOrderAccess(existingOrder, updatedBy);
+
+    // SAFETY: Validate order immutability after confirmation
+    OrderValidators.validateOrderImmutability(existingOrder, updateOrderDto);
+
+    // SAFETY: Validate currency immutability
+    OrderValidators.validateCurrencyImmutability(existingOrder, updateOrderDto.currency);
+
+    // Validate update rules
+    await this.validateOrderUpdate(existingOrder, updateOrderDto);
+
+    // Update order
+    const updatedOrder = await this.orderRepository.update(id, {
+      ...updateOrderDto,
+      updatedBy,
+    });
+
+    // Create audit log
+    await this.orderAuditService.logAction(
+      id,
+      'UPDATE',
+      updatedBy,
+      existingOrder,
+      updatedOrder,
+      'Order updated'
+    );
+
+    // Emit event
+    this.eventEmitter.emit('order.updated', new OrderUpdatedEvent(
+      id,
+      updatedOrder.orderNumber,
+      updatedOrder.customerId,
+      this.calculateChanges(existingOrder, updatedOrder),
+      updatedBy
+    ));
+
+    this.logger.log('Order updated successfully', { orderId: id });
+    return updatedOrder;
+  }
+
+  // ============================================================================
+  // STATUS MANAGEMENT
+  // ============================================================================
+
+  async updateStatus(
+    id: string,
+    statusUpdate: OrderStatusUpdateDto,
+    updatedBy: string
+  ): Promise<Order> {
+    this.logger.log('OrderService.updateStatus', { id, statusUpdate, updatedBy });
+
+    const order = await this.findById(id);
+
+    // Check permissions
+    await this.checkOrderAccess(order, updatedBy);
+
+    // Validate status transition
+    OrderValidators.validateStatusTransition(order.status, statusUpdate.status);
+
+    // Apply business rules for status changes
+    await this.validateStatusChange(order, statusUpdate.status);
+
+    // Update status with side effects
+    const updatedOrder = await this.executeStatusChange(order, statusUpdate, updatedBy);
+
+    this.logger.log('Order status updated successfully', {
+      orderId: id,
+      from: order.status,
+      to: statusUpdate.status,
+    });
+
+    return updatedOrder;
+  }
+
+  async confirm(id: string, confirmedBy: string): Promise<Order> {
+    return this.updateStatus(id, { status: OrderStatus.CONFIRMED }, confirmedBy);
+  }
+
+  async ship(id: string, shippedBy: string, trackingNumber?: string): Promise<Order> {
+    const order = await this.findById(id);
     
-    // For now, returning a placeholder structure
-    return {
-      variantId: itemDto.variantId,
-      sellerId: itemDto.sellerId,
-      quantity: itemDto.quantity,
-      unitPrice: 0, // Would be fetched from pricing service
-      totalPrice: 0, // quantity * unitPrice
-      productSnapshot: {
-        id: '',
-        name: '',
-        description: '',
-        slug: '',
-        categoryId: '',
-        brandId: '',
-      },
-      variantSnapshot: {
-        id: itemDto.variantId,
-        sku: '',
-        attributeValues: {},
-      },
-      commissionSnapshot: {
-        baseAmount: 0,
-        commissionAmount: 0,
-        commissionRate: 0,
-        netAmount: 0,
-      },
-    };
+    // Use fulfillment service for shipping logic
+    return this.orderFulfillmentService.shipOrder(order, shippedBy, trackingNumber);
   }
 
-  private async generateOrderNumber(): Promise<string> {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `ORD-${timestamp}-${random}`;
+  async deliver(id: string, deliveredBy: string): Promise<Order> {
+    return this.updateStatus(id, { status: OrderStatus.DELIVERED }, deliveredBy);
   }
 
-  private calculateShippingCost(items: OrderItem[]): number {
-    // Simplified shipping calculation
-    // In reality, this would consider weight, dimensions, location, etc.
-    return items.length * 50; // ₹50 per item
+  // ============================================================================
+  // ORDER CANCELLATION
+  // ============================================================================
+
+  async cancel(
+    id: string,
+    cancelDto: CancelOrderDto,
+    cancelledBy: string
+  ): Promise<Order> {
+    this.logger.log('OrderService.cancel', { id, cancelDto, cancelledBy });
+
+    const order = await this.findById(id);
+
+    // Check permissions
+    await this.checkOrderAccess(order, cancelledBy);
+
+    // Validate cancellation rules
+    await this.validateOrderCancellation(order);
+
+    return this.prisma.$transaction(async (tx) => {
+      // Update order status
+      const cancelledOrder = await this.orderRepository.updateStatus(
+        id,
+        OrderStatus.CANCELLED,
+        cancelledBy,
+        tx
+      );
+
+      // Cancel all order items
+      for (const item of order.items || []) {
+        await this.cancelOrderItem(item, cancelDto.reason, cancelledBy, tx);
+      }
+
+      // Release all inventory reservations
+      await this.releaseOrderReservations(order, 'Order cancelled', tx);
+
+      // Create audit log
+      await this.orderAuditService.logAction(
+        id,
+        'CANCEL',
+        cancelledBy,
+        order,
+        cancelledOrder,
+        cancelDto.reason || 'Order cancelled',
+        tx
+      );
+
+      // Emit event
+      this.eventEmitter.emit('order.cancelled', new OrderCancelledEvent(
+        id,
+        order.orderNumber,
+        order.customerId,
+        cancelDto.reason || 'Order cancelled',
+        cancelledBy
+      ));
+
+      this.logger.log('Order cancelled successfully', { orderId: id });
+      return cancelledOrder;
+    });
   }
 
-  private calculateTax(subtotal: number, shippingCost: number): number {
-    // Simplified tax calculation (18% GST)
-    return (subtotal + shippingCost) * 0.18;
+  // ============================================================================
+  // ORDER REFUNDS
+  // ============================================================================
+
+  async refund(
+    id: string,
+    refundDto: RefundOrderDto,
+    refundedBy: string
+  ) {
+    this.logger.log('OrderService.refund', { id, refundDto, refundedBy });
+
+    const order = await this.findById(id);
+
+    // Check permissions
+    await this.checkOrderAccess(order, refundedBy);
+
+    // Use refund service for complex refund logic
+    return this.orderRefundService.processRefund(order, refundDto, refundedBy);
+  }
+
+  // ============================================================================
+  // ORDER EXPIRY HANDLING
+  // ============================================================================
+
+  async handleExpiredOrders(): Promise<{ processed: number; errors: string[] }> {
+    this.logger.log('OrderService.handleExpiredOrders');
+
+    const results = { processed: 0, errors: [] as string[] };
+
+    try {
+      // Find expired orders
+      const expiredOrders = await this.orderRepository.findExpiredOrders();
+
+      this.logger.log('Found expired orders', { count: expiredOrders.length });
+
+      // Process each expired order
+      for (const order of expiredOrders) {
+        try {
+          await this.expireOrder(order);
+          results.processed++;
+        } catch (error) {
+          results.errors.push(`Order ${order.id}: ${error.message}`);
+        }
+      }
+
+      this.logger.log('Expired orders processing completed', results);
+      return results;
+
+    } catch (error) {
+      this.logger.error('Failed to process expired orders', error);
+      results.errors.push(error.message);
+      return results;
+    }
+  }
+
+  private async expireOrder(order: Order): Promise<void> {
+    this.logger.log('OrderService.expireOrder', { orderId: order.id });
+
+    return this.prisma.$transaction(async (tx) => {
+      // Cancel the order
+      await this.orderRepository.updateStatus(
+        order.id,
+        OrderStatus.CANCELLED,
+        'SYSTEM',
+        tx
+      );
+
+      // Release inventory reservations
+      await this.releaseOrderReservations(order, 'Order expired', tx);
+
+      // Create audit log
+      await this.orderAuditService.logAction(
+        order.id,
+        'EXPIRE',
+        'SYSTEM',
+        order,
+        { ...order, status: OrderStatus.CANCELLED },
+        'Order expired',
+        tx
+      );
+
+      // Emit event
+      this.eventEmitter.emit('order.expired', new OrderExpiredEvent(
+        order.id,
+        order.orderNumber,
+        order.customerId,
+        order.expiresAt!
+      ));
+    });
+  }
+
+  // ============================================================================
+  // MULTI-SELLER ORDER SPLITTING
+  // ============================================================================
+
+  async splitMultiSellerOrder(order: Order): Promise<Order[]> {
+    this.logger.log('OrderService.splitMultiSellerOrder', { orderId: order.id });
+
+    if (!order.isMultiSeller()) {
+      throw new BadRequestException('Order does not require splitting');
+    }
+
+    const sellers = order.getSellers();
+    const childOrders: Order[] = [];
+
+    return this.prisma.$transaction(async (tx) => {
+      // Mark parent order as split
+      await this.orderRepository.update(order.id, { isSplit: true }, tx);
+
+      // Create child orders for each seller
+      for (const sellerId of sellers) {
+        const sellerItems = order.getItemsBySeller(sellerId);
+        const sellerSubtotal = order.getSubtotalBySeller(sellerId);
+
+        // Calculate proportional amounts
+        const proportion = sellerSubtotal / order.subtotal;
+        const sellerTax = Math.round(order.taxAmount * proportion * 100) / 100;
+        const sellerShipping = Math.round(order.shippingAmount * proportion * 100) / 100;
+        const sellerDiscount = Math.round(order.discountAmount * proportion * 100) / 100;
+        const sellerTotal = sellerSubtotal + sellerTax + sellerShipping - sellerDiscount;
+
+        const childOrderData = {
+          ...order,
+          id: undefined, // Generate new ID
+          orderNumber: `${order.orderNumber}-${sellerId.slice(-4)}`,
+          parentOrderId: order.id,
+          isSplit: false,
+          subtotal: sellerSubtotal,
+          taxAmount: sellerTax,
+          shippingAmount: sellerShipping,
+          discountAmount: sellerDiscount,
+          totalAmount: sellerTotal,
+          items: sellerItems,
+        };
+
+        const childOrder = await this.orderRepository.create(childOrderData, tx);
+        childOrders.push(childOrder);
+      }
+
+      this.logger.log('Multi-seller order split successfully', {
+        parentOrderId: order.id,
+        childOrderCount: childOrders.length,
+      });
+
+      return childOrders;
+    });
+  }
+
+  // ============================================================================
+  // PRIVATE HELPER METHODS
+  // ============================================================================
+
+  private async applyAccessFilters(
+    filters: OrderFilters,
+    userId?: string,
+    userRole?: UserRole
+  ): Promise<OrderFilters> {
+    // Apply role-based filtering
+    if (userRole === UserRole.CUSTOMER) {
+      return { ...filters, customerId: userId };
+    }
+
+    if (userRole === UserRole.SELLER) {
+      return { ...filters, sellerId: userId };
+    }
+
+    return filters;
+  }
+
+  private async checkOrderAccess(
+    order: Order,
+    userId?: string,
+    userRole?: UserRole
+  ): Promise<void> {
+    if (!OrderPolicies.canAccess(order, userId, userRole)) {
+      throw new ForbiddenException('Access denied to this order');
+    }
+  }
+
+  private async validateOrderCreationPermissions(
+    createOrderDto: CreateOrderDto,
+    createdBy: string
+  ): Promise<void> {
+    // Validate user can create orders for this customer
+    if (createOrderDto.customerId !== createdBy) {
+      // Additional permission checks for admin/seller creating orders
+    }
+  }
+
+  private async validateOrderUpdate(
+    existingOrder: Order,
+    updateDto: UpdateOrderDto
+  ): Promise<void> {
+    // Validate business rules for updates
+    if (existingOrder.isTerminal()) {
+      throw new BadRequestException('Cannot update terminal order');
+    }
+  }
+
+  private async validateStatusChange(
+    order: Order,
+    newStatus: OrderStatus
+  ): Promise<void> {
+    // Additional business rule validations for status changes
+    if (newStatus === OrderStatus.CONFIRMED && !order.isFullyPaid()) {
+      throw new BadRequestException('Cannot confirm order without payment');
+    }
+  }
+
+  private async executeStatusChange(
+    order: Order,
+    statusUpdate: OrderStatusUpdateDto,
+    updatedBy: string
+  ): Promise<Order> {
+    return this.prisma.$transaction(async (tx) => {
+      // Update order status
+      const updatedOrder = await this.orderRepository.updateStatus(
+        order.id,
+        statusUpdate.status,
+        updatedBy,
+        tx
+      );
+
+      // Execute side effects based on status
+      await this.executeStatusSideEffects(order, statusUpdate.status, updatedBy, tx);
+
+      // Create audit log
+      await this.orderAuditService.logAction(
+        order.id,
+        'STATUS_CHANGE',
+        updatedBy,
+        { status: order.status },
+        { status: statusUpdate.status },
+        statusUpdate.reason || 'Status changed',
+        tx
+      );
+
+      // Emit status-specific events
+      this.emitStatusChangeEvent(updatedOrder, order.status, updatedBy);
+
+      return updatedOrder;
+    });
+  }
+
+  private async executeStatusSideEffects(
+    order: Order,
+    newStatus: OrderStatus,
+    updatedBy: string,
+    tx: any
+  ): Promise<void> {
+    switch (newStatus) {
+      case OrderStatus.CONFIRMED:
+        // Commit inventory reservations
+        await this.commitOrderReservations(order, tx);
+        break;
+
+      case OrderStatus.CANCELLED:
+        // Release inventory reservations
+        await this.releaseOrderReservations(order, 'Order cancelled', tx);
+        break;
+
+      case OrderStatus.SHIPPED:
+        // Update shipping timestamp
+        await this.orderRepository.updateShippingInfo(order.id, {
+          shippedAt: new Date(),
+        }, tx);
+        break;
+
+      case OrderStatus.DELIVERED:
+        // Update delivery timestamp
+        await this.orderRepository.updateDeliveryInfo(order.id, {
+          deliveredAt: new Date(),
+        }, tx);
+        break;
+    }
+  }
+
+  private async commitOrderReservations(order: Order, tx: any): Promise<void> {
+    for (const item of order.items || []) {
+      if (item.reservationKey) {
+        // SAFETY: Validate reservation can only be committed once
+        const reservation = await this.inventoryReservationService.getReservation(item.reservationKey);
+        if (reservation) {
+          InventoryValidators.validateReservationCommitIdempotency(reservation);
+        }
+
+        await this.inventoryReservationService.commitReservation(
+          item.reservationKey,
+          'SYSTEM',
+          `Order ${order.orderNumber} confirmed`
+        );
+      }
+    }
+  }
+
+  private async releaseOrderReservations(
+    order: Order,
+    reason: string,
+    tx: any
+  ): Promise<void> {
+    for (const item of order.items || []) {
+      if (item.reservationKey) {
+        await this.inventoryReservationService.releaseReservation(
+          item.reservationKey,
+          'SYSTEM',
+          reason
+        );
+      }
+    }
+  }
+
+  private async cancelOrderItem(
+    item: OrderItem,
+    reason: string,
+    cancelledBy: string,
+    tx: any
+  ): Promise<void> {
+    await this.orderRepository.updateItemStatus(
+      item.id,
+      OrderItemStatus.CANCELLED,
+      cancelledBy,
+      tx
+    );
+  }
+
+  private async validateOrderCancellation(order: Order): Promise<void> {
+    if (!order.canBeCancelled()) {
+      throw new BadRequestException(`Cannot cancel order in ${order.status} status`);
+    }
+  }
+
+  private calculateChanges(
+    oldOrder: Order,
+    newOrder: Order
+  ): Record<string, { from: any; to: any }> {
+    const changes: Record<string, { from: any; to: any }> = {};
+
+    // Compare relevant fields
+    const fieldsToCompare = ['status', 'shippingAddress', 'billingAddress', 'notes'];
+
+    for (const field of fieldsToCompare) {
+      const oldValue = (oldOrder as any)[field];
+      const newValue = (newOrder as any)[field];
+
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        changes[field] = { from: oldValue, to: newValue };
+      }
+    }
+
+    return changes;
+  }
+
+  private emitStatusChangeEvent(
+    order: Order,
+    oldStatus: OrderStatus,
+    updatedBy: string
+  ): void {
+    // Emit generic status change event
+    this.eventEmitter.emit('order.status.changed', new OrderStatusChangedEvent(
+      order.id,
+      order.orderNumber,
+      order.customerId,
+      oldStatus,
+      order.status,
+      updatedBy
+    ));
+
+    // Emit specific status events
+    switch (order.status) {
+      case OrderStatus.CONFIRMED:
+        this.eventEmitter.emit('order.confirmed', new OrderConfirmedEvent(
+          order.id,
+          order.orderNumber,
+          order.customerId,
+          order.totalAmount,
+          updatedBy
+        ));
+        break;
+
+      case OrderStatus.SHIPPED:
+        this.eventEmitter.emit('order.shipped', new OrderShippedEvent(
+          order.id,
+          order.orderNumber,
+          order.customerId,
+          order.trackingNumber,
+          updatedBy
+        ));
+        break;
+
+      case OrderStatus.DELIVERED:
+        this.eventEmitter.emit('order.delivered', new OrderDeliveredEvent(
+          order.id,
+          order.orderNumber,
+          order.customerId,
+          order.deliveredAt!,
+          updatedBy
+        ));
+        break;
+    }
   }
 }

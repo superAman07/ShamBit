@@ -1,0 +1,466 @@
+// ================================
+// PAYMENT SYSTEM SCHEMA
+// ================================
+
+model PaymentIntent {
+  id          String   @id @default(cuid())
+  
+  // Order Association
+  orderId     String
+  
+  // Payment Intent Details
+  intentId    String   @unique // External gateway intent ID
+  clientSecret String? // For client-side confirmation
+  
+  // Amount & Currency (Immutable)
+  amount      Int      // Amount in cents (e.g., $10.50 = 1050)
+  currency    String   @default("USD")
+  
+  // Gateway Information
+  gatewayProvider String // STRIPE, RAZORPAY, PAYPAL, etc.
+  gatewayIntentId String // Gateway-specific intent ID
+  
+  // Status & Lifecycle
+  status      String   @default("CREATED") // CREATED, REQUIRES_PAYMENT_METHOD, REQUIRES_CONFIRMATION, REQUIRES_ACTION, PROCESSING, SUCCEEDED, CANCELED
+  
+  // Payment Methods
+  allowedPaymentMethods String[] @default([]) // CARD, BANK_TRANSFER, WALLET, etc.
+  
+  // Confirmation Details
+  confirmationMethod String @default("AUTOMATIC") // AUTOMATIC, MANUAL
+  captureMethod     String @default("AUTOMATIC") // AUTOMATIC, MANUAL
+  
+  // Multi-seller Support
+  transferGroup     String? // For marketplace transfers
+  applicationFee    Int?    // Platform fee in cents
+  
+  // Metadata & Configuration
+  metadata    Json     @default("{}")
+  description String?
+  
+  // Expiry & Timeouts
+  expiresAt   DateTime?
+  
+  // Versioning for optimistic locking
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transactions  PaymentTransaction[]
+  attempts      PaymentAttempt[]
+  webhooks      PaymentWebhook[]
+  auditLogs     PaymentAuditLog[]
+  
+  // Indexes
+  @@index([orderId])
+  @@index([status])
+  @@index([gatewayProvider])
+  @@index([gatewayIntentId])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([orderId, status])
+  
+  @@map("payment_intents")
+}
+
+model PaymentTransaction {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Transaction Details
+  transactionId   String   @unique // Our internal transaction ID
+  gatewayTransactionId String? // Gateway's transaction ID
+  
+  // Amount & Currency
+  amount      Int      // Amount in cents
+  currency    String
+  
+  // Transaction Type & Status
+  type        String   // PAYMENT, REFUND, PARTIAL_REFUND, CHARGEBACK
+  status      String   @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELED, DISPUTED
+  
+  // Payment Method Details (Snapshot)
+  paymentMethod Json   // Complete payment method details at transaction time
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  gatewayFees     Int  @default(0) // Gateway fees in cents
+  
+  // Failure Information
+  failureCode    String?
+  failureMessage String?
+  
+  // Processing Details
+  processedAt    DateTime?
+  settledAt      DateTime?
+  
+  // Reconciliation
+  reconciled     Boolean  @default(false)
+  reconciledAt   DateTime?
+  
+  // Metadata
+  metadata       Json     @default("{}")
+  
+  // System Fields
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent      @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  refunds       PaymentRefund[]
+  disputes      PaymentDispute[]
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([status])
+  @@index([type])
+  @@index([gatewayTransactionId])
+  @@index([processedAt])
+  @@index([reconciled])
+  @@index([createdAt])
+  
+  @@map("payment_transactions")
+}
+
+model PaymentAttempt {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Attempt Details
+  attemptNumber   Int
+  idempotencyKey  String   @unique // For retry safety
+  
+  // Gateway Information
+  gatewayProvider String
+  gatewayAttemptId String?
+  
+  // Status & Result
+  status      String   @default("INITIATED") // INITIATED, PROCESSING, SUCCEEDED, FAILED, ABANDONED
+  
+  // Failure Information
+  errorCode   String?
+  errorMessage String?
+  errorType   String? // CARD_ERROR, RATE_LIMIT_ERROR, INVALID_REQUEST_ERROR, etc.
+  
+  // Retry Information
+  isRetry     Boolean  @default(false)
+  retryAfter  DateTime?
+  
+  // Processing Times
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([status])
+  @@index([attemptNumber])
+  @@index([idempotencyKey])
+  @@index([retryAfter])
+  @@index([createdAt])
+  
+  @@map("payment_attempts")
+}
+
+model PaymentWebhook {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association (Optional - some webhooks are global)
+  paymentIntentId String?
+  
+  // Webhook Details
+  webhookId   String   @unique // External webhook ID
+  eventType   String   // payment_intent.succeeded, payment_intent.payment_failed, etc.
+  
+  // Gateway Information
+  gatewayProvider String
+  
+  // Processing Status
+  status      String   @default("RECEIVED") // RECEIVED, PROCESSING, PROCESSED, FAILED, IGNORED
+  
+  // Signature Verification
+  signature   String?
+  verified    Boolean  @default(false)
+  
+  // Payload & Response
+  payload     Json     // Raw webhook payload
+  headers     Json     @default("{}")
+  
+  // Processing Details
+  processedAt DateTime?
+  errorMessage String?
+  
+  // Idempotency
+  processed   Boolean  @default(false)
+  
+  // System Fields
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([webhookId])
+  @@index([eventType])
+  @@index([status])
+  @@index([processed])
+  @@index([receivedAt])
+  
+  @@map("payment_webhooks")
+}
+
+model PaymentRefund {
+  id          String   @id @default(cuid())
+  
+  // Transaction Association
+  transactionId String
+  
+  // Refund Details
+  refundId    String   @unique // Our internal refund ID
+  gatewayRefundId String? // Gateway's refund ID
+  
+  // Amount & Currency
+  amount      Int      // Refund amount in cents
+  currency    String
+  
+  // Refund Information
+  reason      String   // DUPLICATE, FRAUDULENT, REQUESTED_BY_CUSTOMER, etc.
+  description String?
+  
+  // Status & Processing
+  status      String   @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELED
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  
+  // Processing Details
+  processedAt DateTime?
+  settledAt   DateTime?
+  
+  // Failure Information
+  failureCode    String?
+  failureMessage String?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([transactionId])
+  @@index([status])
+  @@index([gatewayRefundId])
+  @@index([processedAt])
+  @@index([createdAt])
+  
+  @@map("payment_refunds")
+}
+
+model PaymentDispute {
+  id          String   @id @default(cuid())
+  
+  // Transaction Association
+  transactionId String
+  
+  // Dispute Details
+  disputeId   String   @unique // Gateway's dispute ID
+  
+  // Dispute Information
+  reason      String   // FRAUDULENT, UNRECOGNIZED, DUPLICATE, etc.
+  status      String   // WARNING_NEEDS_RESPONSE, WARNING_UNDER_REVIEW, WARNING_CLOSED, etc.
+  
+  // Amount & Currency
+  amount      Int      // Disputed amount in cents
+  currency    String
+  
+  // Evidence & Response
+  evidence    Json     @default("{}")
+  response    Json     @default("{}")
+  
+  // Important Dates
+  evidenceDueBy DateTime?
+  respondedAt   DateTime?
+  
+  // Gateway Information
+  gatewayResponse Json @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([transactionId])
+  @@index([status])
+  @@index([disputeId])
+  @@index([evidenceDueBy])
+  @@index([createdAt])
+  
+  @@map("payment_disputes")
+}
+
+model PaymentAuditLog {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, CONFIRM, CANCEL, REFUND, etc.
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([paymentIntentId, createdAt])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  
+  @@map("payment_audit_logs")
+}
+
+// Gateway Configuration
+model PaymentGateway {
+  id          String   @id @default(cuid())
+  
+  // Gateway Details
+  provider    String   @unique // STRIPE, RAZORPAY, PAYPAL, etc.
+  name        String
+  
+  // Configuration
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  
+  // Supported Features
+  supportedMethods    String[] @default([]) // CARD, BANK_TRANSFER, WALLET, etc.
+  supportedCurrencies String[] @default([])
+  supportedCountries  String[] @default([])
+  
+  // API Configuration (Encrypted)
+  apiConfig   Json     @default("{}")
+  
+  // Webhook Configuration
+  webhookUrl  String?
+  webhookSecret String?
+  
+  // Fee Structure
+  feeStructure Json    @default("{}")
+  
+  // Limits & Constraints
+  minAmount   Int?     // Minimum amount in cents
+  maxAmount   Int?     // Maximum amount in cents
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([provider])
+  @@index([isActive])
+  @@index([isDefault])
+  
+  @@map("payment_gateways")
+}
+
+// Payment Processing Jobs
+model PaymentJob {
+  id          String   @id @default(cuid())
+  
+  // Job Details
+  type        String   // PROCESS_PAYMENT, RETRY_PAYMENT, WEBHOOK_PROCESSING, RECONCILIATION
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Associated Entities
+  paymentIntentId String?
+  orderId         String?
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  order         Order?         @relation(fields: [orderId], references: [id])
+  user          User           @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([paymentIntentId])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("payment_jobs")
+}

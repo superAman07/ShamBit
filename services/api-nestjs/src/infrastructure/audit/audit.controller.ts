@@ -16,7 +16,8 @@ import { AuditService } from './audit.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators';
-import { UserRole, PaginationQuery } from '../../common/types';
+import { UserRole } from '../../common/types';
+import type { PaginationQuery } from '../../common/types';
 
 @ApiTags('Audit & Compliance')
 @Controller('audit')

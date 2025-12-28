@@ -9,6 +9,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   // isn't available to the language server.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   declare sagaInstance: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  declare configuration: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  declare userRole: any;
   // Declare runtime Prisma model properties that the generated client exposes
   // These are declared as `any` to avoid tight coupling to generated client types
   // and to make them available to the rest of the application for typing.
