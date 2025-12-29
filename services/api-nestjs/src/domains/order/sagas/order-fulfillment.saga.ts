@@ -2,32 +2,37 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SagaStep, SagaContext, SagaStepResult } from '../../../infrastructure/saga/saga.types';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { DomainEventService } from '../../../infrastructure/domain/domain-event.service';
+import { InventoryReservation, Payment } from '@prisma/client';
 
 @Injectable()
 export class ReserveInventoryStep implements SagaStep {
   stepId = 'reserve-inventory';
   stepName = 'Reserve Inventory';
-  
+
   private readonly logger = new Logger(ReserveInventoryStep.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainEventService: DomainEventService,
-  ) {}
+  ) { }
 
   async execute(context: SagaContext): Promise<SagaStepResult> {
     try {
       const { orderId, items } = context.data;
-      const reservations = [];
+      const reservations: InventoryReservation[] = [];
 
       for (const item of items) {
         const reservation = await this.prisma.inventoryReservation.create({
           data: {
-            variantId: item.variantId,
+            inventory: { connect: { variantId: item.variantId } },
             quantity: item.quantity,
-            orderId,
-            tenantId: context.tenantId,
+            order: { connect: { id: orderId } },
+            referenceType: 'ORDER',
+            referenceId: orderId,
+            reservationKey: `order_${orderId}_variant_${item.variantId}`,
+            user: { connect: { id: context.userId } },
             expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+            metadata: { tenantId: context.tenantId },
           },
         });
         reservations.push(reservation);
@@ -95,13 +100,13 @@ export class ReserveInventoryStep implements SagaStep {
 export class ProcessPaymentStep implements SagaStep {
   stepId = 'process-payment';
   stepName = 'Process Payment';
-  
+
   private readonly logger = new Logger(ProcessPaymentStep.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainEventService: DomainEventService,
-  ) {}
+  ) { }
 
   async execute(context: SagaContext): Promise<SagaStepResult> {
     try {
@@ -113,10 +118,9 @@ export class ProcessPaymentStep implements SagaStep {
           orderId,
           amount: paymentDetails.amount,
           currency: paymentDetails.currency,
-          method: paymentDetails.method,
+          paymentMethod: paymentDetails.method,
           status: 'COMPLETED',
-          tenantId: context.tenantId,
-          transactionId: `txn_${Date.now()}`,
+          paymentIntentId: `txn_${Date.now()}`,
         },
       });
 
@@ -181,13 +185,13 @@ export class ProcessPaymentStep implements SagaStep {
 export class ConfirmOrderStep implements SagaStep {
   stepId = 'confirm-order';
   stepName = 'Confirm Order';
-  
+
   private readonly logger = new Logger(ConfirmOrderStep.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly domainEventService: DomainEventService,
-  ) {}
+  ) { }
 
   async execute(context: SagaContext): Promise<SagaStepResult> {
     try {
@@ -228,7 +232,7 @@ export class ConfirmOrderStep implements SagaStep {
   async compensate(context: SagaContext): Promise<void> {
     try {
       const { orderId } = context.data;
-      
+
       await this.prisma.order.update({
         where: { id: orderId },
         data: { status: 'CANCELLED' },

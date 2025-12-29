@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { CareerController } from './career.controller';
-import { JobService } from './job.service';
-import { JobRepository } from './job.repository';
-import { ApplicationService } from './application.service';
-import { ApplicationRepository } from './application.repository';
+import { JobService } from './services/job.service';
+import { JobRepository } from './repositories/job.repository';
+import { ApplicationService } from './services/application.service';
+import { ApplicationRepository } from './repositories/application.repository';
 import { MediaModule } from '../media/media.module';
 
 @Module({
@@ -17,4 +17,4 @@ import { MediaModule } from '../media/media.module';
   ],
   exports: [JobService, ApplicationService],
 })
-export class CareerModule {}
+export class CareerModule { }

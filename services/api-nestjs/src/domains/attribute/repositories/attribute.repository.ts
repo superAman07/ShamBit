@@ -7,7 +7,8 @@ import {
   AttributeIncludeOptions,
   AttributeStatistics,
   AttributeUsageStats,
-  BulkUpdateData
+  BulkUpdateData,
+  AttributeUpdateData
 } from '../interfaces/attribute-repository.interface';
 import { Attribute } from '../entities/attribute.entity';
 import { AttributeStatus } from '../enums/attribute-status.enum';
@@ -83,7 +84,7 @@ export class AttributeRepository implements IAttributeRepository {
         slug: data.slug!,
         description: data.description,
         dataType: data.dataType!,
-        validation: this.convertValidationToPrisma(data.validation),
+        // validation: this.convertValidationToPrisma(data.validation), // Field doesn't exist in schema
         isRequired: data.isRequired || false,
         isVariant: data.isVariant || false,
         isFilterable: data.isFilterable !== false, // Default to true
@@ -119,13 +120,12 @@ export class AttributeRepository implements IAttributeRepository {
     return this.mapToEntity(attribute);
   }
 
-  async update(id: string, data: Partial<Attribute>): Promise<Attribute> {
+  async update(id: string, data: AttributeUpdateData): Promise<Attribute> {
     const attribute = await this.prisma.attribute.update({
       where: { id },
       data: {
         name: data.name,
         description: data.description,
-        validation: this.convertValidationToPrisma(data.validation),
         isRequired: data.isRequired,
         isVariant: data.isVariant,
         isFilterable: data.isFilterable,
@@ -140,24 +140,6 @@ export class AttributeRepository implements IAttributeRepository {
         isLocalizable: data.isLocalizable,
         status: data.status,
         updatedBy: data.updatedBy,
-        localizations: data.localizations ? {
-          upsert: data.localizations.map(loc => ({
-            where: { attributeId_locale: { attributeId: id, locale: loc.locale } },
-            update: {
-              name: loc.name,
-              description: loc.description,
-              helpText: loc.helpText,
-              placeholder: loc.placeholder,
-            },
-            create: {
-              locale: loc.locale,
-              name: loc.name,
-              description: loc.description,
-              helpText: loc.helpText,
-              placeholder: loc.placeholder,
-            }
-          }))
-        } : undefined,
       },
       include: {
         attributeOptions: true,
@@ -607,7 +589,7 @@ export class AttributeRepository implements IAttributeRepository {
     attribute.slug = prismaData.slug;
     attribute.description = prismaData.description;
     attribute.dataType = prismaData.dataType;
-    attribute.validation = this.convertValidationFromPrisma(prismaData.validation);
+    attribute.validation = undefined; // Field doesn't exist in schema, set to undefined
     attribute.isRequired = prismaData.isRequired;
     attribute.isVariant = prismaData.isVariant;
     attribute.isFilterable = prismaData.isFilterable;

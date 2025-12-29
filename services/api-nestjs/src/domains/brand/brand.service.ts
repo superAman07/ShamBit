@@ -11,7 +11,8 @@ import { BrandRepository, BrandFilters, PaginationOptions } from './repositories
 import { BrandAuditService } from './services/brand-audit.service';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
 import { Brand } from './entities/brand.entity';
-import { BrandStatus } from './enums/brand-status.enum';
+import { BrandStatus, BrandStatusTransitions } from './enums/brand-status.enum';
+import { BrandScope } from './enums/brand-scope.enum';
 import { CreateBrandDto } from './dtos/create-brand.dto';
 import { UpdateBrandDto, BrandStatusUpdateDto } from './dtos/update-brand.dto';
 
@@ -22,14 +23,14 @@ export class BrandService {
     private readonly brandAuditService: BrandAuditService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   async findAll(
     filters: BrandFilters = {},
     pagination: PaginationOptions = {}
   ) {
     this.logger.log('BrandService.findAll', { filters, pagination });
-    
+
     return this.brandRepository.findAll(filters, pagination);
   }
 
@@ -62,7 +63,7 @@ export class BrandService {
     await this.validateCategoryAssignments(createBrandDto.categoryIds);
 
     // Validate seller ownership if not global
-    if (!createBrandDto.isGlobal && createBrandDto.sellerId) {
+    if (createBrandDto.scope !== BrandScope.GLOBAL && createBrandDto.sellerId) {
       await this.validateSellerExists(createBrandDto.sellerId);
     }
 
@@ -283,14 +284,7 @@ export class BrandService {
     currentStatus: BrandStatus,
     newStatus: BrandStatus
   ): void {
-    const validTransitions: Record<BrandStatus, BrandStatus[]> = {
-      [BrandStatus.ACTIVE]: [BrandStatus.INACTIVE, BrandStatus.SUSPENDED],
-      [BrandStatus.INACTIVE]: [BrandStatus.ACTIVE],
-      [BrandStatus.SUSPENDED]: [BrandStatus.ACTIVE, BrandStatus.INACTIVE],
-      [BrandStatus.PENDING_APPROVAL]: [BrandStatus.ACTIVE, BrandStatus.REJECTED],
-    };
-
-    if (!validTransitions[currentStatus]?.includes(newStatus)) {
+    if (!BrandStatusTransitions[currentStatus]?.includes(newStatus)) {
       throw new BadRequestException(
         `Invalid status transition from ${currentStatus} to ${newStatus}`
       );

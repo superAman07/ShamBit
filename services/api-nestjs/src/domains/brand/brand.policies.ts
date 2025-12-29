@@ -31,7 +31,7 @@ export class BrandPolicies {
     }
 
     // Owner can always view their brand
-    if (brand.ownerId === userId) {
+    if (brand.sellerId === userId) {
       return true;
     }
 
@@ -62,7 +62,7 @@ export class BrandPolicies {
     }
 
     // Owner can always use their brand
-    if (brand.ownerId === userId) {
+    if (brand.sellerId === userId) {
       return true;
     }
 
@@ -81,7 +81,7 @@ export class BrandPolicies {
     }
 
     // Only owner can modify their brand
-    if (brand.ownerId === userId) {
+    if (brand.sellerId === userId) {
       return true;
     }
 
@@ -126,7 +126,7 @@ export class BrandPolicies {
     }
 
     // Brand owner can grant access to their shared brands
-    if (brand.ownerId === granterId && brand.scope === BrandScope.SELLER_SHARED) {
+    if (brand.sellerId === granterId && brand.scope === BrandScope.SELLER_SHARED) {
       return true;
     }
 

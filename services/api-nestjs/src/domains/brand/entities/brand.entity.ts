@@ -30,7 +30,7 @@ export class Brand {
   isVerified: boolean;
 
   // Ownership
-  ownerId?: string;
+  sellerId?: string;
 
   // Metadata
   metadata?: BrandMetadata;
@@ -63,11 +63,11 @@ export class Brand {
 
   canBeUsedBy(sellerId?: string): boolean {
     if (!this.isActive()) return false;
-    return this.isGlobal || this.ownerId === sellerId;
+    return this.isGlobal || this.sellerId === sellerId;
   }
 
   isOwnedBy(userId: string): boolean {
-    return this.ownerId === userId;
+    return this.sellerId === userId;
   }
 
   activate(): void {

@@ -13,11 +13,32 @@ export class PromotionRepository {
   }): Promise<PromotionRule> {
     const promotion = await this.prisma.promotion.create({
       data: {
-        ...data,
+        name: data.name,
+        description: data.description,
+        code: data.code,
+        type: data.type,
+        scope: data.scope,
+        status: data.status,
+        discountValue: data.discountValue,
+        maxDiscountAmount: data.maxDiscountAmount,
+        minOrderAmount: data.minOrderAmount,
+        usageLimit: data.usageLimit,
+        usageLimitPerUser: data.usageLimitPerUser,
+        currentUsage: data.currentUsage,
+        validFrom: data.validFrom,
+        validTo: data.validTo,
         applicableCategories: data.applicableCategories || [],
         applicableProducts: data.applicableProducts || [],
         applicableSellers: data.applicableSellers || [],
         applicableUsers: data.applicableUsers || [],
+        buyQuantity: data.buyQuantity,
+        getQuantity: data.getQuantity,
+        getDiscountPercentage: data.getDiscountPercentage,
+        bundleProducts: data.bundleProducts || [],
+        bundleMinQuantity: data.bundleMinQuantity,
+        priority: data.priority || 0,
+        isStackable: data.isStackable || false,
+        createdBy: data.createdBy,
       },
     });
 
@@ -37,7 +58,7 @@ export class PromotionRepository {
   }
 
   async findByCode(code: string): Promise<PromotionRule | null> {
-    const promotion = await this.prisma.promotion.findUnique({
+    const promotion = await this.prisma.promotion.findFirst({
       where: { code },
     });
 

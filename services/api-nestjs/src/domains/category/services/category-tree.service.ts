@@ -28,7 +28,7 @@ export class CategoryTreeService {
   constructor(
     private readonly categoryRepository: CategoryRepository,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   async getCategoryTree(
     rootId?: string,
@@ -39,7 +39,7 @@ export class CategoryTreeService {
     this.logger.log('CategoryTreeService.getCategoryTree', { rootId, maxDepth, activeOnly });
 
     const filters: any = {};
-    
+
     if (activeOnly) {
       filters.status = CategoryStatus.ACTIVE;
     }
@@ -66,10 +66,10 @@ export class CategoryTreeService {
     rootId?: string,
     options: TreeTraversalOptions = {}
   ): Promise<CategoryTreeNode[]> {
-    this.logger.log('CategoryTreeService.buildNestedTree', { 
-      categoryCount: categories.length, 
-      rootId, 
-      options 
+    this.logger.log('CategoryTreeService.buildNestedTree', {
+      categoryCount: categories.length,
+      rootId,
+      options
     });
 
     // Create a map for quick lookup
@@ -130,13 +130,22 @@ export class CategoryTreeService {
       filters.status = CategoryStatus.ACTIVE;
     }
 
-    const result = await this.categoryRepository.findChildren(parentId, filters, { limit: 1000 });
-    
+    // Pass parentId explicitly. Use 'null' as string if repo expects optional string or handle null.
+    // Assuming repo.findChildren expects string | null or optional string.
+    // If repo expects string | undefined, convert null to undefined.
+    const parentIdArg = parentId === null ? undefined : parentId;
+    const result = await this.categoryRepository.findChildren(parentIdArg, filters, { limit: 1000 });
+
     // The productCount is already included in the category entity
-    return result.data.map(category => ({
-      ...category,
-      directProductCount: category.productCount,
-    }));
+    return result.data.map(categoryData => {
+      // Create a full Category entity to ensure methods exist
+      const category = new Category(categoryData);
+
+      // Return intersection type
+      return Object.assign(category, {
+        directProductCount: category.productCount,
+      });
+    });
   }
 
   async findCategoryPath(categoryId: string): Promise<string[]> {
@@ -160,7 +169,7 @@ export class CategoryTreeService {
 
     try {
       // Get all categories to validate
-      const categories = rootId 
+      const categories = rootId
         ? await this.categoryRepository.findSubtree(rootId)
         : (await this.categoryRepository.findAll({}, { limit: 100000 })).data;
 
@@ -258,7 +267,7 @@ export class CategoryTreeService {
     branchCategories: number;
     averageChildrenPerBranch: number;
   }> {
-    const categories = rootId 
+    const categories = rootId
       ? await this.categoryRepository.findSubtree(rootId)
       : (await this.categoryRepository.findAll({}, { limit: 100000 })).data;
 
@@ -267,8 +276,8 @@ export class CategoryTreeService {
     const averageDepth = categories.reduce((sum, c) => sum + c.depth, 0) / totalCategories;
     const leafCategories = categories.filter(c => c.isLeaf).length;
     const branchCategories = categories.filter(c => !c.isLeaf).length;
-    const averageChildrenPerBranch = branchCategories > 0 
-      ? categories.reduce((sum, c) => sum + c.childCount, 0) / branchCategories 
+    const averageChildrenPerBranch = branchCategories > 0
+      ? categories.reduce((sum, c) => sum + c.childCount, 0) / branchCategories
       : 0;
 
     return {

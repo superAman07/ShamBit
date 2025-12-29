@@ -343,7 +343,7 @@ export class ProductValidators {
   // SCHEDULED PUBLISHING VALIDATION
   // ============================================================================
 
-  static validateScheduledPublishAt(scheduledPublishAt?: Date): void {
+  static validateScheduledPublishAt(scheduledPublishAt?: Date | string): void {
     if (scheduledPublishAt) {
       const now = new Date();
       const scheduledDate = new Date(scheduledPublishAt);
@@ -368,7 +368,7 @@ export class ProductValidators {
 
   static validateProduct(productData: any): void {
     this.validateProductName(productData.name);
-    
+
     if (productData.slug) {
       productData.slug = this.validateProductSlug(productData.slug);
     }

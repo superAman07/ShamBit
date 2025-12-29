@@ -13,8 +13,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { JobService } from './job.service';
-import { ApplicationService } from './application.service';
+import { JobService } from './services/job.service';
+import { ApplicationService } from './services/application.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser, Public } from '../../common/decorators';
@@ -26,7 +26,7 @@ export class CareerController {
   constructor(
     private readonly jobService: JobService,
     private readonly applicationService: ApplicationService,
-  ) {}
+  ) { }
 
   @Public()
   @Get()

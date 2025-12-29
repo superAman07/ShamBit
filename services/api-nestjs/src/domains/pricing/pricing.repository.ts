@@ -4,7 +4,7 @@ import { CreatePricingDto, UpdatePricingDto, PricingResponseDto } from './pricin
 
 @Injectable()
 export class PricingRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(data: CreatePricingDto): Promise<PricingResponseDto> {
     const pricing = await this.prisma.variantPricing.create({
@@ -28,7 +28,7 @@ export class PricingRepository {
       discount: pricing.discount ? Number(pricing.discount) : undefined,
       isActive: pricing.isActive,
       validFrom: pricing.validFrom,
-      validTo: pricing.validTo,
+      validTo: pricing.validTo ?? undefined,
       createdAt: pricing.createdAt,
       updatedAt: pricing.updatedAt,
     };
@@ -57,7 +57,7 @@ export class PricingRepository {
       discount: pricing.discount ? Number(pricing.discount) : undefined,
       isActive: pricing.isActive,
       validFrom: pricing.validFrom,
-      validTo: pricing.validTo,
+      validTo: pricing.validTo ?? undefined,
       createdAt: pricing.createdAt,
       updatedAt: pricing.updatedAt,
     };
@@ -79,7 +79,7 @@ export class PricingRepository {
       discount: pricing.discount ? Number(pricing.discount) : undefined,
       isActive: pricing.isActive,
       validFrom: pricing.validFrom,
-      validTo: pricing.validTo,
+      validTo: pricing.validTo ?? undefined,
       createdAt: pricing.createdAt,
       updatedAt: pricing.updatedAt,
     };

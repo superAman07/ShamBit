@@ -15,6 +15,7 @@ import { BrandRequest } from '../entities/brand-request.entity';
 import { Brand } from '../entities/brand.entity';
 import { BrandRequestStatus, BrandRequestType } from '../enums/request-status.enum';
 import { BrandStatus } from '../enums/brand-status.enum';
+import { BrandScope } from '../enums/brand-scope.enum';
 import { CreateBrandRequestDto, HandleBrandRequestDto } from '../dtos/brand-request.dto';
 import { CreateBrandDto } from '../dtos/create-brand.dto';
 
@@ -26,14 +27,14 @@ export class BrandRequestService {
     private readonly brandAuditService: BrandAuditService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   async findAll(
     filters: BrandRequestFilters = {},
     pagination: BrandRequestPaginationOptions = {}
   ) {
     this.logger.log('BrandRequestService.findAll', { filters, pagination });
-    
+
     return this.brandRequestRepository.findAll(filters, pagination);
   }
 
@@ -140,10 +141,10 @@ export class BrandRequestService {
       timestamp: new Date(),
     });
 
-    this.logger.log('Brand request handled successfully', { 
-      requestId: id, 
+    this.logger.log('Brand request handled successfully', {
+      requestId: id,
       status: handleDto.status,
-      brandId: createdBrand?.id 
+      brandId: createdBrand?.id
     });
 
     return updatedRequest;
@@ -287,7 +288,7 @@ export class BrandRequestService {
       logoUrl: request.logoUrl,
       websiteUrl: request.websiteUrl,
       categoryIds: request.categoryIds,
-      isGlobal: false, // Requested brands are seller-specific by default
+      scope: BrandScope.SELLER_PRIVATE, // Requested brands are seller-specific by default
       sellerId: request.requesterId,
     };
 

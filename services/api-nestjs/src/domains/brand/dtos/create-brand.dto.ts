@@ -1,7 +1,7 @@
 import { IsString, IsOptional, IsBoolean, IsArray, IsUrl, Length, Matches, IsObject, IsEnum, IsUUID } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { BrandMetadata } from '../entities/brand.entity';
+import type { BrandMetadata } from '../entities/brand.entity';
 import { BrandScope } from '../enums/brand-scope.enum';
 
 export class CreateBrandDto {
@@ -71,13 +71,13 @@ export class CreateBrandDto {
   isVerified?: boolean = false;
 
   @ApiPropertyOptional({
-    description: 'Brand owner ID (defaults to creator if not specified)',
+    description: 'Brand seller ID (defaults to creator if not specified)',
     example: 'user_123',
   })
   @IsOptional()
   @IsString()
   @IsUUID()
-  ownerId?: string;
+  sellerId?: string;
 
   @ApiProperty({
     description: 'Array of category IDs this brand belongs to',

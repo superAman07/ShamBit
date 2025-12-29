@@ -59,9 +59,28 @@ export interface AttributeUsageStats {
   lastUsed?: Date;
 }
 
+export interface AttributeUpdateData {
+  name?: string;
+  description?: string;
+  isRequired?: boolean;
+  isVariant?: boolean;
+  isFilterable?: boolean;
+  isSearchable?: boolean;
+  isComparable?: boolean;
+  displayOrder?: number;
+  groupName?: string;
+  helpText?: string;
+  placeholder?: string;
+  visibility?: string;
+  adminOnly?: boolean;
+  isLocalizable?: boolean;
+  status?: string;
+  updatedBy?: string;
+}
+
 export interface BulkUpdateData {
   id: string;
-  data: Partial<Attribute>;
+  data: AttributeUpdateData;
   updatedBy: string;
 }
 
@@ -78,7 +97,7 @@ export interface AttributeRepository {
   findByIds(ids: string[], includes?: AttributeIncludeOptions): Promise<Attribute[]>;
 
   create(data: Partial<Attribute>): Promise<Attribute>;
-  update(id: string, data: Partial<Attribute>): Promise<Attribute>;
+  update(id: string, data: AttributeUpdateData): Promise<Attribute>;
   delete(id: string): Promise<void>;
   softDelete(id: string, deletedBy: string, reason?: string): Promise<void>;
 

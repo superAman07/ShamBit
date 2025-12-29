@@ -1175,23 +1175,52 @@ model SearchIndex {
 // ================================
 
 model Promotion {
-  id             String   @id @default(cuid())
-  name           String
-  description    String?
-  type           String // PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y
-  value          Decimal  @db.Decimal(10, 2)
-  minOrderAmount Decimal? @db.Decimal(10, 2)
-  maxDiscount    Decimal? @db.Decimal(10, 2)
-  usageLimit     Int?
-  usageCount     Int      @default(0)
-  isActive       Boolean  @default(true)
-  startDate      DateTime
-  endDate        DateTime
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  name                  String
+  description           String?
+  code                  String?   @unique
+  type                  String    // PromotionType enum
+  scope                 String    // PromotionScope enum
+  status                String    @default("DRAFT") // PromotionStatus enum
+  
+  // Discount configuration
+  discountValue         Decimal   @db.Decimal(10, 2)
+  maxDiscountAmount     Decimal?  @db.Decimal(10, 2)
+  minOrderAmount        Decimal?  @db.Decimal(10, 2)
+  
+  // Usage limits
+  usageLimit            Int?
+  usageLimitPerUser     Int?
+  currentUsage          Int       @default(0)
+  
+  // Validity
+  validFrom             DateTime
+  validTo               DateTime?
+  
+  // Scope filters
+  applicableCategories  String[]  @default([])
+  applicableProducts    String[]  @default([])
+  applicableSellers     String[]  @default([])
+  applicableUsers       String[]  @default([])
+  
+  // Buy X Get Y specific
+  buyQuantity           Int?
+  getQuantity           Int?
+  getDiscountPercentage Decimal?  @db.Decimal(5, 2)
+  
+  // Bundle specific
+  bundleProducts        String[]  @default([])
+  bundleMinQuantity     Int?
+  
+  // Metadata
+  priority              Int       @default(0)
+  isStackable           Boolean   @default(false)
+  createdBy             String // User ID
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   // Relations
-  usages PromotionUsage[]
+  usages                PromotionUsage[]
 
   @@map("promotions")
 }

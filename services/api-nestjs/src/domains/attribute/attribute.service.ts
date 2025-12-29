@@ -4,7 +4,6 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { AttributeRepository } from './repositories/attribute.repository';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
@@ -12,7 +11,6 @@ import { LoggerService } from '../../infrastructure/observability/logger.service
 import { Attribute } from './entities/attribute.entity';
 import { AttributeStatus } from './enums/attribute-status.enum';
 import { AttributeDataType } from './enums/attribute-data-type.enum';
-import { AttributeVisibility } from './enums/attribute-visibility.enum';
 
 import { CreateAttributeDto } from './dtos/create-attribute.dto';
 import { UpdateAttributeDto } from './dtos/update-attribute.dto';
@@ -29,7 +27,6 @@ import {
 export class AttributeService {
   constructor(
     private readonly attributeRepository: AttributeRepository,
-    private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
 
@@ -88,8 +85,11 @@ export class AttributeService {
       throw new ConflictException('Attribute with this name already exists');
     }
 
+    // Separate options and localizations from the main data
+    const { options, localizations, ...mainData } = createAttributeDto;
+
     const attributeData = {
-      ...createAttributeDto,
+      ...mainData,
       slug,
       createdBy,
       status: AttributeStatus.DRAFT,
@@ -126,8 +126,11 @@ export class AttributeService {
       }
     }
 
+    // Separate options and localizations from the main data
+    const { options, localizations, ...mainData } = updateAttributeDto;
+
     const updatedAttribute = await this.attributeRepository.update(id, {
-      ...updateAttributeDto,
+      ...mainData,
       updatedBy,
     });
 
@@ -142,10 +145,10 @@ export class AttributeService {
   async updateStatus(id: string, status: AttributeStatus, updatedBy: string): Promise<Attribute> {
     this.logger.log('AttributeService.updateStatus', { id, status, updatedBy });
 
-    const attribute = await this.findById(id);
+    const existingAttribute = await this.findById(id);
     
     // Validate status transition
-    this.validateStatusTransition(attribute.status, status);
+    this.validateStatusTransition(existingAttribute.status, status);
 
     const updatedAttribute = await this.attributeRepository.updateStatus(id, status, updatedBy);
 

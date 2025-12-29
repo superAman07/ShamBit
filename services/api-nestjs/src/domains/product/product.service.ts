@@ -73,7 +73,7 @@ export class ProductService {
     private readonly productIntegrationService: ProductIntegrationService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   // ============================================================================
   // BASIC CRUD OPERATIONS
@@ -174,20 +174,21 @@ export class ProductService {
     );
 
     // Set default values
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { attributeValues, ...restCreateDto } = createProductDto;
+
     const productData = {
-      ...createProductDto,
+      ...restCreateDto,
       sellerId: createdBy,
       status: ProductStatus.DRAFT,
       moderationStatus: ProductModerationStatus.PENDING,
       visibility: createProductDto.visibility || ProductVisibility.PRIVATE,
       version: 1,
       createdBy,
+      scheduledPublishAt: createProductDto.scheduledPublishAt
+        ? new Date(createProductDto.scheduledPublishAt)
+        : undefined,
     };
-    
-    // Convert scheduledPublishAt string to Date if provided
-    if (createProductDto.scheduledPublishAt) {
-      productData.scheduledPublishAt = new Date(createProductDto.scheduledPublishAt);
-    }
 
     // Create the product
     const product = await this.productRepository.create(productData);
@@ -255,7 +256,7 @@ export class ProductService {
 
     if (updateProductDto.slug) {
       updateProductDto.slug = ProductValidators.validateProductSlug(updateProductDto.slug);
-      
+
       // Check slug uniqueness
       const slugExists = !(await this.productRepository.validateSlug(updateProductDto.slug, id));
       if (slugExists) {
@@ -269,11 +270,11 @@ export class ProductService {
     ProductValidators.validateSeoTitle(updateProductDto.seoTitle);
     ProductValidators.validateSeoDescription(updateProductDto.seoDescription);
     ProductValidators.validateSeoKeywords(updateProductDto.seoKeywords);
-    
+
     if (updateProductDto.images) {
       ProductValidators.validateImages(updateProductDto.images);
     }
-    
+
     ProductValidators.validateVideos(updateProductDto.videos);
     ProductValidators.validateDocuments(updateProductDto.documents);
     ProductValidators.validateTags(updateProductDto.tags);
@@ -285,26 +286,27 @@ export class ProductService {
     if (updateProductDto.hasVariants !== undefined || updateProductDto.variantAttributes) {
       const hasVariants = updateProductDto.hasVariants ?? existingProduct.hasVariants;
       const variantAttributes = updateProductDto.variantAttributes ?? existingProduct.variantAttributes;
-      
+
       ProductValidators.validateVariantConfiguration(hasVariants, variantAttributes);
-      
+
       if (!ProductPolicies.canModifyVariantConfiguration(existingProduct, userRole, updatedBy === existingProduct.sellerId)) {
         throw new ForbiddenException('Cannot modify variant configuration for this product');
       }
     }
 
     // Increment version for optimistic locking
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { attributeValues: _, ...restUpdateDto } = updateProductDto;
+
     const updateData = {
-      ...updateProductDto,
+      ...restUpdateDto,
       version: existingProduct.version + 1,
       updatedBy,
+      scheduledPublishAt: updateProductDto.scheduledPublishAt
+        ? new Date(updateProductDto.scheduledPublishAt)
+        : undefined,
     };
-    
-    // Convert scheduledPublishAt string to Date if provided
-    if (updateProductDto.scheduledPublishAt) {
-      updateData.scheduledPublishAt = new Date(updateProductDto.scheduledPublishAt);
-    }
-    
+
     const updatedProduct = await this.productRepository.update(id, updateData);
 
     // Handle attribute values if provided
@@ -829,9 +831,9 @@ export class ProductService {
       )
     );
 
-    this.logger.log('Product cloned successfully', { 
-      originalId: id, 
-      clonedId: clonedProduct.id 
+    this.logger.log('Product cloned successfully', {
+      originalId: id,
+      clonedId: clonedProduct.id
     });
 
     return clonedProduct;
@@ -988,11 +990,11 @@ export class ProductService {
       'seoTitle', 'seoDescription', 'images', 'videos', 'documents', 'tags', 'isFeatured',
       'hasVariants', 'variantAttributes', 'displayOrder'
     ];
-    
+
     for (const field of fields) {
       const oldValue = (oldProduct as any)[field];
       const newValue = (newProduct as any)[field];
-      
+
       if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
         changes[field] = { from: oldValue, to: newValue };
       }
