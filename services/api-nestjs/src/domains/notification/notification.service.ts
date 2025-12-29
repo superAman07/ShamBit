@@ -1,15 +1,12 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
-import { NotificationRepository } from './notification.repository';
-import { EmailService } from './email.service';
-import { PushNotificationService } from './push-notification.service';
-import { NotificationTemplateService } from './notification-template.service';
-import { NotificationPreferenceService } from './notification-preference.service';
-import { LoggerService } from '../../infrastructure/observability/logger.service';
+import { NotificationRepository } from './notification.repository.js';
+import { EmailService } from './email.service.js';
+import { PushNotificationService } from './push-notification.service.js';
+import { NotificationTemplateService } from './notification-template.service.js';
+import { NotificationPreferenceService } from './notification-preference.service.js';
+import { LoggerService } from '../../infrastructure/observability/logger.service.js';
 
 export enum NotificationType {
   ORDER_CONFIRMATION = 'ORDER_CONFIRMATION',
@@ -73,7 +70,6 @@ export class NotificationService {
     private readonly pushNotificationService: PushNotificationService,
     private readonly templateService: NotificationTemplateService,
     private readonly preferenceService: NotificationPreferenceService,
-    private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
 
@@ -99,7 +95,7 @@ export class NotificationService {
     // Get notification template
     const template = await this.templateService.getTemplate(sendDto.type);
     if (!template) {
-      this.logger.error('Notification template not found', { type: sendDto.type });
+      this.logger.error('Notification template not found', undefined, { type: sendDto.type });
       return;
     }
 
@@ -122,7 +118,7 @@ export class NotificationService {
           sendDto.priority || NotificationPriority.MEDIUM,
         );
       } catch (error) {
-        this.logger.error('Failed to send notification through channel', {
+        this.logger.error('Failed to send notification through channel', undefined, {
           userId: sendDto.userId,
           channel,
           error: error.message,
@@ -230,3 +226,56 @@ export class NotificationService {
     // TODO: Implement SMS service
     this.logger.log('SMS notification not implemented', { userId, title });
   }
+
+  async getNotifications(userId: string, limit: number = 50): Promise<Notification[]> {
+    return this.notificationRepository.findByUserId(userId, limit);
+  }
+
+  async markAsRead(notificationId: string, userId?: string): Promise<void> {
+    // TODO: Add user validation if userId is provided
+    await this.notificationRepository.markAsRead(notificationId);
+  }
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const notifications = await this.notificationRepository.findByUserId(userId);
+    return notifications.filter(n => !n.isRead).length;
+  }
+
+  async getUserNotifications(userId: string, query: { limit?: number; isRead?: boolean }): Promise<Notification[]> {
+    // TODO: Add filtering by isRead status
+    return this.notificationRepository.findByUserId(userId, query.limit || 50);
+  }
+
+  async getNotification(id: string, userId: string): Promise<Notification | null> {
+    const notifications = await this.notificationRepository.findByUserId(userId);
+    return notifications.find(n => n.id === id) || null;
+  }
+
+  async markAllAsRead(userId: string): Promise<void> {
+    const notifications = await this.notificationRepository.findByUserId(userId);
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    
+    for (const notification of unreadNotifications) {
+      await this.notificationRepository.markAsRead(notification.id);
+    }
+  }
+
+  async deleteNotification(id: string, userId: string): Promise<void> {
+    // TODO: Add delete method to repository
+    this.logger.log('Delete notification not implemented', { id, userId });
+  }
+
+  async getPreferences(userId: string): Promise<any> {
+    return this.preferenceService.getUserPreferences(userId);
+  }
+
+  async updatePreferences(userId: string, preferences: Record<string, any>): Promise<void> {
+    // TODO: Implement preference updates
+    this.logger.log('Update preferences not implemented', { userId, preferences });
+  }
+
+  async sendTestNotification(userId: string, type: string, message: string): Promise<void> {
+    // TODO: Implement test notification
+    this.logger.log('Send test notification not implemented', { userId, type, message });
+  }
+}

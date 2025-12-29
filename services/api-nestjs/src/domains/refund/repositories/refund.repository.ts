@@ -83,4 +83,9 @@ export class RefundRepository {
     // TODO: Implement refund count for year
     return 0;
   }
+
+  async findByOrderId(orderId: string, filters: any = {}, pagination: any = {}, includes: any = {}): Promise<any[]> {
+    // TODO: Implement refund lookup by order ID
+    return [];
+  }
 }

@@ -13,4 +13,9 @@ export class SearchIndexService {
   async reindexAll() {
     // TODO: Implement full reindexing
   }
+
+  // Backwards-compatible alias used by controller
+  async triggerFullReindex() {
+    return this.reindexAll();
+  }
 }

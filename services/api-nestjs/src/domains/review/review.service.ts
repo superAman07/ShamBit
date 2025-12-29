@@ -128,7 +128,11 @@ export class ReviewService {
     });
 
     this.logger.log('Review created successfully', { reviewId: review.id });
-    return review;
+    return {
+      ...review,
+      type: review.type as ReviewType,
+      status: review.status as ReviewStatus,
+    } as Review;
   }
 
   async findAll(query: any) {

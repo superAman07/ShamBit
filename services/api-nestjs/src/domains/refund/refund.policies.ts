@@ -248,7 +248,7 @@ export class RefundPolicies {
   static getRefundPriority(
     refund: Refund
   ): 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' {
-    return getRefundPriority(refund.refundType, refund.requestedAmount, refund.reason);
+    return getRefundPriority(refund.refundType, refund.requestedAmount);
   }
   
   static shouldRestockInventory(

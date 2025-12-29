@@ -4,17 +4,18 @@ import { EventRepository } from './event.repository';
 import { LoggerService } from '../observability/logger.service';
 
 export interface DomainEvent {
-  id: string;
-  type: string;
+  eventId: string;
+  eventType: string;
   aggregateId: string;
   aggregateType: string;
   version: number;
-  data: Record<string, any>;
+  data: any;
   metadata: {
+    tenantId?: string;
     userId?: string;
+    timestamp: Date;
     correlationId?: string;
     causationId?: string;
-    timestamp: Date;
   };
 }
 
@@ -39,27 +40,27 @@ export class EventService {
   /**
    * Publish and persist a domain event
    */
-  async publishEvent(event: Omit<DomainEvent, 'id'>): Promise<DomainEvent> {
+  async publishEvent(event: Omit<DomainEvent, 'eventId'>): Promise<DomainEvent> {
     this.logger.log('EventService.publishEvent', { 
-      type: event.type, 
+      eventType: event.eventType, 
       aggregateId: event.aggregateId 
     });
 
     // Persist event to event store
     const persistedEvent = await this.eventRepository.save({
       ...event,
-      id: this.generateEventId(),
+      eventId: this.generateEventId(),
     });
 
     // Emit event for real-time processing
-    this.eventEmitter.emit(event.type, persistedEvent);
+    this.eventEmitter.emit(event.eventType, persistedEvent);
 
     // Emit generic event for cross-cutting concerns
     this.eventEmitter.emit('domain.event', persistedEvent);
 
     this.logger.log('Domain event published', {
-      eventId: persistedEvent.id,
-      type: event.type,
+      eventId: persistedEvent.eventId,
+      eventType: event.eventType,
       aggregateId: event.aggregateId,
     });
 
@@ -69,12 +70,12 @@ export class EventService {
   /**
    * Publish multiple events atomically
    */
-  async publishEvents(events: Omit<DomainEvent, 'id'>[]): Promise<DomainEvent[]> {
+  async publishEvents(events: Omit<DomainEvent, 'eventId'>[]): Promise<DomainEvent[]> {
     this.logger.log('EventService.publishEvents', { count: events.length });
 
     const eventsWithIds = events.map(event => ({
       ...event,
-      id: this.generateEventId(),
+      eventId: this.generateEventId(),
     }));
 
     // Persist all events atomically
@@ -82,13 +83,13 @@ export class EventService {
 
     // Emit all events
     for (const event of persistedEvents) {
-      this.eventEmitter.emit(event.type, event);
+      this.eventEmitter.emit(event.eventType, event);
       this.eventEmitter.emit('domain.event', event);
     }
 
     this.logger.log('Domain events published', {
       count: persistedEvents.length,
-      eventIds: persistedEvents.map(e => e.id),
+      eventIds: persistedEvents.map(e => e.eventId),
     });
 
     return persistedEvents;
@@ -144,7 +145,7 @@ export class EventService {
     );
 
     for (const event of events) {
-      this.eventEmitter.emit(`replay.${event.type}`, event);
+      this.eventEmitter.emit(`replay.${event.eventType}`, event);
     }
 
     this.logger.log('Aggregate events replayed', {
@@ -194,7 +195,7 @@ export class EventService {
     version = 1,
   ): Promise<DomainEvent> {
     return this.publishEvent({
-      type: `product.${eventType}`,
+      eventType: `product.${eventType}`,
       aggregateId: productId,
       aggregateType: 'Product',
       version,
@@ -214,7 +215,7 @@ export class EventService {
     version = 1,
   ): Promise<DomainEvent> {
     return this.publishEvent({
-      type: `order.${eventType}`,
+      eventType: `order.${eventType}`,
       aggregateId: orderId,
       aggregateType: 'Order',
       version,
@@ -234,7 +235,7 @@ export class EventService {
     version = 1,
   ): Promise<DomainEvent> {
     return this.publishEvent({
-      type: `inventory.${eventType}`,
+      eventType: `inventory.${eventType}`,
       aggregateId: variantId,
       aggregateType: 'Inventory',
       version,
@@ -254,7 +255,7 @@ export class EventService {
     version = 1,
   ): Promise<DomainEvent> {
     return this.publishEvent({
-      type: `user.${eventType}`,
+      eventType: `user.${eventType}`,
       aggregateId: userId,
       aggregateType: 'User',
       version,

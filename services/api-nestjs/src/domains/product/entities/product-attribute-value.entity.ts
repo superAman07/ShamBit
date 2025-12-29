@@ -15,6 +15,18 @@ export class ProductAttributeValue {
   jsonValue?: any;
   optionId?: string;
   
+  // Prisma compatibility - computed value for database storage
+  get value(): any {
+    return {
+      stringValue: this.stringValue,
+      numberValue: this.numberValue,
+      booleanValue: this.booleanValue,
+      dateValue: this.dateValue,
+      jsonValue: this.jsonValue,
+      optionId: this.optionId,
+    };
+  }
+  
   // Localization
   locale: string;
   

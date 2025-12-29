@@ -83,7 +83,7 @@ export class AttributeRepository implements IAttributeRepository {
         slug: data.slug!,
         description: data.description,
         dataType: data.dataType!,
-        validation: data.validation as any,
+        validation: this.convertValidationToPrisma(data.validation),
         isRequired: data.isRequired || false,
         isVariant: data.isVariant || false,
         isFilterable: data.isFilterable !== false, // Default to true
@@ -98,6 +98,17 @@ export class AttributeRepository implements IAttributeRepository {
         isLocalizable: data.isLocalizable || false,
         status: data.status || AttributeStatus.DRAFT,
         createdBy: data.createdBy!,
+        localizations: data.localizations ? {
+          createMany: {
+            data: data.localizations.map(loc => ({
+              locale: loc.locale,
+              name: loc.name,
+              description: loc.description,
+              helpText: loc.helpText,
+              placeholder: loc.placeholder,
+            }))
+          }
+        } : undefined,
       },
       include: {
         attributeOptions: true,
@@ -114,7 +125,7 @@ export class AttributeRepository implements IAttributeRepository {
       data: {
         name: data.name,
         description: data.description,
-        validation: data.validation as any,
+        validation: this.convertValidationToPrisma(data.validation),
         isRequired: data.isRequired,
         isVariant: data.isVariant,
         isFilterable: data.isFilterable,
@@ -129,6 +140,24 @@ export class AttributeRepository implements IAttributeRepository {
         isLocalizable: data.isLocalizable,
         status: data.status,
         updatedBy: data.updatedBy,
+        localizations: data.localizations ? {
+          upsert: data.localizations.map(loc => ({
+            where: { attributeId_locale: { attributeId: id, locale: loc.locale } },
+            update: {
+              name: loc.name,
+              description: loc.description,
+              helpText: loc.helpText,
+              placeholder: loc.placeholder,
+            },
+            create: {
+              locale: loc.locale,
+              name: loc.name,
+              description: loc.description,
+              helpText: loc.helpText,
+              placeholder: loc.placeholder,
+            }
+          }))
+        } : undefined,
       },
       include: {
         attributeOptions: true,
@@ -578,7 +607,7 @@ export class AttributeRepository implements IAttributeRepository {
     attribute.slug = prismaData.slug;
     attribute.description = prismaData.description;
     attribute.dataType = prismaData.dataType;
-    attribute.validation = prismaData.validation;
+    attribute.validation = this.convertValidationFromPrisma(prismaData.validation);
     attribute.isRequired = prismaData.isRequired;
     attribute.isVariant = prismaData.isVariant;
     attribute.isFilterable = prismaData.isFilterable;
@@ -635,5 +664,15 @@ export class AttributeRepository implements IAttributeRepository {
     }
 
     return attribute;
+  }
+
+  private convertValidationToPrisma(validation: any): any {
+    if (!validation) return null;
+    return validation;
+  }
+
+  private convertValidationFromPrisma(validation: any): any {
+    if (!validation) return undefined;
+    return validation;
   }
 }

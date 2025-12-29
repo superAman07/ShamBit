@@ -28,14 +28,25 @@ export class OrderAuditService {
       });
 
       // TODO: Create audit log entry in database
-      // This would typically store in an audit_logs table
+      // Example implementation would be:
+      // await this.prisma.orderAuditLog.create({
+      //   data: {
+      //     orderId: data.orderId,
+      //     action: data.action,
+      //     userId: data.userId,
+      //     oldValues: data.oldValues,
+      //     newValues: data.newValues,
+      //     reason: data.reason,
+      //     metadata: data.metadata,
+      //   }
+      // });
       
       this.logger.log('Order audit log created', {
         orderId: data.orderId,
         action: data.action,
       });
     } catch (error) {
-      this.logger.error('Failed to create order audit log', {
+      this.logger.error('Failed to create order audit log', error.stack, {
         orderId: data.orderId,
         action: data.action,
         error: error.message,
@@ -44,7 +55,24 @@ export class OrderAuditService {
   }
 
   async getOrderAuditHistory(orderId: string): Promise<any[]> {
-    // TODO: Implement audit history retrieval
-    return [];
+    try {
+      this.logger.log('OrderAuditService.getOrderAuditHistory', { orderId });
+      
+      // TODO: Implement audit history retrieval from database
+      // Example implementation would be:
+      // const auditLogs = await this.prisma.orderAuditLog.findMany({
+      //   where: { orderId },
+      //   orderBy: { createdAt: 'desc' }
+      // });
+      // return auditLogs;
+      
+      return [];
+    } catch (error) {
+      this.logger.error('Failed to retrieve order audit history', error.stack, {
+        orderId,
+        error: error.message,
+      });
+      return [];
+    }
   }
 }

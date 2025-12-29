@@ -9,37 +9,41 @@ export class EventRepository {
   async save(event: DomainEvent): Promise<DomainEvent> {
     const savedEvent = await this.prisma.domainEvent.create({
       data: {
-        id: event.id,
-        type: event.type,
+        id: event.eventId,
+        eventType: event.eventType,
         aggregateId: event.aggregateId,
         aggregateType: event.aggregateType,
         version: event.version,
-        data: event.data,
-        metadata: event.metadata,
+        eventData: {
+          data: event.data,
+          metadata: event.metadata,
+        },
       },
     });
 
     return {
-      id: savedEvent.id,
-      type: savedEvent.type,
+      eventId: savedEvent.id,
+      eventType: savedEvent.eventType,
       aggregateId: savedEvent.aggregateId,
       aggregateType: savedEvent.aggregateType,
       version: savedEvent.version,
-      data: savedEvent.data as Record<string, any>,
-      metadata: savedEvent.metadata as DomainEvent['metadata'],
+      data: (savedEvent.eventData as any)?.data || savedEvent.eventData,
+      metadata: (savedEvent.eventData as any)?.metadata || {},
     };
   }
 
   async saveMany(events: DomainEvent[]): Promise<DomainEvent[]> {
     const savedEvents = await this.prisma.domainEvent.createMany({
       data: events.map(event => ({
-        id: event.id,
-        type: event.type,
+        id: event.eventId,
+        eventType: event.eventType,
         aggregateId: event.aggregateId,
         aggregateType: event.aggregateType,
         version: event.version,
-        data: event.data,
-        metadata: event.metadata,
+        eventData: {
+          data: event.data,
+          metadata: event.metadata,
+        },
       })),
     });
 
@@ -61,13 +65,13 @@ export class EventRepository {
     });
 
     return events.map(event => ({
-      id: event.id,
-      type: event.type,
+      eventId: event.id,
+      eventType: event.eventType,
       aggregateId: event.aggregateId,
       aggregateType: event.aggregateType,
       version: event.version,
-      data: event.data as Record<string, any>,
-      metadata: event.metadata as DomainEvent['metadata'],
+      data: (event.eventData as any)?.data || event.eventData,
+      metadata: (event.eventData as any)?.metadata || {},
     }));
   }
 
@@ -76,43 +80,43 @@ export class EventRepository {
 
     if (filter.aggregateId) where.aggregateId = filter.aggregateId;
     if (filter.aggregateType) where.aggregateType = filter.aggregateType;
-    if (filter.eventType) where.type = filter.eventType;
+    if (filter.eventType) where.eventType = filter.eventType;
     if (filter.fromVersion) where.version = { gte: filter.fromVersion };
     if (filter.toVersion) where.version = { ...where.version, lte: filter.toVersion };
-    if (filter.fromDate) where.createdAt = { gte: filter.fromDate };
-    if (filter.toDate) where.createdAt = { ...where.createdAt, lte: filter.toDate };
+    if (filter.fromDate) where.occurredAt = { gte: filter.fromDate };
+    if (filter.toDate) where.occurredAt = { ...where.occurredAt, lte: filter.toDate };
 
     const events = await this.prisma.domainEvent.findMany({
       where,
-      orderBy: { createdAt: 'asc' },
+      orderBy: { occurredAt: 'asc' },
     });
 
     return events.map(event => ({
-      id: event.id,
-      type: event.type,
+      eventId: event.id,
+      eventType: event.eventType,
       aggregateId: event.aggregateId,
       aggregateType: event.aggregateType,
       version: event.version,
-      data: event.data as Record<string, any>,
-      metadata: event.metadata as DomainEvent['metadata'],
+      data: (event.eventData as any)?.data || event.eventData,
+      metadata: (event.eventData as any)?.metadata || {},
     }));
   }
 
   async findByType(eventType: string, limit: number): Promise<DomainEvent[]> {
     const events = await this.prisma.domainEvent.findMany({
-      where: { type: eventType },
-      orderBy: { createdAt: 'desc' },
+      where: { eventType: eventType },
+      orderBy: { occurredAt: 'desc' },
       take: limit,
     });
 
     return events.map(event => ({
-      id: event.id,
-      type: event.type,
+      eventId: event.id,
+      eventType: event.eventType,
       aggregateId: event.aggregateId,
       aggregateType: event.aggregateType,
       version: event.version,
-      data: event.data as Record<string, any>,
-      metadata: event.metadata as DomainEvent['metadata'],
+      data: (event.eventData as any)?.data || event.eventData,
+      metadata: (event.eventData as any)?.metadata || {},
     }));
   }
 }

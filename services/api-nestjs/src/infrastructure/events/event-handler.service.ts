@@ -253,8 +253,8 @@ export class EventHandlerService implements OnModuleInit {
   // Generic domain event handler
   private async handleDomainEvent(event: DomainEvent) {
     this.logger.debug('Domain event processed', {
-      eventId: event.id,
-      type: event.type,
+      eventId: event.eventId,
+      type: event.eventType,
       aggregateId: event.aggregateId,
       aggregateType: event.aggregateType,
       correlationId: event.metadata.correlationId,

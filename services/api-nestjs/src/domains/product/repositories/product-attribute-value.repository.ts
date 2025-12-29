@@ -10,20 +10,13 @@ import { ProductAttributeValue } from '../entities/product-attribute-value.entit
 export class ProductAttributeValueRepository implements IProductAttributeValueRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByProduct(productId: string, locale?: string): Promise<ProductAttributeValue[]> {
-    const where: any = { productId };
-    if (locale) {
-      where.locale = locale;
-    }
-
+  async findByProduct(productId: string): Promise<ProductAttributeValue[]> {
     const values = await this.prisma.productAttributeValue.findMany({
-      where,
+      where: { productId },
       include: {
         attribute: true,
-        option: true,
       },
       orderBy: [
-        { attribute: { displayOrder: 'asc' } },
         { attribute: { name: 'asc' } },
       ],
     });
@@ -33,19 +26,12 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
 
   async findByProductAndAttribute(
     productId: string, 
-    attributeId: string, 
-    locale?: string
+    attributeId: string
   ): Promise<ProductAttributeValue | null> {
-    const where: any = { productId, attributeId };
-    if (locale) {
-      where.locale = locale;
-    }
-
     const value = await this.prisma.productAttributeValue.findFirst({
-      where,
+      where: { productId, attributeId },
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -57,19 +43,13 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
       data: {
         productId: data.productId!,
         attributeId: data.attributeId!,
+        value: data.value || {},
         stringValue: data.stringValue,
         numberValue: data.numberValue,
         booleanValue: data.booleanValue,
-        dateValue: data.dateValue,
-        jsonValue: data.jsonValue as any,
-        optionId: data.optionId,
-        locale: data.locale || 'en',
-        inheritedFrom: data.inheritedFrom,
-        isOverridden: data.isOverridden || false,
       },
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -83,14 +63,9 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
         stringValue: data.stringValue,
         numberValue: data.numberValue,
         booleanValue: data.booleanValue,
-        dateValue: data.dateValue,
-        jsonValue: data.jsonValue as any,
-        optionId: data.optionId,
-        isOverridden: data.isOverridden,
       },
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -100,8 +75,7 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
   async upsert(data: Partial<ProductAttributeValue>): Promise<ProductAttributeValue> {
     const existing = await this.findByProductAndAttribute(
       data.productId!,
-      data.attributeId!,
-      data.locale
+      data.attributeId!
     );
 
     if (existing) {
@@ -124,19 +98,13 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
           data: {
             productId: value.productId!,
             attributeId: value.attributeId!,
+            value: value.value || {},
             stringValue: value.stringValue,
             numberValue: value.numberValue,
             booleanValue: value.booleanValue,
-            dateValue: value.dateValue,
-            jsonValue: value.jsonValue as any,
-            optionId: value.optionId,
-            locale: value.locale || 'en',
-            inheritedFrom: value.inheritedFrom,
-            isOverridden: value.isOverridden || false,
           },
           include: {
             attribute: true,
-            option: true,
           },
         })
       )
@@ -154,14 +122,9 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
             stringValue: update.data.stringValue,
             numberValue: update.data.numberValue,
             booleanValue: update.data.booleanValue,
-            dateValue: update.data.dateValue,
-            jsonValue: update.data.jsonValue as any,
-            optionId: update.data.optionId,
-            isOverridden: update.data.isOverridden,
           },
           include: {
             attribute: true,
-            option: true,
           },
         })
       )
@@ -191,14 +154,14 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
   async resolveInheritance(productId: string): Promise<ProductAttributeValue[]> {
     const values = await this.findByProduct(productId);
     
-    // Group by attribute and locale, keeping only the most specific value
+    // Group by attribute, keeping only the most specific value
     const resolved = new Map<string, ProductAttributeValue>();
     
     for (const value of values) {
-      const key = `${value.attributeId}_${value.locale}`;
+      const key = value.attributeId;
       const existing = resolved.get(key);
       
-      if (!existing || (!value.isInherited && existing.isInherited)) {
+      if (!existing) {
         resolved.set(key, value);
       }
     }
@@ -218,7 +181,7 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
     }
 
     // Determine which field to update based on attribute type
-    const updateData: any = { isOverridden: true };
+    const updateData: any = {};
     
     switch (current.attribute.dataType) {
       case 'STRING':
@@ -236,16 +199,9 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
       case 'BOOLEAN':
         updateData.booleanValue = Boolean(newValue);
         break;
-      case 'DATE':
-      case 'DATETIME':
-        updateData.dateValue = new Date(newValue);
-        break;
       case 'JSON':
-      case 'MULTI_ENUM':
-        updateData.jsonValue = newValue;
-        break;
-      case 'ENUM':
-        updateData.optionId = newValue;
+      case 'MULTI_SELECT':
+        updateData.value = newValue;
         break;
       default:
         updateData.stringValue = String(newValue);
@@ -256,7 +212,6 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
       data: updateData,
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -277,7 +232,6 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
       },
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -314,7 +268,6 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
       },
       include: {
         attribute: true,
-        option: true,
       },
     });
 
@@ -365,12 +318,14 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
         attributeId,
         stringValue: { not: null },
       },
-      _count: true,
+      _count: {
+        stringValue: true,
+      },
     });
 
     return values.reduce((acc, item) => {
       if (item.stringValue) {
-        acc[item.stringValue] = item._count;
+        acc[item.stringValue] = item._count.stringValue || 0;
       }
       return acc;
     }, {} as Record<string, number>);
@@ -385,21 +340,14 @@ export class ProductAttributeValueRepository implements IProductAttributeValueRe
     value.stringValue = prismaData.stringValue;
     value.numberValue = prismaData.numberValue;
     value.booleanValue = prismaData.booleanValue;
-    value.dateValue = prismaData.dateValue;
-    value.jsonValue = prismaData.jsonValue;
-    value.optionId = prismaData.optionId;
-    value.locale = prismaData.locale;
+    value.locale = prismaData.locale || 'en';
     value.inheritedFrom = prismaData.inheritedFrom;
-    value.isOverridden = prismaData.isOverridden;
+    value.isOverridden = prismaData.isOverridden || false;
     value.createdAt = prismaData.createdAt;
     value.updatedAt = prismaData.updatedAt;
 
     if (prismaData.attribute) {
       value.attribute = prismaData.attribute;
-    }
-
-    if (prismaData.option) {
-      value.option = prismaData.option;
     }
 
     return value;

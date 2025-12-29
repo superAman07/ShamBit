@@ -51,10 +51,12 @@ export class ApiVersionInterceptor implements NestInterceptor {
       map((data) => {
         // Add version info to response body if needed
         if (data && typeof data === 'object') {
+          const body = data as Record<string, any>;
+          const existingMeta = (body._meta || {}) as Record<string, any>;
           return {
-            ...data,
+            ...body,
             _meta: {
-              ...data._meta,
+              ...existingMeta,
               apiVersion: version,
               deprecated: !!deprecation,
             },

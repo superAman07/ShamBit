@@ -3,7 +3,7 @@ import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AttributeDataType } from '../enums/attribute-data-type.enum';
 import { AttributeVisibility } from '../enums/attribute-visibility.enum';
-import { AttributeValidationRule } from '../entities/attribute.entity';
+import type { AttributeValidationRule } from '../entities/attribute.entity';
 
 export class CreateAttributeOptionDto {
   @ApiProperty({ example: 'red', description: 'Internal value for the option' })
@@ -100,10 +100,11 @@ export class CreateAttributeDto {
   @IsEnum(AttributeDataType)
   dataType: AttributeDataType;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     type: 'object',
+    additionalProperties: true,
     description: 'Validation rules for the attribute',
-    example: { minLength: 1, maxLength: 100 }
+    example: { minLength: 1, maxLength: 100 },
   })
   @IsOptional()
   @IsObject()

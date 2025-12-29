@@ -64,7 +64,7 @@ export class Order {
 
   static create(data: {
     customerId: string;
-    items: Partial<OrderItem>[];
+    items: OrderItem[];
     shippingAddress: Address;
     billingAddress?: Address;
     paymentMethod?: string;
@@ -72,7 +72,7 @@ export class Order {
     metadata?: OrderMetadata;
     createdBy: string;
   }): Order {
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
     
     return new Order({
       ...data,
@@ -138,9 +138,6 @@ export class Order {
     return this.getItemsBySeller(sellerId).reduce((sum, item) => sum + item.totalPrice, 0);
   }
 
-  isFullyPaid(): boolean {
-    return this.getTotalPaid() >= this.totalAmount;
-  }
 
   get expiresAt(): Date | undefined {
     // TODO: Calculate expiry date based on business rules

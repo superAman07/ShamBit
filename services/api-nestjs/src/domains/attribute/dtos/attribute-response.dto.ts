@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AttributeDataType } from '../enums/attribute-data-type.enum';
 import { AttributeStatus } from '../enums/attribute-status.enum';
 import { AttributeVisibility } from '../enums/attribute-visibility.enum';
-import { AttributeValidationRule } from '../entities/attribute.entity';
+import type { AttributeValidationRule } from '../entities/attribute.entity';
 
 export class AttributeOptionResponseDto {
   @ApiProperty({ example: 'opt_123' })
@@ -99,7 +99,7 @@ export class AttributeResponseDto {
   @ApiProperty({ enum: AttributeDataType, example: AttributeDataType.ENUM })
   dataType: AttributeDataType;
 
-  @ApiPropertyOptional({ type: 'object' })
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   validation?: AttributeValidationRule;
 
   @ApiProperty({ example: false })
@@ -275,15 +275,17 @@ export class AttributeStatisticsDto {
   @ApiProperty({ example: 67 })
   localizableAttributes: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: 'object',
-    example: { 'ENUM': 45, 'STRING': 32, 'NUMBER': 28 }
+    additionalProperties: { type: 'number' },
+    example: { 'ENUM': 45, 'STRING': 32, 'NUMBER': 28 },
   })
   attributesByType: Record<string, number>;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: 'object',
-    example: { 'Physical Properties': 25, 'Technical Specs': 18 }
+    additionalProperties: { type: 'number' },
+    example: { 'Physical Properties': 25, 'Technical Specs': 18 },
   })
   attributesByGroup: Record<string, number>;
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LoggerService } from '../../infrastructure/observability/logger.service';
+import { LoggerService } from '../../infrastructure/observability/logger.service.js';
 
 export interface PushNotificationOptions {
   userId: string;

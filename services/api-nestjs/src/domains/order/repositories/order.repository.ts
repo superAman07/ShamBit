@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { Order } from '../entities/order.entity';
-import { OrderStatus } from '../enums/order-status.enum';
+import { OrderStatus, OrderItemStatus } from '../enums/order-status.enum';
 
 export interface OrderFilters {
   customerId?: string;
@@ -34,26 +34,17 @@ export class OrderRepository {
     const order = await this.prisma.order.create({
       data: {
         orderNumber: data.orderNumber!,
-        customerId: data.customerId!,
+        userId: data.customerId!, // Schema uses userId instead of customerId
         status: data.status!,
-        subtotal: data.subtotal || 0,
-        shippingAmount: data.shippingAmount || 0,
-        taxAmount: data.taxAmount || 0,
-        discountAmount: data.discountAmount || 0,
         totalAmount: data.totalAmount || 0,
-        currency: data.currency || 'USD',
+        discountAmount: data.discountAmount || 0,
+        taxAmount: data.taxAmount || 0,
+        shippingAmount: data.shippingAmount || 0,
+        finalAmount: data.totalAmount || 0, // Schema uses finalAmount
+        paymentStatus: data.paymentStatus || 'PENDING',
         shippingAddressId: data.shippingAddressId!,
         billingAddressId: data.billingAddressId || data.shippingAddressId!,
-        paymentMethod: data.paymentMethod,
         notes: data.notes,
-        metadata: data.metadata || {},
-        version: data.version || 1,
-        isSplit: data.isSplit || false,
-        parentOrderId: data.parentOrderId,
-        splitReason: data.splitReason,
-        estimatedDeliveryDate: data.estimatedDeliveryDate,
-        isActive: true,
-        createdBy: data.createdBy!,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -68,7 +59,6 @@ export class OrderRepository {
       include: {
         items: includes.items,
         payments: includes.payments,
-        refunds: includes.refunds,
         shipments: includes.shipments,
       },
     });
@@ -84,7 +74,7 @@ export class OrderRepository {
     const where: any = {};
 
     if (filters.customerId) {
-      where.customerId = filters.customerId;
+      where.userId = filters.customerId; // Schema uses userId instead of customerId
     }
 
     if (filters.status) {
@@ -114,7 +104,6 @@ export class OrderRepository {
         include: {
           items: includes.items,
           payments: includes.payments,
-          refunds: includes.refunds,
           shipments: includes.shipments,
         },
         take: pagination.limit,
@@ -135,24 +124,15 @@ export class OrderRepository {
       where: { id },
       data: {
         status: data.status,
-        subtotal: data.subtotal,
-        shippingAmount: data.shippingAmount,
-        taxAmount: data.taxAmount,
-        discountAmount: data.discountAmount,
         totalAmount: data.totalAmount,
-        paymentMethod: data.paymentMethod,
+        discountAmount: data.discountAmount,
+        taxAmount: data.taxAmount,
+        shippingAmount: data.shippingAmount,
+        finalAmount: data.totalAmount, // Schema uses finalAmount
+        paymentStatus: data.paymentStatus,
         notes: data.notes,
-        metadata: data.metadata,
-        version: data.version,
-        estimatedDeliveryDate: data.estimatedDeliveryDate,
-        actualDeliveryDate: data.actualDeliveryDate,
         cancelledAt: data.cancelledAt,
-        cancelledBy: data.cancelledBy,
-        cancellationReason: data.cancellationReason,
-        refundedAt: data.refundedAt,
-        refundedBy: data.refundedBy,
-        refundAmount: data.refundAmount,
-        updatedBy: data.updatedBy,
+        cancelReason: data.cancellationReason, // Schema uses cancelReason
         updatedAt: new Date(),
       },
     });
@@ -166,7 +146,6 @@ export class OrderRepository {
       include: {
         items: includes.items,
         payments: includes.payments,
-        refunds: includes.refunds,
         shipments: includes.shipments,
       },
     });
@@ -196,7 +175,7 @@ export class OrderRepository {
       where: { id: orderId },
       data: {
         status: OrderStatus.FAILED,
-        cancellationReason: reason,
+        cancelReason: reason, // Schema uses cancelReason
         updatedAt: new Date(),
       },
     });
@@ -207,7 +186,6 @@ export class OrderRepository {
       where: { id: orderId },
       data: {
         status,
-        updatedBy,
         updatedAt: new Date(),
       },
     });
@@ -234,7 +212,8 @@ export class OrderRepository {
     await this.prisma.order.update({
       where: { id: orderId },
       data: {
-        actualDeliveryDate: deliveryInfo.deliveredAt,
+        // Note: Schema doesn't have actualDeliveryDate field
+        // This would need to be handled in a separate shipment table
         updatedAt: new Date(),
       },
     });
@@ -250,37 +229,38 @@ export class OrderRepository {
     return new Order({
       id: order.id,
       orderNumber: order.orderNumber,
-      customerId: order.customerId,
+      customerId: order.userId, // Map userId back to customerId for entity
       status: order.status as OrderStatus,
       items: order.items || [],
-      subtotal: order.subtotal,
-      shippingAmount: order.shippingAmount,
-      taxAmount: order.taxAmount,
-      discountAmount: order.discountAmount,
-      totalAmount: order.totalAmount,
-      currency: order.currency,
+      subtotal: Number(order.totalAmount) - Number(order.shippingAmount) - Number(order.taxAmount) + Number(order.discountAmount),
+      shippingAmount: Number(order.shippingAmount),
+      taxAmount: Number(order.taxAmount),
+      discountAmount: Number(order.discountAmount),
+      totalAmount: Number(order.finalAmount || order.totalAmount),
+      currency: 'USD', // Default currency since schema doesn't have this field
       shippingAddressId: order.shippingAddressId,
       billingAddressId: order.billingAddressId,
-      paymentMethod: order.paymentMethod,
+      paymentMethod: undefined, // Schema doesn't have this field
+      paymentStatus: order.paymentStatus,
       notes: order.notes,
-      metadata: order.metadata,
-      version: order.version,
-      isSplit: order.isSplit,
-      parentOrderId: order.parentOrderId,
-      splitReason: order.splitReason,
-      estimatedDeliveryDate: order.estimatedDeliveryDate,
-      actualDeliveryDate: order.actualDeliveryDate,
+      metadata: {}, // Schema doesn't have metadata field
+      version: 1, // Schema doesn't have version field
+      isSplit: false, // Schema doesn't have this field
+      parentOrderId: undefined, // Schema doesn't have this field
+      splitReason: undefined, // Schema doesn't have this field
+      estimatedDeliveryDate: undefined, // Schema doesn't have this field
+      actualDeliveryDate: undefined, // Schema doesn't have this field
       cancelledAt: order.cancelledAt,
-      cancelledBy: order.cancelledBy,
-      cancellationReason: order.cancellationReason,
-      refundedAt: order.refundedAt,
-      refundedBy: order.refundedBy,
-      refundAmount: order.refundAmount,
-      isActive: order.isActive,
+      cancelledBy: undefined, // Schema doesn't have this field
+      cancellationReason: order.cancelReason,
+      refundedAt: undefined, // Schema doesn't have this field
+      refundedBy: undefined, // Schema doesn't have this field
+      refundAmount: undefined, // Schema doesn't have this field
+      isActive: true, // Default value since schema doesn't have this field
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
-      createdBy: order.createdBy,
-      updatedBy: order.updatedBy,
+      createdBy: order.userId, // Use userId as createdBy
+      updatedBy: undefined, // Schema doesn't have this field
       // These will be populated from address relations
       shippingAddress: null as any,
       billingAddress: null as any,

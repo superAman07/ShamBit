@@ -23,6 +23,8 @@ export enum RefundCategory {
   LATE_DELIVERY = 'LATE_DELIVERY',
   SELLER_CANCELLATION = 'SELLER_CANCELLATION',
   PAYMENT_ISSUE = 'PAYMENT_ISSUE',
+  SYSTEM_INITIATED = 'SYSTEM_INITIATED',
+  MERCHANT_INITIATED = 'MERCHANT_INITIATED',
   OTHER = 'OTHER',
 }
 
@@ -92,11 +94,53 @@ export enum RefundAuditAction {
   UPDATE = 'UPDATE',
 }
 
+export enum WebhookProcessingStatus {
+  IGNORED = 'IGNORED',
+  SUCCESS = 'SUCCESS',
+  FAILURE = 'FAILURE',
+}
+
+export enum RefundJobStatus {
+  PENDING = 'PENDING',
+  PROCESSING = 'PROCESSING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  RETRYING = 'RETRYING',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum RefundLedgerEntryType {
+  REFUND_INITIATED = 'REFUND_INITIATED',
+  REFUND_PROCESSED = 'REFUND_PROCESSED',
+  REFUND_COMPLETED = 'REFUND_COMPLETED',
+  REFUND_FAILED = 'REFUND_FAILED',
+  FEE_DEDUCTED = 'FEE_DEDUCTED',
+  GATEWAY_FEE = 'GATEWAY_FEE',
+  ADJUSTMENT_APPLIED = 'ADJUSTMENT_APPLIED',
+  DEBIT = 'DEBIT',
+  CREDIT = 'CREDIT',
+  ADJUSTMENT = 'ADJUSTMENT',
+  FEE = 'FEE',
+  REVERSAL = 'REVERSAL',
+}
+
+export enum RefundAccountType {
+  CUSTOMER = 'CUSTOMER',
+  MERCHANT = 'MERCHANT',
+  PLATFORM = 'PLATFORM',
+  GATEWAY = 'GATEWAY',
+  ESCROW = 'ESCROW',
+}
+
 export enum RefundJobType {
   PROCESS_REFUND = 'PROCESS_REFUND',
   SEND_NOTIFICATION = 'SEND_NOTIFICATION',
   UPDATE_INVENTORY = 'UPDATE_INVENTORY',
   SYNC_GATEWAY = 'SYNC_GATEWAY',
+  RESTOCK_INVENTORY = 'RESTOCK_INVENTORY',
+  UPDATE_ORDER_STATUS = 'UPDATE_ORDER_STATUS',
+  CALCULATE_FEES = 'CALCULATE_FEES',
+  GENERATE_CREDIT_NOTE = 'GENERATE_CREDIT_NOTE',
 }
 
 export enum RefundErrorCode {
@@ -108,6 +152,9 @@ export enum RefundErrorCode {
   INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
   INVALID_AMOUNT = 'INVALID_AMOUNT',
   PROCESSING_ERROR = 'PROCESSING_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
 export function getRefundErrorMessage(code: RefundErrorCode): string {
@@ -120,9 +167,31 @@ export function getRefundErrorMessage(code: RefundErrorCode): string {
     [RefundErrorCode.INSUFFICIENT_FUNDS]: 'Insufficient funds for refund',
     [RefundErrorCode.INVALID_AMOUNT]: 'Invalid refund amount',
     [RefundErrorCode.PROCESSING_ERROR]: 'Error processing refund',
+    [RefundErrorCode.NETWORK_ERROR]: 'Network connection error',
+    [RefundErrorCode.TIMEOUT_ERROR]: 'Request timeout error',
+    [RefundErrorCode.UNKNOWN_ERROR]: 'Unknown error occurred',
   };
 
   return messages[code] || 'Unknown error';
+}
+
+export function getRefundPriority(refundType: RefundType, refundAmount: number): 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' {
+  // Urgent priority for high-value refunds
+  if (refundAmount > 10000) {
+    return 'URGENT';
+  }
+
+  // High priority for full refunds or high amounts
+  if (refundType === RefundType.FULL || refundAmount > 5000) {
+    return 'HIGH';
+  }
+
+  // Normal priority for partial refunds
+  if (refundType === RefundType.PARTIAL) {
+    return 'NORMAL';
+  }
+
+  return 'LOW';
 }
 
 export function canTransitionRefundStatus(from: RefundStatus, to: RefundStatus): boolean {
@@ -137,4 +206,37 @@ export function canTransitionRefundStatus(from: RefundStatus, to: RefundStatus):
   };
 
   return transitions[from]?.includes(to) || false;
+}
+
+export function shouldRequireApproval(
+  refundAmount: number,
+  refundReason: RefundReason,
+  refundType: RefundType,
+  autoApprovalLimit?: number
+): boolean {
+  // Default auto-approval limit (in paise/cents)
+  const defaultLimit = autoApprovalLimit || 500000; // 5000 INR or $50
+
+  // High-risk reasons always require approval
+  const highRiskReasons = [
+    RefundReason.FRAUDULENT_TRANSACTION,
+    RefundReason.PAYMENT_DISPUTE,
+    RefundReason.DUPLICATE_ORDER,
+  ];
+
+  if (highRiskReasons.includes(refundReason)) {
+    return true;
+  }
+
+  // Full refunds above limit require approval
+  if (refundType === RefundType.FULL && refundAmount > defaultLimit) {
+    return true;
+  }
+
+  // Large partial refunds require approval
+  if (refundType === RefundType.PARTIAL && refundAmount > defaultLimit * 0.8) {
+    return true;
+  }
+
+  return false;
 }

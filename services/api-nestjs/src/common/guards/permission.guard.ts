@@ -5,12 +5,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { SetMetadata } from '@nestjs/common';
 import { AuthorizationService } from '../../infrastructure/authorization/authorization.service';
 import { AuthorizationContext } from '../types/authorization.types';
 
 export const REQUIRE_PERMISSIONS_KEY = 'requirePermissions';
 export const RequirePermissions = (...permissions: string[]) =>
-  Reflector.createDecorator<string[]>({ key: REQUIRE_PERMISSIONS_KEY, value: permissions });
+  SetMetadata(REQUIRE_PERMISSIONS_KEY, permissions);
 
 @Injectable()
 export class PermissionGuard implements CanActivate {

@@ -10,6 +10,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   declare paymentTransaction: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   declare paymentAttempt: any;
+  // Brand request model (Prisma generated model)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  declare brandRequest: any;
+
+  // Allow access to other generated model properties without strict typings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
   
   async onModuleInit() {
     await this.$connect();

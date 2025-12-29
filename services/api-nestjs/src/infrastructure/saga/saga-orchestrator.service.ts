@@ -97,7 +97,7 @@ export class SagaOrchestratorService {
       userId: sagaInstance.userId,
       data: sagaInstance.data as Record<string, any>,
       stepResults: sagaInstance.stepResults as Record<string, any> || {},
-      correlationId: sagaInstance.correlationId,
+      correlationId: sagaInstance.correlationId || undefined,
     };
 
     try {

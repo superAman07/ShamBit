@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { Notification, NotificationType, NotificationChannel, NotificationPriority } from './notification.service';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
+import { Notification, NotificationType, NotificationChannel, NotificationPriority } from './notification.service.js';
 
 @Injectable()
 export class NotificationRepository {
@@ -39,8 +39,8 @@ export class NotificationRepository {
       message: notification.message,
       data: notification.data as Record<string, any>,
       isRead: notification.isRead,
-      sentAt: notification.sentAt,
-      readAt: notification.readAt,
+      sentAt: notification.sentAt || undefined,
+      readAt: notification.readAt || undefined,
       createdAt: notification.createdAt,
     };
   }
@@ -62,8 +62,8 @@ export class NotificationRepository {
       message: notification.message,
       data: notification.data as Record<string, any>,
       isRead: notification.isRead,
-      sentAt: notification.sentAt,
-      readAt: notification.readAt,
+      sentAt: notification.sentAt || undefined,
+      readAt: notification.readAt || undefined,
       createdAt: notification.createdAt,
     }));
   }

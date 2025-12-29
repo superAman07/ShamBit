@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BrandStatus } from '../enums/brand-status.enum';
 import { BrandRequestStatus, BrandRequestType } from '../enums/request-status.enum';
-import { BrandMetadata } from '../entities/brand.entity';
+import type { BrandMetadata } from '../entities/brand.entity';
 
 export class BrandResponseDto {
   @ApiProperty({ example: 'brand_123' })

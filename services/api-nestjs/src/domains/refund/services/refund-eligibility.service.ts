@@ -286,7 +286,7 @@ export class RefundEligibilityService {
   }
 
   private checkOrderStatusEligibility(order: Order): RefundEligibilityResult {
-    if (!order.canBeRefunded()) {
+    if (!order.canBeRefunded) {
       return {
         isEligible: false,
         reason: `Order status '${order.status}' is not eligible for refund`,

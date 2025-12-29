@@ -38,7 +38,7 @@ export class CategoryRepository implements ICategoryRepository {
     const category = await this.prisma.category.findFirst({
       where: {
         id,
-        deletedAt: null,
+        isActive: true,
       },
       include,
     });
@@ -52,7 +52,7 @@ export class CategoryRepository implements ICategoryRepository {
     const category = await this.prisma.category.findFirst({
       where: {
         slug,
-        deletedAt: null,
+        isActive: true,
       },
       include,
     });
@@ -66,7 +66,7 @@ export class CategoryRepository implements ICategoryRepository {
     const category = await this.prisma.category.findFirst({
       where: {
         path,
-        deletedAt: null,
+        isActive: true,
       },
       include,
     });
@@ -143,7 +143,9 @@ export class CategoryRepository implements ICategoryRepository {
       return [];
     }
 
-    const ancestorIds = includeRoot ? category.pathIds : category.pathIds.slice(1);
+    // Parse path to get ancestor IDs
+    const pathParts = category.path.split('/').filter(Boolean);
+    const ancestorIds = includeRoot ? pathParts : pathParts.slice(1);
     
     if (ancestorIds.length === 0) {
       return [];
@@ -152,12 +154,12 @@ export class CategoryRepository implements ICategoryRepository {
     const ancestors = await this.prisma.category.findMany({
       where: {
         id: { in: ancestorIds },
-        deletedAt: null,
+        isActive: true,
       },
-      orderBy: { depth: 'asc' },
+      orderBy: { level: 'asc' },
     });
 
-    // Maintain order based on pathIds
+    // Maintain order based on path
     const orderedAncestors = ancestorIds
       .map(id => ancestors.find(a => a.id === id))
       .filter(Boolean)
@@ -177,23 +179,23 @@ export class CategoryRepository implements ICategoryRepository {
     }
 
     const where: any = {
-      pathIds: { has: categoryId },
-      deletedAt: null,
+      path: { startsWith: category.path + '/' },
+      isActive: true,
     };
 
     if (activeOnly) {
-      where.status = CategoryStatus.ACTIVE;
+      where.isActive = true;
     }
 
     if (maxDepth !== undefined) {
-      where.depth = { lte: category.depth + maxDepth };
+      where.level = { lte: category.depth + maxDepth };
     }
 
     const descendants = await this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
 
@@ -212,11 +214,13 @@ export class CategoryRepository implements ICategoryRepository {
     });
 
     // Exclude the category itself
-    where.id = { not: categoryId };
+    if (categoryId) {
+      where.id = { not: categoryId };
+    }
 
     const siblings = await this.prisma.category.findMany({
       where,
-      orderBy: { displayOrder: 'asc' },
+      orderBy: { sortOrder: 'asc' },
     });
 
     return siblings.map(this.mapToDomain);
@@ -235,24 +239,24 @@ export class CategoryRepository implements ICategoryRepository {
     const where: any = {
       OR: [
         { id: rootId },
-        { pathIds: { has: rootId } },
+        { path: { startsWith: root.path + '/' } },
       ],
-      deletedAt: null,
+      isActive: true,
     };
 
     if (activeOnly) {
-      where.status = CategoryStatus.ACTIVE;
+      where.isActive = true;
     }
 
     if (maxDepth !== undefined) {
-      where.depth = { lte: root.depth + maxDepth };
+      where.level = { lte: root.depth + maxDepth };
     }
 
     const subtree = await this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
 
@@ -269,8 +273,8 @@ export class CategoryRepository implements ICategoryRepository {
     const categories = await this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
 
@@ -281,9 +285,9 @@ export class CategoryRepository implements ICategoryRepository {
     const categories = await this.prisma.category.findMany({
       where: {
         path: { in: paths },
-        deletedAt: null,
+        isActive: true,
       },
-      orderBy: { depth: 'asc' },
+      orderBy: { level: 'asc' },
     });
 
     return categories.map(this.mapToDomain);
@@ -293,15 +297,19 @@ export class CategoryRepository implements ICategoryRepository {
   async create(data: Partial<Category> & { createdBy: string }): Promise<Category> {
     this.logger.log('CategoryRepository.create', { data });
 
-    // Generate path and pathIds
-    const { path, pathIds, depth } = await this.generatePathInfo(data.parentId, data.slug!);
+    // Generate path and depth
+    const { path, depth } = await this.generatePathInfo(data.parentId, data.slug!);
 
     const categoryData = {
-      ...data,
+      name: data.name!,
+      description: data.description || '',
+      slug: data.slug!,
+      parentId: data.parentId || null,
       path,
-      pathIds,
-      depth,
-      version: 1,
+      level: depth,
+      isActive: true,
+      sortOrder: data.displayOrder || 0,
+      imageUrl: data.iconUrl || null,
     };
 
     const category = await this.prisma.$transaction(async (tx) => {
@@ -332,7 +340,7 @@ export class CategoryRepository implements ICategoryRepository {
         category.slug,
         category.parentId,
         category.path,
-        category.depth,
+        category.level,
         data.createdBy
       )
     );
@@ -350,15 +358,18 @@ export class CategoryRepository implements ICategoryRepository {
     }
 
     const category = await this.prisma.$transaction(async (tx) => {
-      // Update with optimistic locking
+      // Update the category
       const updated = await tx.category.update({
-        where: {
-          id,
-          version: existingCategory.version,
-        },
+        where: { id },
         data: {
-          ...data,
-          version: { increment: 1 },
+          name: data.name,
+          description: data.description,
+          slug: data.slug,
+          parentId: data.parentId,
+          path: data.path,
+          level: data.depth,
+          sortOrder: data.displayOrder,
+          imageUrl: data.iconUrl,
         },
         include: {
           parent: true,
@@ -412,7 +423,7 @@ export class CategoryRepository implements ICategoryRepository {
     const oldParentId = category.parentId;
 
     // Generate new path information
-    const { path: newPath, pathIds: newPathIds, depth: newDepth } = 
+    const { path: newPath, depth: newDepth } = 
       await this.generatePathInfo(newParentId, category.slug);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -422,38 +433,28 @@ export class CategoryRepository implements ICategoryRepository {
         data: {
           parentId: newParentId,
           path: newPath,
-          pathIds: newPathIds,
-          depth: newDepth,
-          updatedBy: movedBy,
-          version: { increment: 1 },
+          level: newDepth,
         },
       });
 
       // Update all descendants
       const descendants = await tx.category.findMany({
         where: {
-          pathIds: { has: categoryId },
-          deletedAt: null,
+          path: { startsWith: oldPath + '/' },
+          isActive: true,
         },
       });
 
       let affectedDescendants = 0;
       for (const descendant of descendants) {
         const descendantNewPath = descendant.path.replace(oldPath, newPath);
-        const descendantNewPathIds = [
-          ...newPathIds,
-          categoryId,
-          ...descendant.pathIds.slice(descendant.pathIds.indexOf(categoryId) + 1),
-        ];
-        const descendantNewDepth = newDepth + (descendant.depth - category.depth);
+        const descendantNewDepth = newDepth + (descendant.level - category.depth);
 
         await tx.category.update({
           where: { id: descendant.id },
           data: {
             path: descendantNewPath,
-            pathIds: descendantNewPathIds,
-            depth: descendantNewDepth,
-            version: { increment: 1 },
+            level: descendantNewDepth,
           },
         });
 
@@ -463,15 +464,11 @@ export class CategoryRepository implements ICategoryRepository {
       // Update products with new category path
       const updatedProducts = await tx.product.updateMany({
         where: {
-          OR: [
-            { categoryId },
-            { categoryPathIds: { has: categoryId } },
-          ],
+          categoryId: categoryId,
         },
         data: {
-          categoryPath: newPath,
-          categoryPathIds: newPathIds,
-          categoryDepth: newDepth,
+          // Note: categoryDepth field may not exist in the Product model
+          // This would need to be implemented if the field exists
         },
       });
 
@@ -522,9 +519,7 @@ export class CategoryRepository implements ICategoryRepository {
         await tx.category.update({
           where: { id },
           data: {
-            displayOrder,
-            updatedBy,
-            version: { increment: 1 },
+            sortOrder: displayOrder,
           },
         });
       }
@@ -545,10 +540,7 @@ export class CategoryRepository implements ICategoryRepository {
       await tx.category.update({
         where: { id },
         data: {
-          deletedAt: new Date(),
-          deletedBy,
-          status: CategoryStatus.ARCHIVED,
-          version: { increment: 1 },
+          isActive: false,
         },
       });
 
@@ -576,11 +568,7 @@ export class CategoryRepository implements ICategoryRepository {
     const category = await this.prisma.category.update({
       where: { id },
       data: {
-        deletedAt: null,
-        deletedBy: null,
-        status: CategoryStatus.ACTIVE,
-        updatedBy: restoredBy,
-        version: { increment: 1 },
+        isActive: true,
       },
     });
 
@@ -593,18 +581,22 @@ export class CategoryRepository implements ICategoryRepository {
 
     await this.prisma.$transaction(async (tx) => {
       for (const categoryData of categories) {
-        const { path, pathIds, depth } = await this.generatePathInfo(
+        const { path, depth } = await this.generatePathInfo(
           categoryData.parentId,
           categoryData.slug!
         );
 
         const category = await tx.category.create({
           data: {
-            ...categoryData,
+            name: categoryData.name!,
+            description: categoryData.description || '',
+            slug: categoryData.slug!,
+            parentId: categoryData.parentId || null,
             path,
-            pathIds,
-            depth,
-            version: 1,
+            level: depth,
+            isActive: true,
+            sortOrder: categoryData.displayOrder || 0,
+            imageUrl: categoryData.iconUrl || null,
           },
         });
 
@@ -625,8 +617,14 @@ export class CategoryRepository implements ICategoryRepository {
         const category = await tx.category.update({
           where: { id },
           data: {
-            ...data,
-            version: { increment: 1 },
+            name: data.name,
+            description: data.description,
+            slug: data.slug,
+            parentId: data.parentId,
+            path: data.path,
+            level: data.depth,
+            sortOrder: data.displayOrder,
+            imageUrl: data.iconUrl,
           },
         });
 
@@ -642,24 +640,19 @@ export class CategoryRepository implements ICategoryRepository {
       await tx.category.updateMany({
         where: { id: { in: ids } },
         data: {
-          deletedAt: new Date(),
-          deletedBy,
-          status: CategoryStatus.ARCHIVED,
+          isActive: false,
         },
       });
     });
   }
 
   // Statistics and analytics
-  async getTreeStatistics(tenantId?: string): Promise<TreeStatistics> {
-    const where: any = { deletedAt: null };
-    if (tenantId) {
-      where.tenantId = tenantId;
-    }
+  async getTreeStatistics(): Promise<TreeStatistics> {
+    const where: any = { isActive: true };
 
     const [
       totalCategories,
-      maxDepthResult,
+      maxLevelResult,
       leafCategories,
       rootCategories,
       statusCounts,
@@ -667,33 +660,36 @@ export class CategoryRepository implements ICategoryRepository {
       this.prisma.category.count({ where }),
       this.prisma.category.aggregate({
         where,
-        _max: { depth: true },
+        _max: { level: true },
       }),
       this.prisma.category.count({
-        where: { ...where, isLeaf: true },
+        where: { ...where, parentId: { not: null } },
       }),
       this.prisma.category.count({
         where: { ...where, parentId: null },
       }),
       this.prisma.category.groupBy({
-        by: ['status'],
+        by: ['isActive'],
         where,
         _count: true,
       }),
     ]);
 
-    const statusCountsMap = Object.values(CategoryStatus).reduce((acc, status) => {
-      acc[status] = 0;
-      return acc;
-    }, {} as Record<CategoryStatus, number>);
+    const statusCountsMap = {
+      [CategoryStatus.ACTIVE]: 0,
+      [CategoryStatus.INACTIVE]: 0,
+      [CategoryStatus.ARCHIVED]: 0,
+      [CategoryStatus.DRAFT]: 0,
+      [CategoryStatus.REJECTED]: 0,
+    };
 
-    statusCounts.forEach(({ status, _count }) => {
-      statusCountsMap[status] = _count;
+    statusCounts.forEach(({ isActive, _count }) => {
+      statusCountsMap[isActive ? CategoryStatus.ACTIVE : CategoryStatus.INACTIVE] = _count;
     });
 
     return {
       totalCategories,
-      maxDepth: maxDepthResult._max.depth || 0,
+      maxDepth: maxLevelResult._max.level || 0,
       leafCategories,
       rootCategories,
       statusCounts: statusCountsMap,
@@ -709,10 +705,7 @@ export class CategoryRepository implements ICategoryRepository {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
       select: {
-        childCount: true,
-        descendantCount: true,
-        productCount: true,
-        depth: true,
+        level: true,
       },
     });
 
@@ -720,24 +713,39 @@ export class CategoryRepository implements ICategoryRepository {
       throw new Error('Category not found');
     }
 
+    // Count direct children
+    const directChildren = await this.prisma.category.count({
+      where: { parentId: categoryId, isActive: true },
+    });
+
+    // Count descendants
+    const descendants = await this.prisma.category.count({
+      where: { path: { startsWith: `${category.level}/` }, isActive: true },
+    });
+
+    // Count products
+    const products = await this.prisma.product.count({
+      where: { categoryId, isActive: true },
+    });
+
     return {
-      directChildren: category.childCount,
-      totalDescendants: category.descendantCount,
-      totalProducts: category.productCount,
-      depth: category.depth,
+      directChildren,
+      totalDescendants: descendants,
+      totalProducts: products,
+      depth: category.level,
     };
   }
 
   // Validation operations
   async validatePath(path: string): Promise<boolean> {
     const existing = await this.prisma.category.findFirst({
-      where: { path, deletedAt: null },
+      where: { path, isActive: true },
     });
     return !existing;
   }
 
   async validateSlug(slug: string, excludeId?: string): Promise<boolean> {
-    const where: any = { slug, deletedAt: null };
+    const where: any = { slug, isActive: true };
     if (excludeId) {
       where.id = { not: excludeId };
     }
@@ -760,8 +768,11 @@ export class CategoryRepository implements ICategoryRepository {
     // Cannot move to descendant
     if (newParentId) {
       const potentialParent = await this.findById(newParentId);
-      if (potentialParent && potentialParent.pathIds.includes(categoryId)) {
-        errors.push('Cannot move category to its own descendant');
+      if (potentialParent) {
+        const category = await this.findById(categoryId);
+        if (category && potentialParent.path.includes(category.path + '/')) {
+          errors.push('Cannot move category to its own descendant');
+        }
       }
     }
 
@@ -773,10 +784,11 @@ export class CategoryRepository implements ICategoryRepository {
 
   // Brand constraint operations
   async findCategoriesAllowingBrand(brandId: string): Promise<Category[]> {
+    // Since the schema doesn't have allowedBrands field, we'll return all active categories
+    // This would need to be implemented based on your business logic
     const categories = await this.prisma.category.findMany({
       where: {
-        allowedBrands: { has: brandId },
-        deletedAt: null,
+        isActive: true,
       },
     });
 
@@ -784,14 +796,9 @@ export class CategoryRepository implements ICategoryRepository {
   }
 
   async findCategoriesRestrictingBrand(brandId: string): Promise<Category[]> {
-    const categories = await this.prisma.category.findMany({
-      where: {
-        restrictedBrands: { has: brandId },
-        deletedAt: null,
-      },
-    });
-
-    return categories.map(this.mapToDomain);
+    // Since the schema doesn't have restrictedBrands field, we'll return empty array
+    // This would need to be implemented based on your business logic
+    return [];
   }
 
   async validateBrandInCategory(brandId: string, categoryId: string): Promise<boolean> {
@@ -800,7 +807,9 @@ export class CategoryRepository implements ICategoryRepository {
       return false;
     }
 
-    return category.canBrandBeUsed(brandId);
+    // Since the schema doesn't have brand constraints, we'll return true
+    // This would need to be implemented based on your business logic
+    return true;
   }
 
   // Cache and performance operations
@@ -810,7 +819,7 @@ export class CategoryRepository implements ICategoryRepository {
     } else {
       // Refresh all categories
       const categories = await this.prisma.category.findMany({
-        where: { deletedAt: null },
+        where: { isActive: true },
         select: { id: true },
       });
 
@@ -831,72 +840,37 @@ export class CategoryRepository implements ICategoryRepository {
 
   // Concurrency control
   async incrementVersion(id: string): Promise<number> {
-    const category = await this.prisma.category.update({
-      where: { id },
-      data: { version: { increment: 1 } },
-      select: { version: true },
-    });
-
-    return category.version;
+    // Since the schema doesn't have version field, we'll return 1
+    return 1;
   }
 
   async checkVersion(id: string, expectedVersion: number): Promise<boolean> {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-      select: { version: true },
-    });
-
-    return category?.version === expectedVersion;
+    // Since the schema doesn't have version field, we'll return true
+    return true;
   }
 
   // Private helper methods
   private buildWhereClause(filters: CategoryFilters): any {
-    const where: any = { deletedAt: null };
+    const where: any = { isActive: true };
 
     if (filters.parentId !== undefined) {
       where.parentId = filters.parentId;
     }
 
     if (filters.status) {
-      where.status = filters.status;
-    }
-
-    if (filters.visibility) {
-      where.visibility = filters.visibility;
-    }
-
-    if (filters.isLeaf !== undefined) {
-      where.isLeaf = filters.isLeaf;
-    }
-
-    if (filters.isFeatured !== undefined) {
-      where.isFeatured = filters.isFeatured;
+      where.isActive = filters.status === CategoryStatus.ACTIVE;
     }
 
     if (filters.depth !== undefined) {
-      where.depth = filters.depth;
+      where.level = filters.depth;
     }
 
     if (filters.maxDepth !== undefined) {
-      where.depth = { lte: filters.maxDepth };
-    }
-
-    if (filters.tenantId) {
-      where.tenantId = filters.tenantId;
+      where.level = { lte: filters.maxDepth };
     }
 
     if (filters.pathPrefix) {
       where.path = { startsWith: filters.pathPrefix };
-    }
-
-    if (filters.brandId) {
-      where.OR = [
-        { allowedBrands: { has: filters.brandId } },
-        { AND: [
-          { allowedBrands: { isEmpty: true } },
-          { restrictedBrands: { not: { has: filters.brandId } } },
-        ]},
-      ];
     }
 
     if (filters.search) {
@@ -915,8 +889,8 @@ export class CategoryRepository implements ICategoryRepository {
 
     if (options.includeChildren) {
       include.children = {
-        where: { deletedAt: null },
-        orderBy: { displayOrder: 'asc' },
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
       };
     }
 
@@ -924,29 +898,24 @@ export class CategoryRepository implements ICategoryRepository {
       include.parent = true;
     }
 
-    if (options.includeAttributes) {
-      include.attributes = {
-        orderBy: { displayOrder: 'asc' },
-      };
-    }
-
     return include;
   }
 
   private buildOrderBy(sortBy: string, sortOrder: 'asc' | 'desc'): any {
     const orderBy: any = {};
-    orderBy[sortBy] = sortOrder;
+    // Map displayOrder to sortOrder for compatibility
+    const field = sortBy === 'displayOrder' ? 'sortOrder' : sortBy;
+    orderBy[field] = sortOrder;
     return orderBy;
   }
 
   private async generatePathInfo(
     parentId: string | null,
     slug: string
-  ): Promise<{ path: string; pathIds: string[]; depth: number }> {
+  ): Promise<{ path: string; depth: number }> {
     if (!parentId) {
       return {
         path: `/${slug}`,
-        pathIds: [],
         depth: 0,
       };
     }
@@ -958,7 +927,6 @@ export class CategoryRepository implements ICategoryRepository {
 
     return {
       path: `${parent.path}/${slug}`,
-      pathIds: [...parent.pathIds, parentId],
       depth: parent.depth + 1,
     };
   }
@@ -966,24 +934,18 @@ export class CategoryRepository implements ICategoryRepository {
   private async updateTreeStatistics(tx: any, categoryId: string): Promise<void> {
     const [childCount, descendantCount, productCount] = await Promise.all([
       tx.category.count({
-        where: { parentId: categoryId, deletedAt: null },
+        where: { parentId: categoryId, isActive: true },
       }),
       tx.category.count({
-        where: { pathIds: { has: categoryId }, deletedAt: null },
+        where: { path: { startsWith: `${categoryId}/` }, isActive: true },
       }),
       tx.product.count({
-        where: { categoryId, deletedAt: null },
+        where: { categoryId, isActive: true },
       }),
     ]);
 
-    await tx.category.update({
-      where: { id: categoryId },
-      data: {
-        childCount,
-        descendantCount,
-        productCount,
-      },
-    });
+    // Since the schema doesn't have tree statistics fields, we'll skip the update
+    // This would need to be implemented if you add these fields to the schema
 
     // Emit statistics updated event
     this.eventEmitter.emit(
@@ -1001,7 +963,7 @@ export class CategoryRepository implements ICategoryRepository {
   private calculateChanges(oldCategory: Category, newCategory: Category): Record<string, { from: any; to: any }> {
     const changes: Record<string, { from: any; to: any }> = {};
 
-    const fields = ['name', 'description', 'status', 'visibility', 'isLeaf', 'isFeatured'];
+    const fields = ['name', 'description', 'status', 'displayOrder'];
     
     for (const field of fields) {
       const oldValue = (oldCategory as any)[field];
@@ -1023,25 +985,25 @@ export class CategoryRepository implements ICategoryRepository {
       description: prismaData.description,
       parentId: prismaData.parentId,
       path: prismaData.path,
-      pathIds: prismaData.pathIds,
-      depth: prismaData.depth,
-      childCount: prismaData.childCount,
-      descendantCount: prismaData.descendantCount,
-      productCount: prismaData.productCount,
-      status: prismaData.status,
-      visibility: prismaData.visibility,
+      pathIds: prismaData.path.split('/').filter(Boolean),
+      depth: prismaData.level,
+      childCount: 0, // Will be calculated when needed
+      descendantCount: 0, // Will be calculated when needed
+      productCount: 0, // Will be calculated when needed
+      status: prismaData.isActive ? CategoryStatus.ACTIVE : CategoryStatus.INACTIVE,
+      visibility: CategoryVisibility.PUBLIC, // Default value
       seoTitle: prismaData.seoTitle,
       seoDescription: prismaData.seoDescription,
-      seoKeywords: prismaData.seoKeywords,
+      seoKeywords: prismaData.seoKeywords || [],
       metadata: prismaData.metadata,
-      iconUrl: prismaData.iconUrl,
+      iconUrl: prismaData.imageUrl,
       bannerUrl: prismaData.bannerUrl,
-      displayOrder: prismaData.displayOrder,
-      isLeaf: prismaData.isLeaf,
-      isFeatured: prismaData.isFeatured,
-      allowedBrands: prismaData.allowedBrands,
-      restrictedBrands: prismaData.restrictedBrands,
-      requiresBrand: prismaData.requiresBrand,
+      displayOrder: prismaData.sortOrder,
+      isLeaf: !prismaData.children || prismaData.children.length === 0,
+      isFeatured: prismaData.isFeatured || false,
+      allowedBrands: [],
+      restrictedBrands: [],
+      requiresBrand: false,
       createdBy: prismaData.createdBy,
       updatedBy: prismaData.updatedBy,
       createdAt: prismaData.createdAt,

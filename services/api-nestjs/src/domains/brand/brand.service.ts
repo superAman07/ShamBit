@@ -301,3 +301,4 @@ export class BrandService {
     // TODO: Check if brand is used in any products
     // This would prevent deletion of brands that are actively used
   }
+}

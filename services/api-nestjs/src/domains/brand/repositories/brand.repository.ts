@@ -85,35 +85,38 @@ export class BrandRepository {
 
     const [data, total] = await Promise.all([
       this.prisma.brand.findMany({
-        where,
+        where: where as any,
         include: {
           categories: {
             include: {
               category: true,
             },
           },
+          // Seller is a SellerProfile; include the related user for name/email
           seller: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
           createdByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+            include: {
+              user: false, // createdByUser is a User relation — keep default fields via select if needed
             },
           },
-        },
+        } as any,
         skip,
         take: limit,
         orderBy: {
           [sortBy]: sortOrder,
         },
       }),
-      this.prisma.brand.count({ where }),
+      this.prisma.brand.count({ where: where as any }),
     ]);
 
     return {
@@ -124,10 +127,7 @@ export class BrandRepository {
 
   async findById(id: string): Promise<Brand | null> {
     const brand = await this.prisma.brand.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
+      where: { ...{ id, deletedAt: null } } as any,
       include: {
         categories: {
           include: {
@@ -135,13 +135,17 @@ export class BrandRepository {
           },
         },
         seller: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
-      },
+      } as any,
     });
 
     return brand ? this.mapToDomain(brand) : null;
@@ -149,17 +153,14 @@ export class BrandRepository {
 
   async findBySlug(slug: string): Promise<Brand | null> {
     const brand = await this.prisma.brand.findFirst({
-      where: {
-        slug,
-        deletedAt: null,
-      },
+      where: { ...{ slug, deletedAt: null } } as any,
       include: {
         categories: {
           include: {
             category: true,
           },
         },
-      },
+      } as any,
     });
 
     return brand ? this.mapToDomain(brand) : null;
@@ -178,14 +179,14 @@ export class BrandRepository {
             createdBy: data.createdBy,
           })),
         },
-      },
+      } as any,
       include: {
         categories: {
           include: {
             category: true,
           },
         },
-      },
+      } as any,
     });
 
     return this.mapToDomain(brand);
@@ -213,14 +214,14 @@ export class BrandRepository {
 
     const brand = await this.prisma.brand.update({
       where: { id },
-      data: updateData,
+      data: updateData as any,
       include: {
         categories: {
           include: {
             category: true,
           },
         },
-      },
+      } as any,
     });
 
     return this.mapToDomain(brand);
@@ -233,24 +234,21 @@ export class BrandRepository {
         deletedAt: new Date(),
         deletedBy,
         status: BrandStatus.INACTIVE,
-      },
+      } as any,
     });
   }
 
   async updateStatus(id: string, status: BrandStatus, updatedBy: string): Promise<Brand> {
     const brand = await this.prisma.brand.update({
       where: { id },
-      data: {
-        status,
-        updatedBy,
-      },
+      data: { status, updatedBy } as any,
       include: {
         categories: {
           include: {
             category: true,
           },
         },
-      },
+      } as any,
     });
 
     return this.mapToDomain(brand);
@@ -258,17 +256,14 @@ export class BrandRepository {
 
   async findBySellerId(sellerId: string): Promise<Brand[]> {
     const brands = await this.prisma.brand.findMany({
-      where: {
-        sellerId,
-        deletedAt: null,
-      },
+      where: { sellerId, deletedAt: null } as any,
       include: {
         categories: {
           include: {
             category: true,
           },
         },
-      },
+      } as any,
     });
 
     return brands.map(this.mapToDomain);
@@ -286,7 +281,7 @@ export class BrandRepository {
 
     const counts = await this.prisma.brand.groupBy({
       by: ['status'],
-      where,
+      where: where as any,
       _count: true,
     });
 

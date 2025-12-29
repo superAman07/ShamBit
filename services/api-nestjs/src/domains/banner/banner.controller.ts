@@ -18,7 +18,8 @@ import { CampaignService } from './campaign.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser, Public } from '../../common/decorators';
-import { UserRole, PaginationQuery } from '../../common/types';
+import { UserRole } from '../../common/types';
+import type { PaginationQuery } from '../../common/types';
 
 @ApiTags('Banners & CMS')
 @Controller('banners')

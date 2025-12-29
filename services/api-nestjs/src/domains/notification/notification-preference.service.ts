@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { NotificationType, NotificationChannel } from './notification.service';
+import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
+import { NotificationType, NotificationChannel } from './notification.service.js';
 
 export interface NotificationPreference {
   userId: string;
@@ -18,12 +18,21 @@ export class NotificationPreferenceService {
       where: { userId },
     });
 
-    return preferences.map(pref => ({
-      userId: pref.userId,
-      type: pref.type as NotificationType,
-      channels: pref.channels as NotificationChannel[],
-      isEnabled: pref.isEnabled,
-    }));
+    return preferences.map(pref => {
+      const channels: NotificationChannel[] = [];
+      
+      if (pref.email) channels.push(NotificationChannel.EMAIL);
+      if (pref.inApp) channels.push(NotificationChannel.IN_APP);
+      if (pref.sms) channels.push(NotificationChannel.SMS);
+      if (pref.push) channels.push(NotificationChannel.PUSH);
+
+      return {
+        userId: pref.userId,
+        type: pref.type as NotificationType,
+        channels,
+        isEnabled: true, // Assuming enabled if preference exists
+      };
+    });
   }
 
   async updatePreference(
@@ -32,6 +41,13 @@ export class NotificationPreferenceService {
     channels: NotificationChannel[],
     isEnabled: boolean = true
   ): Promise<void> {
+    const channelPreferences = {
+      email: channels.includes(NotificationChannel.EMAIL),
+      inApp: channels.includes(NotificationChannel.IN_APP),
+      sms: channels.includes(NotificationChannel.SMS),
+      push: channels.includes(NotificationChannel.PUSH),
+    };
+
     await this.prisma.notificationPreference.upsert({
       where: {
         userId_type: {
@@ -40,17 +56,12 @@ export class NotificationPreferenceService {
         },
       },
       update: {
-        channels,
-        isEnabled,
-        updatedAt: new Date(),
+        ...channelPreferences,
       },
       create: {
         userId,
         type,
-        channels,
-        isEnabled,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        ...channelPreferences,
       },
     });
   }

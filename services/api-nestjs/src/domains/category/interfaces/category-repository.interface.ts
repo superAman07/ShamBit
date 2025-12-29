@@ -11,7 +11,6 @@ export interface CategoryFilters {
   depth?: number;
   maxDepth?: number;
   search?: string;
-  tenantId?: string;
   pathPrefix?: string;
   brandId?: string; // Categories that allow this brand
 }
@@ -87,7 +86,7 @@ export interface ICategoryRepository {
   bulkDelete(ids: string[], deletedBy: string, reason?: string): Promise<void>;
   
   // Statistics and analytics
-  getTreeStatistics(tenantId?: string): Promise<TreeStatistics>;
+  getTreeStatistics(): Promise<TreeStatistics>;
   getCategoryStatistics(categoryId: string): Promise<{
     directChildren: number;
     totalDescendants: number;

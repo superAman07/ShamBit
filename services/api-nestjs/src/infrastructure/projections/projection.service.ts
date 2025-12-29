@@ -146,7 +146,7 @@ export class ProjectionService {
         eventType: event.eventType,
         handlerName: handler.constructor.name,
         error: error.message,
-        eventData: event,
+        eventData: JSON.stringify(event),
         tenantId: event.metadata.tenantId,
         createdAt: new Date(),
       },

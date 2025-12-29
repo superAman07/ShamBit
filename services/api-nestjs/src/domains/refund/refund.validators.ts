@@ -122,4 +122,36 @@ export class RefundValidators {
       }
     }
   }
+
+  static validateRefundApproval(refund: any, approvalData: any, approvedBy: string): void {
+    if (refund.status !== 'PENDING') {
+      throw new Error('Only pending refunds can be approved');
+    }
+
+    if (!approvalData.approvedAmount || approvalData.approvedAmount <= 0) {
+      throw new Error('Approved amount must be greater than zero');
+    }
+
+    if (approvalData.approvedAmount > refund.requestedAmount) {
+      throw new Error('Approved amount cannot exceed requested amount');
+    }
+
+    if (!approvedBy) {
+      throw new Error('Approver information is required');
+    }
+  }
+
+  static validateRefundProcessing(refund: any): void {
+    if (refund.status !== 'APPROVED') {
+      throw new Error('Only approved refunds can be processed');
+    }
+
+    if (!refund.approvedAmount || refund.approvedAmount <= 0) {
+      throw new Error('Refund must have a valid approved amount');
+    }
+
+    if (!refund.paymentMethod) {
+      throw new Error('Payment method information is required for processing');
+    }
+  }
 }
