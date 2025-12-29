@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CategoryAttribute } from '../entities/category-attribute.entity';
 import { AttributeType } from '../enums/attribute-type.enum';
 
@@ -57,7 +58,7 @@ export class CategoryAttributeRepository {
           },
         },
       },
-    });
+    } as unknown as Prisma.CategoryAttributeFindUniqueArgs);
 
     return attribute ? this.mapToDomain(attribute) : null;
   }
@@ -70,7 +71,7 @@ export class CategoryAttributeRepository {
           slug,
         },
       },
-    });
+    } as unknown as Prisma.CategoryAttributeFindUniqueArgs);
 
     return attribute ? this.mapToDomain(attribute) : null;
   }
@@ -84,7 +85,7 @@ export class CategoryAttributeRepository {
     const attributes = await this.prisma.categoryAttribute.findMany({
       where,
       orderBy: { displayOrder: 'asc' },
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     let result = attributes.map(this.mapToDomain);
 
@@ -106,7 +107,7 @@ export class CategoryAttributeRepository {
         ...data,
         version: 1,
       },
-    });
+    } as unknown as Prisma.CategoryAttributeCreateArgs);
 
     return this.mapToDomain(attribute);
   }
@@ -118,7 +119,7 @@ export class CategoryAttributeRepository {
         ...data,
         version: { increment: 1 },
       },
-    });
+    } as unknown as Prisma.CategoryAttributeUpdateArgs);
 
     return this.mapToDomain(attribute);
   }
@@ -126,7 +127,7 @@ export class CategoryAttributeRepository {
   async delete(id: string): Promise<void> {
     await this.prisma.categoryAttribute.delete({
       where: { id },
-    });
+    } as unknown as Prisma.CategoryAttributeDeleteArgs);
   }
 
   async getEffectiveAttributes(categoryId: string): Promise<CategoryAttribute[]> {
@@ -134,7 +135,7 @@ export class CategoryAttributeRepository {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
       select: { pathIds: true },
-    });
+    } as unknown as Prisma.CategoryFindUniqueArgs);
 
     if (!category) {
       return [];
@@ -151,7 +152,7 @@ export class CategoryAttributeRepository {
         { categoryId: 'desc' }, // Child categories override parent attributes
         { displayOrder: 'asc' },
       ],
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     // Remove duplicates (child attributes override parent attributes with same slug)
     const uniqueAttributes = new Map<string, any>();
@@ -171,7 +172,7 @@ export class CategoryAttributeRepository {
         ...data,
         version: 1,
       },
-    });
+    } as unknown as Prisma.CategoryAttributeInheritanceCreateArgs);
   }
 
   async updateInheritanceRule(
@@ -209,7 +210,7 @@ export class CategoryAttributeRepository {
     // Find all inherited instances
     const inheritedAttributes = await this.prisma.categoryAttribute.findMany({
       where: { inheritedFrom: sourceAttributeId },
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     // Update each inherited attribute
     for (const inherited of inheritedAttributes) {
@@ -233,7 +234,7 @@ export class CategoryAttributeRepository {
             updatedBy,
             version: { increment: 1 },
           },
-        });
+        } as unknown as Prisma.CategoryAttributeUpdateArgs);
       }
     }
   }
@@ -249,7 +250,7 @@ export class CategoryAttributeRepository {
     const attributes = await this.prisma.categoryAttribute.findMany({
       where: { type },
       orderBy: { createdAt: 'desc' },
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     return attributes.map(this.mapToDomain);
   }
@@ -279,7 +280,7 @@ export class CategoryAttributeRepository {
             ...attributeData,
             version: 1,
           },
-        });
+        } as unknown as Prisma.CategoryAttributeCreateArgs);
         results.push(this.mapToDomain(attribute));
       }
     });
@@ -300,7 +301,7 @@ export class CategoryAttributeRepository {
             ...data,
             version: { increment: 1 },
           },
-        });
+        } as unknown as Prisma.CategoryAttributeUpdateArgs);
         results.push(this.mapToDomain(attribute));
       }
     });
@@ -329,24 +330,24 @@ export class CategoryAttributeRepository {
       variantAttributes,
       requiredAttributes,
     ] = await Promise.all([
-      this.prisma.categoryAttribute.count({ where }),
+      this.prisma.categoryAttribute.count({ where } as any),
       this.prisma.categoryAttribute.groupBy({
-        by: ['type'],
+        by: ['type' as any],
         where,
         _count: true,
-      }),
+      } as any),
       this.prisma.categoryAttribute.count({
         where: { ...where, inheritedFrom: { not: null } },
-      }),
+      } as any),
       this.prisma.categoryAttribute.count({
         where: { ...where, overriddenAt: { not: null } },
-      }),
+      } as any),
       this.prisma.categoryAttribute.count({
         where: { ...where, isVariant: true },
-      }),
+      } as any),
       this.prisma.categoryAttribute.count({
         where: { ...where, isRequired: true },
-      }),
+      } as any),
     ]);
 
     const typeCountsMap = Object.values(AttributeType).reduce((acc, type) => {
@@ -374,7 +375,7 @@ export class CategoryAttributeRepository {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
       select: { pathIds: true },
-    });
+    } as unknown as Prisma.CategoryFindUniqueArgs);
 
     if (!category || category.pathIds.length === 0) {
       return [];
@@ -387,13 +388,13 @@ export class CategoryAttributeRepository {
         isInheritable: true,
       },
       orderBy: { displayOrder: 'asc' },
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     // Filter out attributes that are already defined in the target category
     const existingAttributeSlugs = await this.prisma.categoryAttribute.findMany({
       where: { categoryId },
       select: { slug: true },
-    });
+    } as unknown as Prisma.CategoryAttributeFindManyArgs);
 
     const existingSlugs = new Set(existingAttributeSlugs.map(attr => attr.slug));
 

@@ -7,7 +7,7 @@ export interface Reservation {
   variantId: string;
   sellerId: string;
   quantity: number;
-  orderId: string;
+  orderId: string | null;
   status: 'ACTIVE' | 'RELEASED' | 'CONFIRMED';
   expiresAt: Date;
   createdAt: Date;
@@ -24,7 +24,7 @@ export class ReservationService {
     variantId: string;
     sellerId: string;
     quantity: number;
-    orderId: string;
+    orderId: string | null;
     expiresAt: Date;
   }): Promise<Reservation> {
     this.logger.log('ReservationService.createReservation', data);

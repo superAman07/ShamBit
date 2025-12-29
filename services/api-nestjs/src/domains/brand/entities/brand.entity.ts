@@ -1,4 +1,5 @@
 import { BrandStatus } from '../enums/brand-status.enum';
+import { BrandScope } from '../enums/brand-scope.enum';
 
 export interface BrandMetadata {
   foundedYear?: number;
@@ -23,20 +24,22 @@ export class Brand {
   logoUrl?: string;
   websiteUrl?: string;
   status: BrandStatus;
-  
+
   // Classification
-  isGlobal: boolean;
+  scope: BrandScope;
   isVerified: boolean;
-  
+
   // Ownership
-  sellerId?: string;
-  
+  ownerId?: string;
+
   // Metadata
   metadata?: BrandMetadata;
-  
+
   // Relationships
   categoryIds: string[];
-  
+  allowedCategories?: string[];
+  restrictedCategories?: string[];
+
   // Audit fields
   createdBy: string;
   updatedBy?: string;
@@ -50,17 +53,21 @@ export class Brand {
   }
 
   // Domain methods
+  get isGlobal(): boolean {
+    return this.scope === BrandScope.GLOBAL;
+  }
+
   isActive(): boolean {
     return this.status === BrandStatus.ACTIVE && !this.deletedAt;
   }
 
   canBeUsedBy(sellerId?: string): boolean {
     if (!this.isActive()) return false;
-    return this.isGlobal || this.sellerId === sellerId;
+    return this.isGlobal || this.ownerId === sellerId;
   }
 
-  isOwnedBy(sellerId: string): boolean {
-    return this.sellerId === sellerId;
+  isOwnedBy(userId: string): boolean {
+    return this.ownerId === userId;
   }
 
   activate(): void {

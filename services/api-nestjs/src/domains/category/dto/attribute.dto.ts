@@ -44,7 +44,7 @@ export class CreateAttributeDto {
 
   @ApiProperty({ example: 'brand' })
   @IsString()
-  key: string;
+  slug: string;
 
   @ApiProperty({ example: 'Product brand name' })
   @IsString()
@@ -52,7 +52,7 @@ export class CreateAttributeDto {
 
   @ApiProperty({ enum: AttributeType })
   @IsEnum(AttributeType)
-  type: AttributeType;
+  dataType: AttributeType;
 
   @ApiProperty({ enum: AttributeInputType })
   @IsEnum(AttributeInputType)
@@ -64,7 +64,7 @@ export class CreateAttributeDto {
 
   @ApiProperty({ example: false })
   @IsBoolean()
-  isVariantAttribute: boolean;
+  isVariant: boolean;
 
   @ApiProperty({ example: true })
   @IsBoolean()
@@ -76,7 +76,7 @@ export class CreateAttributeDto {
 
   @ApiProperty({ example: 1 })
   @IsNumber()
-  sortOrder: number;
+  displayOrder: number;
 
   @ApiProperty({ type: [String], required: false })
   @IsOptional()
@@ -126,7 +126,7 @@ export class UpdateAttributeDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()
-  isVariantAttribute?: boolean;
+  isVariant?: boolean;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -141,7 +141,7 @@ export class UpdateAttributeDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsNumber()
-  sortOrder?: number;
+  displayOrder?: number;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -182,5 +182,5 @@ export class CategoryAttributeAssignmentDto {
 
   @ApiProperty({ example: 1 })
   @IsNumber()
-  sortOrder: number;
+  displayOrder: number;
 }

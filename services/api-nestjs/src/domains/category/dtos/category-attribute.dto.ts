@@ -1,8 +1,8 @@
 import { IsString, IsOptional, IsBoolean, IsArray, IsEnum, IsInt, Min, Max, IsObject } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { AttributeType } from '../enums/attribute-type.enum';
-import { AttributeValidationRules } from '../entities/category-attribute.entity';
+import type { AttributeValidationRules } from '../entities/category-attribute.entity';
 
 export class CreateCategoryAttributeDto {
   @ApiProperty({
@@ -155,24 +155,7 @@ export class CreateCategoryAttributeDto {
   placeholder?: string;
 }
 
-export class UpdateCategoryAttributeDto extends CreateCategoryAttributeDto {
-  @ApiPropertyOptional({
-    description: 'Attribute name',
-    example: 'Color',
-  })
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @ApiPropertyOptional({
-    description: 'Attribute data type',
-    enum: AttributeType,
-    example: AttributeType.SELECT,
-  })
-  @IsOptional()
-  @IsEnum(AttributeType)
-  type?: AttributeType;
-}
+export class UpdateCategoryAttributeDto extends PartialType(CreateCategoryAttributeDto) {}
 
 export class CategoryAttributeResponseDto {
   @ApiProperty({ example: 'attr_123' })

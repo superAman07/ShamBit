@@ -8,11 +8,8 @@ export interface StockMovement {
   sellerId: string;
   type: string;
   quantity: number;
-  previousQuantity: number;
-  newQuantity: number;
   reason: string;
-  referenceId?: string;
-  referenceType?: string;
+  reference?: string | null;
   userId: string;
   createdAt: Date;
 }
@@ -29,8 +26,8 @@ export class StockMovementService {
     sellerId: string;
     type: string;
     quantity: number;
-    previousQuantity: number;
-    newQuantity: number;
+    previousQuantity?: number;
+    newQuantity?: number;
     reason: string;
     referenceId?: string;
     referenceType?: string;

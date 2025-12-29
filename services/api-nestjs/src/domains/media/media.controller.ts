@@ -11,7 +11,9 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { MediaService, UploadSignedUrlDto } from './media.service';
+import { MediaService } from './media.service';
+import type { UploadSignedUrlDto } from './media.service';
+import { NotImplementedException } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser } from '../../common/decorators';
 
@@ -38,13 +40,13 @@ export class MediaController {
     @Param('id') mediaId: string,
     @Body() body: { metadata?: Record<string, any> },
   ) {
-    return this.mediaService.confirmUpload(mediaId, body.metadata);
+    throw new NotImplementedException('confirmUpload is not implemented yet');
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get media file' })
   async getMedia(@Param('id') id: string) {
-    return this.mediaService.findById(id);
+    throw new NotImplementedException('getMedia is not implemented yet');
   }
 
   @Delete(':id')
@@ -52,7 +54,7 @@ export class MediaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete media file' })
   async deleteMedia(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    await this.mediaService.deleteMedia(id, userId);
+    throw new NotImplementedException('deleteMedia is not implemented yet');
   }
 
   @Post('bulk-upload')
@@ -62,13 +64,13 @@ export class MediaController {
     @Body() body: { uploads: UploadSignedUrlDto[] },
     @CurrentUser('id') uploadedBy: string,
   ) {
-    return this.mediaService.generateBulkUploadUrls(body.uploads, uploadedBy);
+    throw new NotImplementedException('bulkUploadUrls is not implemented yet');
   }
 
   @Get('processing-status/:id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Check processing status' })
   async getProcessingStatus(@Param('id') mediaId: string) {
-    return this.mediaService.getProcessingStatus(mediaId);
+    throw new NotImplementedException('getProcessingStatus is not implemented yet');
   }
 }

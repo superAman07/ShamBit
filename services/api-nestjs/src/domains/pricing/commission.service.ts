@@ -7,19 +7,6 @@ import {
 import { CommissionRepository } from './commission.repository';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
 
-export interface CreateCommissionRuleDto {
-  name: string;
-  type: 'CATEGORY' | 'SELLER' | 'PRODUCT';
-  entityId: string;
-  rate: number;
-  fixedAmount?: number;
-  minAmount?: number;
-  maxAmount?: number;
-  priority?: number;
-  validFrom?: Date;
-  validTo?: Date;
-}
-
 export interface CommissionRule {
   id: string;
   name: string;
@@ -54,13 +41,14 @@ export interface CreateCommissionRuleDto {
   name: string;
   type: 'CATEGORY' | 'SELLER' | 'PRODUCT';
   entityId: string;
-  rate: number;
-  fixedAmount?: number;
+  commissionType: 'PERCENTAGE' | 'FIXED';
+  value: number;
   minAmount?: number;
   maxAmount?: number;
   priority?: number;
   validFrom?: Date;
   validTo?: Date;
+  isActive?: boolean;
 }
 
 @Injectable()
@@ -68,7 +56,7 @@ export class CommissionService {
   constructor(
     private readonly commissionRepository: CommissionRepository,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   async calculateCommission(
     productId: string,
@@ -95,7 +83,7 @@ export class CommissionService {
     // Apply rules in priority order
     for (const rule of sortedRules) {
       const ruleCommission = this.calculateRuleCommission(rule, baseAmount);
-      
+
       if (ruleCommission > 0) {
         totalCommission += ruleCommission;
         appliedRules.push({
@@ -167,7 +155,7 @@ export class CommissionService {
 
     const updatedRule = await this.commissionRepository.update(id, updateData);
     this.logger.log('Commission rule updated', { ruleId: id });
-    
+
     return updatedRule;
   }
 
@@ -200,7 +188,7 @@ export class CommissionService {
     categoryId: string,
   ): Promise<CommissionRule[]> {
     const now = new Date();
-    
+
     // Get rules for product, seller, and category
     const [productRules, sellerRules, categoryRules] = await Promise.all([
       this.commissionRepository.findByEntity('PRODUCT', productId),
@@ -210,8 +198,8 @@ export class CommissionService {
 
     // Combine all rules and filter active ones within valid date range
     const allRules = [...productRules, ...sellerRules, ...categoryRules];
-    
-    return allRules.filter(rule => 
+
+    return allRules.filter(rule =>
       rule.isActive &&
       rule.validFrom <= now &&
       (!rule.validTo || rule.validTo >= now)
@@ -231,7 +219,7 @@ export class CommissionService {
     if (rule.minAmount && commission < rule.minAmount) {
       commission = rule.minAmount;
     }
-    
+
     if (rule.maxAmount && commission > rule.maxAmount) {
       commission = rule.maxAmount;
     }
@@ -255,11 +243,12 @@ export class CommissionService {
       throw new BadRequestException('Minimum amount cannot be greater than maximum amount');
     }
 
-    if (rule.validTo && rule.validFrom >= rule.validTo) {
+
+    if (rule.validTo && rule.validFrom && rule.validFrom >= rule.validTo) {
       throw new BadRequestException('Valid from date must be before valid to date');
     }
 
-    if (rule.priority < 0) {
+    if (rule.priority !== undefined && rule.priority < 0) {
       throw new BadRequestException('Priority must be non-negative');
     }
   }

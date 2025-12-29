@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { Reservation } from './reservation.service';
 
@@ -10,18 +11,30 @@ export class ReservationRepository {
     variantId: string;
     sellerId: string;
     quantity: number;
-    orderId: string;
+    orderId: string | null;
     status: string;
     expiresAt: Date;
   }): Promise<Reservation> {
+    const reservationKey = randomUUID();
+
     const reservation = await this.prisma.inventoryReservation.create({
-      data,
+      data: {
+        inventoryId: data.variantId,
+        orderId: data.orderId,
+        quantity: data.quantity,
+        reservationKey,
+        expiresAt: data.expiresAt,
+        status: data.status,
+        referenceType: 'ORDER',
+        referenceId: data.orderId ?? reservationKey,
+        createdBy: data.sellerId,
+      },
     });
 
     return {
       id: reservation.id,
-      variantId: reservation.variantId,
-      sellerId: reservation.sellerId,
+      variantId: reservation.inventoryId,
+      sellerId: reservation.createdBy,
       quantity: reservation.quantity,
       orderId: reservation.orderId,
       status: reservation.status as 'ACTIVE' | 'RELEASED' | 'CONFIRMED',
@@ -41,8 +54,8 @@ export class ReservationRepository {
 
     return {
       id: reservation.id,
-      variantId: reservation.variantId,
-      sellerId: reservation.sellerId,
+      variantId: reservation.inventoryId,
+      sellerId: reservation.createdBy,
       quantity: reservation.quantity,
       orderId: reservation.orderId,
       status: reservation.status as 'ACTIVE' | 'RELEASED' | 'CONFIRMED',

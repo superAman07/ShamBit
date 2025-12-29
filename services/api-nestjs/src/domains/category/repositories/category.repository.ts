@@ -298,7 +298,7 @@ export class CategoryRepository implements ICategoryRepository {
     this.logger.log('CategoryRepository.create', { data });
 
     // Generate path and depth
-    const { path, depth } = await this.generatePathInfo(data.parentId, data.slug!);
+    const { path, depth } = await this.generatePathInfo(data.parentId || null, data.slug!);
 
     const categoryData = {
       name: data.name!,
@@ -309,7 +309,7 @@ export class CategoryRepository implements ICategoryRepository {
       level: depth,
       isActive: true,
       sortOrder: data.displayOrder || 0,
-      imageUrl: data.iconUrl || null,
+      imageUrl: data.iconUrl ?? null,
     };
 
     const category = await this.prisma.$transaction(async (tx) => {
@@ -369,7 +369,7 @@ export class CategoryRepository implements ICategoryRepository {
           path: data.path,
           level: data.depth,
           sortOrder: data.displayOrder,
-          imageUrl: data.iconUrl,
+          imageUrl: data.iconUrl ?? null,
         },
         include: {
           parent: true,
@@ -582,7 +582,7 @@ export class CategoryRepository implements ICategoryRepository {
     await this.prisma.$transaction(async (tx) => {
       for (const categoryData of categories) {
         const { path, depth } = await this.generatePathInfo(
-          categoryData.parentId,
+          categoryData.parentId || null,
           categoryData.slug!
         );
 
@@ -596,7 +596,7 @@ export class CategoryRepository implements ICategoryRepository {
             level: depth,
             isActive: true,
             sortOrder: categoryData.displayOrder || 0,
-            imageUrl: categoryData.iconUrl || null,
+            imageUrl: categoryData.iconUrl ?? null,
           },
         });
 
@@ -624,7 +624,7 @@ export class CategoryRepository implements ICategoryRepository {
             path: data.path,
             level: data.depth,
             sortOrder: data.displayOrder,
-            imageUrl: data.iconUrl,
+            imageUrl: data.iconUrl ?? null,
           },
         });
 
@@ -996,7 +996,7 @@ export class CategoryRepository implements ICategoryRepository {
       seoDescription: prismaData.seoDescription,
       seoKeywords: prismaData.seoKeywords || [],
       metadata: prismaData.metadata,
-      iconUrl: prismaData.imageUrl,
+      iconUrl: prismaData.imageUrl ?? undefined,
       bannerUrl: prismaData.bannerUrl,
       displayOrder: prismaData.sortOrder,
       isLeaf: !prismaData.children || prismaData.children.length === 0,

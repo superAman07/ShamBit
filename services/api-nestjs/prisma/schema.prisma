@@ -119,11 +119,14 @@ model User {
   webhooksCreated         Webhook[]
   userRoles               UserRole[]
   inventoryReservations   InventoryReservation[]
-  
+
   // Attribute relations
-  attributesCreated       Attribute[]              @relation("AttributeCreator")
-  attributesUpdated       Attribute[]              @relation("AttributeUpdater")
-  attributesDeleted       Attribute[]              @relation("AttributeDeleter")
+  attributesCreated Attribute[] @relation("AttributeCreator")
+  attributesUpdated Attribute[] @relation("AttributeUpdater")
+  attributesDeleted Attribute[] @relation("AttributeDeleter")
+
+  // Category Attribute relations
+  categoryAttributesCreated CategoryAttribute[] @relation("CategoryAttributeCreator")
 
   @@map("users")
 }
@@ -198,6 +201,7 @@ model Category {
   imageUrl    String?
   level       Int      @default(0)
   path        String // Materialized path for efficient queries
+  pathIds     String[] @default([]) // Array of ancestor IDs for efficient traversal
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -212,63 +216,63 @@ model Category {
 }
 
 model Attribute {
-  id                 String   @id @default(cuid())
-  name               String
-  slug               String   @unique
-  description        String?
-  dataType           String // STRING, NUMBER, BOOLEAN, ENUM, DATE, MULTI_SELECT, DECIMAL, RICH_TEXT, EMAIL, URL, PHONE, IMAGE, FILE
-  inputType          String? // TEXT, TEXTAREA, NUMBER, SELECT, MULTI_SELECT, CHECKBOX, RADIO, DATE, COLOR, FILE
-  isRequired         Boolean  @default(false)
-  isVariant          Boolean  @default(false)
-  isFilterable       Boolean  @default(true)
-  isSearchable       Boolean  @default(false)
-  isComparable       Boolean  @default(false)
-  displayOrder       Int      @default(0)
-  groupName          String?
-  helpText           String?
-  placeholder        String?
-  visibility         String   @default("PUBLIC") // PUBLIC, PRIVATE, ADMIN_ONLY
-  adminOnly          Boolean  @default(false)
-  isLocalizable      Boolean  @default(false)
-  status             String   @default("DRAFT") // DRAFT, ACTIVE, DEPRECATED, ARCHIVED
-  createdBy          String
-  updatedBy          String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
-  deletedBy          String?
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  description   String?
+  dataType      String // STRING, NUMBER, BOOLEAN, ENUM, DATE, MULTI_SELECT, DECIMAL, RICH_TEXT, EMAIL, URL, PHONE, IMAGE, FILE
+  inputType     String? // TEXT, TEXTAREA, NUMBER, SELECT, MULTI_SELECT, CHECKBOX, RADIO, DATE, COLOR, FILE
+  isRequired    Boolean   @default(false)
+  isVariant     Boolean   @default(false)
+  isFilterable  Boolean   @default(true)
+  isSearchable  Boolean   @default(false)
+  isComparable  Boolean   @default(false)
+  displayOrder  Int       @default(0)
+  groupName     String?
+  helpText      String?
+  placeholder   String?
+  visibility    String    @default("PUBLIC") // PUBLIC, PRIVATE, ADMIN_ONLY
+  adminOnly     Boolean   @default(false)
+  isLocalizable Boolean   @default(false)
+  status        String    @default("DRAFT") // DRAFT, ACTIVE, DEPRECATED, ARCHIVED
+  createdBy     String
+  updatedBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  deletedBy     String?
 
   // Relations
-  categories        CategoryAttribute[]
-  productValues     ProductAttributeValue[]
-  variantValues     VariantAttributeValue[]
-  attributeOptions  AttributeOption[]
-  localizations     AttributeLocalization[]
+  // categories        CategoryAttribute[] // Removed as CategoryAttribute is now independent
+  productValues    ProductAttributeValue[]
+  variantValues    VariantAttributeValue[]
+  attributeOptions AttributeOption[]
+  localizations    AttributeLocalization[]
 
   // References
-  creator           User     @relation("AttributeCreator", fields: [createdBy], references: [id])
-  updater           User?    @relation("AttributeUpdater", fields: [updatedBy], references: [id])
-  deleter           User?    @relation("AttributeDeleter", fields: [deletedBy], references: [id])
+  creator User  @relation("AttributeCreator", fields: [createdBy], references: [id])
+  updater User? @relation("AttributeUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("AttributeDeleter", fields: [deletedBy], references: [id])
 
   @@map("attributes")
 }
 
 model AttributeOption {
-  id            String   @id @default(cuid())
-  attributeId   String
-  value         String
-  label         String
-  description   String?
-  color         String?
-  imageUrl      String?
-  displayOrder  Int      @default(0)
-  isDefault     Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  attributeId  String
+  value        String
+  label        String
+  description  String?
+  color        String?
+  imageUrl     String?
+  displayOrder Int      @default(0)
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
-  attribute     Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
 
   @@map("attribute_options")
 }
@@ -285,25 +289,65 @@ model AttributeLocalization {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
 
   @@unique([attributeId, locale])
   @@map("attribute_localizations")
 }
 
 model CategoryAttribute {
-  categoryId  String
-  attributeId String
-  isRequired  Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
+  id            String  @id @default(cuid())
+  categoryId    String
+  name          String
+  slug          String
+  type          String // Using String to match AttributeType enum storage
+  description   String?
+  isRequired    Boolean @default(false)
+  isInheritable Boolean @default(false)
+  isOverridable Boolean @default(false)
+  isVariant     Boolean @default(false)
+  isFilterable  Boolean @default(false)
+  isSearchable  Boolean @default(false)
+
+  defaultValue    String?
+  allowedValues   String[]
+  validationRules Json?
+
+  displayOrder Int     @default(0)
+  displayName  String?
+  helpText     String?
+  placeholder  String?
+
+  inheritedFrom String?
+  overriddenAt  String? // Matching Entity definition (string), potentially ID of category
+
+  createdBy String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(1)
 
   // Relations
-  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  category      Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdByUser User     @relation("CategoryAttributeCreator", fields: [createdBy], references: [id])
 
-  @@id([categoryId, attributeId])
+  @@unique([categoryId, slug])
   @@map("category_attributes")
+}
+
+model CategoryAttributeInheritance {
+  id                String   @id @default(cuid())
+  sourceAttributeId String
+  targetCategoryId  String
+  isActive          Boolean  @default(true)
+  isOverridden      Boolean  @default(false)
+  overriddenValues  Json?
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([sourceAttributeId, targetCategoryId])
+  @@map("category_attribute_inheritance")
 }
 
 // ================================
@@ -350,29 +394,29 @@ model CategoryBrand {
 // ================================
 
 model Product {
-  id              String    @id @default(cuid())
-  name            String
-  description     String
-  slug            String    @unique
-  categoryId      String
-  brandId         String?
-  sellerId        String
-  status          String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ACTIVE, INACTIVE
-  isActive        Boolean   @default(false)
-  isFeatured      Boolean   @default(false)
-  hasVariants     Boolean   @default(false)
+  id               String    @id @default(cuid())
+  name             String
+  description      String
+  slug             String    @unique
+  categoryId       String
+  brandId          String?
+  sellerId         String
+  status           String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ACTIVE, INACTIVE
+  isActive         Boolean   @default(false)
+  isFeatured       Boolean   @default(false)
+  hasVariants      Boolean   @default(false)
   moderationStatus String?
-  approvedAt      DateTime?
-  approvedBy      String?
-  rejectedAt      DateTime?
-  rejectedBy      String?
-  rejectionReason String?
-  updatedBy       String?
-  deletedAt       DateTime?
-  deletedBy       String?
-  version         Int       @default(1)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  approvedAt       DateTime?
+  approvedBy       String?
+  rejectedAt       DateTime?
+  rejectedBy       String?
+  rejectionReason  String?
+  updatedBy        String?
+  deletedAt        DateTime?
+  deletedBy        String?
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relations
   category        Category                @relation(fields: [categoryId], references: [id])
@@ -389,9 +433,9 @@ model ProductAttributeValue {
   id           String   @id @default(cuid())
   productId    String
   attributeId  String
-  value        Json     // Flexible value storage
-  stringValue  String?  // For string values
-  numberValue  Float?   // For numeric values
+  value        Json // Flexible value storage
+  stringValue  String? // For string values
+  numberValue  Float? // For numeric values
   booleanValue Boolean? // For boolean values
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

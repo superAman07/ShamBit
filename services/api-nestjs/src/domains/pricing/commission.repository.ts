@@ -4,7 +4,7 @@ import { CommissionRule, CreateCommissionRuleDto } from './commission.service';
 
 @Injectable()
 export class CommissionRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(data: CreateCommissionRuleDto): Promise<CommissionRule> {
     const rule = await this.prisma.commissionRule.create({
@@ -12,14 +12,14 @@ export class CommissionRepository {
         name: data.name,
         type: data.type,
         entityId: data.entityId,
-        rate: data.rate,
-        fixedAmount: data.fixedAmount,
+        rate: data.commissionType === 'PERCENTAGE' ? data.value : 0,
+        fixedAmount: data.commissionType === 'FIXED' ? data.value : null,
         minAmount: data.minAmount,
         maxAmount: data.maxAmount,
         priority: data.priority || 0,
         validFrom: data.validFrom || new Date(),
         validTo: data.validTo,
-        isActive: true,
+        isActive: data.isActive !== undefined ? data.isActive : true,
       },
     });
 
@@ -69,20 +69,49 @@ export class CommissionRepository {
   }
 
   async update(id: string, data: Partial<CreateCommissionRuleDto>): Promise<CommissionRule> {
+    const updateData: any = {
+      name: data.name,
+      type: data.type,
+      entityId: data.entityId,
+      minAmount: data.minAmount,
+      maxAmount: data.maxAmount,
+      priority: data.priority,
+      validFrom: data.validFrom,
+      validTo: data.validTo,
+      isActive: data.isActive,
+    };
+
+    // Handle commission type and value updates
+    if (data.commissionType || data.value !== undefined) {
+      let type = data.commissionType;
+
+      // If updating value without type, we need current type
+      if (!type && data.value !== undefined) {
+        const existing = await this.findById(id);
+        if (existing) {
+          type = existing.commissionType;
+        }
+      }
+
+      if (type === 'PERCENTAGE') {
+        if (data.value !== undefined) updateData.rate = data.value;
+        if (data.commissionType === 'PERCENTAGE') {
+          updateData.fixedAmount = null;
+        }
+      } else if (type === 'FIXED') {
+        if (data.value !== undefined) updateData.fixedAmount = data.value;
+        if (data.commissionType === 'FIXED') {
+          updateData.rate = 0;
+        }
+      }
+    }
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
     const rule = await this.prisma.commissionRule.update({
       where: { id },
-      data: {
-        name: data.name,
-        type: data.type,
-        entityId: data.entityId,
-        rate: data.rate,
-        fixedAmount: data.fixedAmount,
-        minAmount: data.minAmount,
-        maxAmount: data.maxAmount,
-        priority: data.priority,
-        validFrom: data.validFrom,
-        validTo: data.validTo,
-      },
+      data: updateData,
     });
 
     return {

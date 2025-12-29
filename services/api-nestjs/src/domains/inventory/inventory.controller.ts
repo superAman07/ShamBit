@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { InventoryService, StockUpdateDto, StockReservationDto } from './inventory.service';
+import { InventoryService } from './inventory.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser } from '../../common/decorators';
@@ -37,8 +37,8 @@ export class InventoryController {
     if (!userRoles.includes(UserRole.ADMIN) && userId !== sellerId) {
       throw new Error('Access denied');
     }
-    
-    return this.inventoryService.getInventory(variantId, sellerId);
+
+    return this.inventoryService.findByVariant(variantId, sellerId);
   }
 
   @Put(':variantId/:sellerId/stock')
@@ -57,16 +57,30 @@ export class InventoryController {
       throw new Error('Access denied');
     }
 
-    const updateDto: StockUpdateDto = {
-      variantId,
-      sellerId,
-      quantity: body.quantity,
-      reason: body.reason,
-      referenceId: body.referenceId,
-      referenceType: body.referenceType,
-    };
+    const inventory = await this.inventoryService.findByVariant(variantId, sellerId);
+    if (!inventory) {
+      throw new Error('Inventory not found');
+    }
 
-    return this.inventoryService.updateStock(updateDto, userId);
+    if (body.quantity > 0) {
+      return this.inventoryService.increaseStock(inventory.id, {
+        quantity: body.quantity,
+        reason: body.reason,
+        referenceId: body.referenceId,
+        referenceType: body.referenceType,
+      }, userId);
+    }
+
+    if (body.quantity < 0) {
+      return this.inventoryService.decreaseStock(inventory.id, {
+        quantity: Math.abs(body.quantity),
+        reason: body.reason,
+        referenceId: body.referenceId,
+        referenceType: body.referenceType,
+      }, userId);
+    }
+
+    return this.inventoryService.adjustStock(inventory.id, body.quantity, body.reason, userId);
   }
 
   @Post('reserve')
@@ -75,10 +89,31 @@ export class InventoryController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reserve stock for order' })
   async reserveStock(
-    @Body() reservationDto: StockReservationDto,
+    @Body() reservationDto: any,
     @CurrentUser('id') userId: string,
   ) {
-    return this.inventoryService.reserveStock(reservationDto);
+    // reservationDto may contain either inventoryId or variantId/sellerId
+    let inventoryId = reservationDto.inventoryId as string | undefined;
+    if (!inventoryId && reservationDto.variantId && reservationDto.sellerId) {
+      const inv = await this.inventoryService.findByVariant(reservationDto.variantId, reservationDto.sellerId);
+      if (!inv) throw new Error('Inventory not found');
+      inventoryId = inv.id;
+    }
+
+    if (!inventoryId) throw new Error('inventoryId is required');
+
+    const reservationKey = reservationDto.reservationKey || undefined;
+
+    return this.inventoryService.reserveStock(
+      inventoryId,
+      reservationDto.quantity,
+      reservationKey,
+      reservationDto.referenceType || 'ORDER',
+      reservationDto.referenceId || reservationKey || '',
+      new Date(reservationDto.expiresAt),
+      userId,
+      reservationDto.metadata,
+    );
   }
 
   @Post('release/:reservationId')
@@ -102,6 +137,6 @@ export class InventoryController {
     @Param('reservationId') reservationId: string,
     @Body() body: { reason: string },
   ) {
-    return this.inventoryService.confirmReservation(reservationId, body.reason);
+    return this.inventoryService.commitReservation(reservationId, body.reason);
   }
 }

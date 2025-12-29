@@ -121,10 +121,10 @@ export class CategoryReparentingAlgorithm {
         name: true,
         path: true,
         pathIds: true,
-        depth: true,
-        status: true,
-        childCount: true,
-        productCount: true,
+        level: true,
+        isActive: true,
+        parentId: true,
+        slug: true,
       },
     });
 
@@ -134,8 +134,8 @@ export class CategoryReparentingAlgorithm {
     }
 
     // Check if category is in a valid state for moving
-    if (category.status === CategoryStatus.ARCHIVED) {
-      errors.push('Cannot move archived categories');
+    if (!category.isActive) {
+      errors.push('Cannot move inactive/archived categories');
     }
 
     // Validate new parent
@@ -146,9 +146,8 @@ export class CategoryReparentingAlgorithm {
           id: true,
           path: true,
           pathIds: true,
-          depth: true,
-          status: true,
-          isLeaf: true,
+          level: true,
+          isActive: true,
         },
       });
 
@@ -162,21 +161,23 @@ export class CategoryReparentingAlgorithm {
 
         // Check depth limits
         const maxDepth = 10; // Configurable limit
-        const newDepth = newParent.depth + 1;
+        const newLevel = newParent.level + 1;
         const categoryTreeDepth = await this.getMaxDescendantDepth(categoryId);
-        const finalDepth = newDepth + (categoryTreeDepth - category.depth);
+        const finalDepth = newLevel + (categoryTreeDepth - category.level);
 
         if (finalDepth > maxDepth) {
           errors.push(`Move would exceed maximum tree depth (${maxDepth})`);
         }
 
         // Check if parent can have children
-        if (newParent.isLeaf && newParent.status === CategoryStatus.ACTIVE) {
+        const childCountForParent = await this.prisma.category.count({ where: { parentId: newParent.id } });
+        const isLeaf = childCountForParent === 0;
+        if (isLeaf && newParent.isActive) {
           warnings.push('Moving to a leaf category - parent will no longer be able to contain products');
         }
 
         // Check parent status
-        if (newParent.status !== CategoryStatus.ACTIVE) {
+        if (!newParent.isActive) {
           warnings.push('Moving to an inactive parent category');
         }
       }
@@ -190,14 +191,12 @@ export class CategoryReparentingAlgorithm {
     }
 
     // Performance warnings
-    if (category.childCount > 100) {
-      warnings.push(`Category has ${category.childCount} children - operation may take longer`);
+    const childCount = await this.prisma.category.count({ where: { parentId: categoryId } });
+    if (childCount > 100) {
+      warnings.push(`Category has ${childCount} children - operation may take longer`);
     }
 
-    const descendantCount = await this.prisma.category.count({
-      where: { pathIds: { has: categoryId } },
-    });
-
+    const descendantCount = await this.prisma.category.count({ where: { pathIds: { has: categoryId } } });
     if (descendantCount > 1000) {
       warnings.push(`Category has ${descendantCount} descendants - consider running during maintenance window`);
     }
@@ -226,7 +225,7 @@ export class CategoryReparentingAlgorithm {
       select: {
         path: true,
         pathIds: true,
-        depth: true,
+        level: true,
       },
     });
 
@@ -237,7 +236,7 @@ export class CategoryReparentingAlgorithm {
     return {
       path: `${parent.path}/${categorySlug}`,
       pathIds: [...parent.pathIds, newParentId],
-      depth: parent.depth + 1,
+      depth: parent.level + 1,
     };
   }
 
@@ -269,9 +268,7 @@ export class CategoryReparentingAlgorithm {
             parentId: newParentId,
             path: newPathInfo.path,
             pathIds: newPathInfo.pathIds,
-            depth: newPathInfo.depth,
-            updatedBy: userId,
-            version: { increment: 1 },
+            level: newPathInfo.depth,
           },
         });
 
@@ -279,18 +276,15 @@ export class CategoryReparentingAlgorithm {
 
         // Step 2: Get all descendants
         const descendants = await tx.category.findMany({
-          where: {
-            pathIds: { has: category.id },
-            deletedAt: null,
-          },
+          where: { pathIds: { has: category.id } },
           select: {
             id: true,
             path: true,
             pathIds: true,
-            depth: true,
+            level: true,
             slug: true,
           },
-          orderBy: { depth: 'asc' },
+          orderBy: { level: 'asc' },
         });
 
         // Step 3: Update descendants in batches
@@ -314,16 +308,15 @@ export class CategoryReparentingAlgorithm {
               ];
               
               // Calculate new depth
-              const depthDifference = newPathInfo.depth - category.depth;
-              const newDescendantDepth = descendant.depth + depthDifference;
+              const depthDifference = newPathInfo.depth - category.level;
+              const newDescendantDepth = descendant.level + depthDifference;
 
               await tx.category.update({
                 where: { id: descendant.id },
                 data: {
                   path: newDescendantPath,
                   pathIds: newDescendantPathIds,
-                  depth: newDescendantDepth,
-                  version: { increment: 1 },
+                  level: newDescendantDepth,
                 },
               });
 
@@ -334,21 +327,10 @@ export class CategoryReparentingAlgorithm {
 
         // Step 4: Update products if requested
         if (options.updateProducts) {
-          const productUpdateResult = await tx.product.updateMany({
-            where: {
-              OR: [
-                { categoryId: category.id },
-                { categoryPathIds: { has: category.id } },
-              ],
-            },
-            data: {
-              categoryPath: newPathInfo.path,
-              categoryPathIds: newPathInfo.pathIds,
-              categoryDepth: newPathInfo.depth,
-            },
-          });
-
-          affectedProducts = productUpdateResult.count;
+          // Product model in this schema does not track category path fields.
+          // We update count of affected products instead of mutating non-existent fields.
+          const productCountForCategory = await tx.product.count({ where: { categoryId: category.id } });
+          affectedProducts = productCountForCategory;
         }
 
         // Step 5: Update tree statistics for affected parents
@@ -369,37 +351,7 @@ export class CategoryReparentingAlgorithm {
           await this.updateTreeStatistics(tx, parentId);
         }
 
-        // Step 6: Create audit log
-        await tx.categoryAuditLog.create({
-          data: {
-            categoryId: category.id,
-            action: 'MOVE',
-            oldValues: {
-              parentId: category.parentId,
-              path: category.path,
-              pathIds: category.pathIds,
-              depth: category.depth,
-            },
-            newValues: {
-              parentId: newParentId,
-              path: newPathInfo.path,
-              pathIds: newPathInfo.pathIds,
-              depth: newPathInfo.depth,
-            },
-            oldPath: category.path,
-            newPath: newPathInfo.path,
-            oldParentId: category.parentId,
-            newParentId: newParentId,
-            userId,
-            userRole: 'ADMIN', // This should come from context
-            reason: 'Category reparenting operation',
-            metadata: {
-              affectedCategories,
-              affectedProducts,
-              batchSize,
-            },
-          },
-        });
+        // Audit log model not present in this schema; skip creating audit record.
       });
 
       return {
@@ -432,50 +384,36 @@ export class CategoryReparentingAlgorithm {
         slug: true,
         path: true,
         pathIds: true,
-        depth: true,
+        level: true,
         parentId: true,
-        status: true,
-        childCount: true,
-        productCount: true,
+        isActive: true,
       },
     });
   }
 
   private async getDescendants(categoryId: string): Promise<any[]> {
     return this.prisma.category.findMany({
-      where: {
-        pathIds: { has: categoryId },
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        path: true,
-        depth: true,
-      },
+      where: { pathIds: { has: categoryId } },
+      select: { id: true, path: true, level: true },
     });
   }
 
   private async countAffectedProducts(categoryId: string): Promise<number> {
     return this.prisma.product.count({
       where: {
-        OR: [
-          { categoryId },
-          { categoryPathIds: { has: categoryId } },
-        ],
+        categoryId,
       },
     });
   }
 
   private async getMaxDescendantDepth(categoryId: string): Promise<number> {
     const result = await this.prisma.category.aggregate({
-      where: {
-        pathIds: { has: categoryId },
-        deletedAt: null,
-      },
-      _max: { depth: true },
+      where: { pathIds: { has: categoryId } },
+      _max: { level: true },
     });
-
-    return result._max.depth || 0;
+    // result._max may be undefined if no descendants
+    // @ts-ignore
+    return (result._max && (result._max.level as number)) || 0;
   }
 
   private async validateBusinessConstraints(
@@ -498,24 +436,18 @@ export class CategoryReparentingAlgorithm {
   private async updateTreeStatistics(tx: any, categoryId: string): Promise<void> {
     const [childCount, descendantCount, productCount] = await Promise.all([
       tx.category.count({
-        where: { parentId: categoryId, deletedAt: null },
+        where: { parentId: categoryId },
       }),
       tx.category.count({
-        where: { pathIds: { has: categoryId }, deletedAt: null },
+        where: { pathIds: { has: categoryId } },
       }),
       tx.product.count({
-        where: { categoryId, deletedAt: null },
+        where: { categoryId },
       }),
     ]);
-
-    await tx.category.update({
-      where: { id: categoryId },
-      data: {
-        childCount,
-        descendantCount,
-        productCount,
-      },
-    });
+    // This schema does not persist tree statistics fields on category.
+    // If required, implement persistence to a separate stats table or add fields to the model.
+    return;
   }
 
   // Batch reparenting for multiple categories
@@ -551,16 +483,11 @@ export class CategoryReparentingAlgorithm {
     operations: Array<{ categoryId: string; newParentId: string | null }>
   ): Promise<Array<{ categoryId: string; newParentId: string | null; depth: number }>> {
     const categoriesData = await this.prisma.category.findMany({
-      where: {
-        id: { in: operations.map(op => op.categoryId) },
-      },
-      select: {
-        id: true,
-        depth: true,
-      },
+      where: { id: { in: operations.map(op => op.categoryId) } },
+      select: { id: true, level: true },
     });
 
-    const depthMap = new Map(categoriesData.map(cat => [cat.id, cat.depth]));
+    const depthMap = new Map(categoriesData.map(cat => [cat.id, cat.level]));
 
     return operations
       .map(op => ({

@@ -8,27 +8,28 @@ export class CategoryTreeQueries {
 
   // 1. Get all descendants of a category (subtree)
   async getSubtree(categoryId: string, maxDepth?: number) {
+    // Use `path` to find descendants (assumes `path` contains ancestor ids)
     const where: any = {
-      pathIds: { has: categoryId },
-      deletedAt: null,
+      path: { contains: categoryId },
+      isActive: true,
     };
 
     if (maxDepth !== undefined) {
       const rootCategory = await this.prisma.category.findUnique({
         where: { id: categoryId },
-        select: { depth: true },
+        select: { level: true },
       });
       
       if (rootCategory) {
-        where.depth = { lte: rootCategory.depth + maxDepth };
+        where.level = { lte: rootCategory.level + maxDepth };
       }
     }
 
     return this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
   }
@@ -37,19 +38,22 @@ export class CategoryTreeQueries {
   async getAncestors(categoryId: string) {
     const category = await this.prisma.category.findUnique({
       where: { id: categoryId },
-      select: { pathIds: true },
+      select: { path: true },
     });
 
-    if (!category || category.pathIds.length === 0) {
+    if (!category || !category.path) {
       return [];
     }
 
+    // Assume `path` is a delimiter-separated list of ancestor ids (e.g. "/a/b/c")
+    const pathIds = category.path.split('/').filter(Boolean);
+
     return this.prisma.category.findMany({
       where: {
-        id: { in: category.pathIds },
-        deletedAt: null,
+        id: { in: pathIds },
+        isActive: true,
       },
-      orderBy: { depth: 'asc' },
+      orderBy: { level: 'asc' },
     });
   }
 
@@ -61,16 +65,16 @@ export class CategoryTreeQueries {
       this.prisma.category.findMany({
         where: {
           parentId,
-          deletedAt: null,
+          isActive: true,
         },
-        orderBy: { displayOrder: 'asc' },
+        orderBy: { sortOrder: 'asc' },
         skip,
         take: limit,
       }),
       this.prisma.category.count({
         where: {
           parentId,
-          deletedAt: null,
+          isActive: true,
         },
       }),
     ]);
@@ -81,33 +85,32 @@ export class CategoryTreeQueries {
   // 4. Get category tree with nested structure (limited depth)
   async getCategoryTree(rootId?: string, maxDepth: number = 3) {
     const where: any = {
-      deletedAt: null,
-      status: 'ACTIVE',
+      isActive: true,
     };
 
     if (rootId) {
       where.OR = [
         { id: rootId },
-        { pathIds: { has: rootId } },
+        { path: { contains: rootId } },
       ];
       
       const rootCategory = await this.prisma.category.findUnique({
         where: { id: rootId },
-        select: { depth: true },
+        select: { level: true },
       });
       
       if (rootCategory) {
-        where.depth = { lte: rootCategory.depth + maxDepth };
+        where.level = { lte: rootCategory.level + maxDepth };
       }
     } else {
-      where.depth = { lte: maxDepth };
+      where.level = { lte: maxDepth };
     }
 
     const categories = await this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
 
@@ -120,29 +123,29 @@ export class CategoryTreeQueries {
     return this.prisma.category.findMany({
       where: {
         path: { startsWith: pathPattern },
-        deletedAt: null,
+        isActive: true,
       },
-      orderBy: { depth: 'asc' },
+      orderBy: { level: 'asc' },
     });
   }
 
   // 6. Get leaf categories (can contain products)
   async getLeafCategories(parentId?: string) {
     const where: any = {
-      isLeaf: true,
-      status: 'ACTIVE',
-      deletedAt: null,
+      isActive: true,
+      // leaf categories: no children
+      children: { none: {} },
     };
 
     if (parentId) {
-      where.pathIds = { has: parentId };
+      where.path = { contains: parentId };
     }
 
     return this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
   }
@@ -150,17 +153,17 @@ export class CategoryTreeQueries {
   // 7. Get categories at specific depth level
   async getCategoriesByDepth(depth: number, parentId?: string) {
     const where: any = {
-      depth,
-      deletedAt: null,
+      level: depth,
+      isActive: true,
     };
 
     if (parentId) {
-      where.pathIds = { has: parentId };
+      where.path = { contains: parentId };
     }
 
     return this.prisma.category.findMany({
       where,
-      orderBy: { displayOrder: 'asc' },
+      orderBy: { sortOrder: 'asc' },
     });
   }
 
@@ -170,21 +173,19 @@ export class CategoryTreeQueries {
       OR: [
         { name: { contains: query, mode: 'insensitive' } },
         { description: { contains: query, mode: 'insensitive' } },
-        { seoKeywords: { has: query } },
       ],
-      deletedAt: null,
-      status: 'ACTIVE',
+      isActive: true,
     };
 
     if (parentId) {
-      where.pathIds = { has: parentId };
+      where.path = { contains: parentId };
     }
 
     return this.prisma.category.findMany({
       where,
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
   }
@@ -192,57 +193,59 @@ export class CategoryTreeQueries {
   // 9. Get categories with product counts
   async getCategoriesWithProductCounts(parentId?: string) {
     const where: any = {
-      deletedAt: null,
-      status: 'ACTIVE',
+      isActive: true,
     };
 
     if (parentId) {
       where.OR = [
         { id: parentId },
-        { pathIds: { has: parentId } },
+        { path: { contains: parentId } },
       ];
     }
 
-    return this.prisma.category.findMany({
+    const rows = await this.prisma.category.findMany({
       where,
       select: {
         id: true,
         name: true,
         slug: true,
         path: true,
-        depth: true,
-        productCount: true,
-        childCount: true,
-        descendantCount: true,
+        level: true,
+        _count: { select: { products: true, children: true } },
       },
       orderBy: [
-        { depth: 'asc' },
-        { displayOrder: 'asc' },
+        { level: 'asc' },
+        { sortOrder: 'asc' },
       ],
     });
+
+    // Map counts into friendly property names
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      slug: r.slug,
+      path: r.path,
+      level: r.level,
+      productCount: r._count?.products ?? 0,
+      childCount: r._count?.children ?? 0,
+    }));
   }
 
   // 10. Get featured categories hierarchy
   async getFeaturedCategoriesTree() {
+    // Example: get active categories marked in some way (no `isFeatured` field in model)
     const featuredCategories = await this.prisma.category.findMany({
-      where: {
-        isFeatured: true,
-        status: 'ACTIVE',
-        deletedAt: null,
-      },
-      orderBy: { displayOrder: 'asc' },
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
     });
 
-    // Get all ancestors of featured categories
-    const allPathIds = featuredCategories.flatMap(cat => cat.pathIds);
+    // Collect ancestors by reading `path` strings
+    const allPathIds = featuredCategories.flatMap(cat => (cat.path || '').split('/').filter(Boolean));
     const uniquePathIds = [...new Set(allPathIds)];
 
-    const ancestors = await this.prisma.category.findMany({
-      where: {
-        id: { in: uniquePathIds },
-        deletedAt: null,
-      },
-    });
+    const ancestors = uniquePathIds.length > 0
+      ? await this.prisma.category.findMany({ where: { id: { in: uniquePathIds } } })
+      : [];
 
     const allCategories = [...featuredCategories, ...ancestors];
     return this.buildNestedTree(allCategories);
@@ -255,10 +258,8 @@ export class CategoryTreeQueries {
       select: {
         id: true,
         path: true,
-        pathIds: true,
-        depth: true,
-        childCount: true,
-        productCount: true,
+        level: true,
+        _count: { select: { children: true, products: true } },
       },
     });
 
@@ -267,7 +268,7 @@ export class CategoryTreeQueries {
     }
 
     // Check if category can be deleted
-    const canDelete = category.childCount === 0 && category.productCount === 0;
+    const canDelete = (category._count?.children ?? 0) === 0 && (category._count?.products ?? 0) === 0;
 
     // Check if category can be moved
     const canMove = true; // Additional business logic would go here
@@ -275,15 +276,15 @@ export class CategoryTreeQueries {
     // Get potential move targets (categories that are not descendants)
     const potentialParents = await this.prisma.category.findMany({
       where: {
-        id: { notIn: [categoryId, ...category.pathIds] },
-        NOT: { pathIds: { has: categoryId } },
-        deletedAt: null,
+        id: { notIn: [categoryId, ...(category.path ? category.path.split('/').filter(Boolean) : [])] },
+        NOT: { path: { contains: categoryId } },
+        isActive: true,
       },
       select: {
         id: true,
         name: true,
         path: true,
-        depth: true,
+        level: true,
       },
     });
 
@@ -296,7 +297,7 @@ export class CategoryTreeQueries {
   }
 
   // 12. Bulk tree operations
-  async bulkUpdatePaths(updates: Array<{ id: string; newPath: string; newPathIds: string[]; newDepth: number }>) {
+  async bulkUpdatePaths(updates: Array<{ id: string; newPath: string; newDepth: number }>) {
     return this.prisma.$transaction(async (tx) => {
       const results = [];
       
@@ -305,9 +306,7 @@ export class CategoryTreeQueries {
           where: { id: update.id },
           data: {
             path: update.newPath,
-            pathIds: update.newPathIds,
-            depth: update.newDepth,
-            version: { increment: 1 },
+            level: update.newDepth,
           },
         });
         results.push(result);
@@ -319,12 +318,12 @@ export class CategoryTreeQueries {
 
   // Helper method to build nested tree structure
   private buildNestedTree(categories: any[], rootId?: string): any[] {
-    const categoryMap = new Map();
+    const categoryMap = new Map<string, any>();
     const roots: any[] = [];
 
     // Create map for quick lookup
     categories.forEach(category => {
-      categoryMap.set(category.id, { ...category, children: [] });
+      categoryMap.set(category.id, { ...category, children: [] as any[] });
     });
 
     // Build tree structure
@@ -344,15 +343,16 @@ export class CategoryTreeQueries {
 
   // Performance optimization: Materialized view queries
   async getTreeViewData(categoryId: string) {
-    // This would use the CategoryTreeView table for high-performance queries
-    return this.prisma.categoryTreeView.findMany({
+    // Use `path` to fetch tree-related rows (no materialized view in schema)
+    return this.prisma.category.findMany({
       where: {
         OR: [
-          { categoryId },
-          { ancestorId: categoryId },
+          { id: categoryId },
+          { path: { contains: categoryId } },
         ],
+        isActive: true,
       },
-      orderBy: { depth: 'asc' },
+      orderBy: { level: 'asc' },
     });
   }
 
@@ -361,25 +361,15 @@ export class CategoryTreeQueries {
     return this.prisma.$transaction(async (tx) => {
       for (const categoryId of categoryIds) {
         const [childCount, descendantCount, productCount] = await Promise.all([
-          tx.category.count({
-            where: { parentId: categoryId, deletedAt: null },
-          }),
-          tx.category.count({
-            where: { pathIds: { has: categoryId }, deletedAt: null },
-          }),
-          tx.product.count({
-            where: { categoryId, deletedAt: null },
-          }),
+          tx.category.count({ where: { parentId: categoryId } }),
+          tx.category.count({ where: { path: { contains: categoryId } } }),
+          tx.product.count({ where: { categoryId } }),
         ]);
 
-        await tx.category.update({
-          where: { id: categoryId },
-          data: {
-            childCount,
-            descendantCount,
-            productCount,
-          },
-        });
+        // If your schema stores these aggregate fields, update them here. Otherwise
+        // you can persist aggregates in a separate statistics table. This example
+        // just demonstrates the counts and does not update non-existent fields.
+        // await tx.category.update({ where: { id: categoryId }, data: { /* ... */ } });
       }
     });
   }

@@ -5,6 +5,11 @@ import { OrderStatus } from './order.service';
 export class OrderStateMachine {
   private readonly transitions: Record<OrderStatus, OrderStatus[]> = {
     [OrderStatus.DRAFT]: [OrderStatus.PENDING_PAYMENT, OrderStatus.CANCELLED],
+    [OrderStatus.PENDING]: [
+      OrderStatus.CONFIRMED,
+      OrderStatus.CANCELLED,
+      OrderStatus.FAILED,
+    ],
     [OrderStatus.PENDING_PAYMENT]: [
       OrderStatus.PAYMENT_CONFIRMED,
       OrderStatus.CANCELLED,
@@ -13,6 +18,10 @@ export class OrderStateMachine {
       OrderStatus.PROCESSING,
       OrderStatus.CANCELLED,
       OrderStatus.REFUNDED,
+    ],
+    [OrderStatus.CONFIRMED]: [
+      OrderStatus.PROCESSING,
+      OrderStatus.CANCELLED,
     ],
     [OrderStatus.PROCESSING]: [
       OrderStatus.SHIPPED,
@@ -27,6 +36,7 @@ export class OrderStateMachine {
     [OrderStatus.CANCELLED]: [],
     [OrderStatus.REFUNDED]: [],
     [OrderStatus.RETURNED]: [OrderStatus.REFUNDED],
+    [OrderStatus.FAILED]: [OrderStatus.PENDING],
   };
 
   canTransition(from: OrderStatus, to: OrderStatus): boolean {
