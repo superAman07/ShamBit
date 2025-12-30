@@ -8,6 +8,8 @@ import {
   Query,
   UseGuards,
   UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
   Req,
 } from '@nestjs/common';
 import { 
@@ -41,70 +43,11 @@ import type {
 
 import { PublicSellerListResponse } from '../dtos/public-seller.dto';
 
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-
-// Mock guards - replace with actual guards
-@Injectable()
-class JwtAuthGuard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
-    const request = _context.switchToHttp().getRequest();
-    
-    // Check for Authorization header
-    const authHeader = request.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      // For public endpoints: allow requests without auth
-      // The controller methods will handle what data to return
-      return true;
-    }
-    
-    // Mock user for testing - replace with actual JWT validation
-    request.user = {
-      id: 'cmjslcuyr0004g8doe4ovm3c0',
-      roles: ['SELLER'],
-      email: 'test@example.com'
-    };
-    
-    return true;
-  }
-}
-
-@Injectable()
-class StrictJwtAuthGuard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
-    const request = _context.switchToHttp().getRequest();
-    
-    // Check for Authorization header
-    const authHeader = request.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Authentication required');
-    }
-    
-    // Mock user for testing - replace with actual JWT validation
-    request.user = {
-      id: 'cmjslcuyr0004g8doe4ovm3c0',
-      roles: ['SELLER'],
-      email: 'test@example.com'
-    };
-    
-    return true;
-  }
-}
-
-@Injectable()
-class RolesGuard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
-    // TODO: Implement role-based access control
-    return true; // Allow all for now
-  }
-}
-
-const Roles = (..._roles: string[]) => (_target: any, _propertyName: string, _descriptor: PropertyDescriptor) => {};
-const CurrentUser = () => (target: any, propertyName: string, parameterIndex: number) => {
-  // This is a mock decorator - in production, use a proper implementation
-  // For now, we'll handle user extraction in the guard
-};
+// Import the real auth guards and decorators
+import { AuthGuard } from '../../../common/guards/auth.guard';
+import { RolesGuard } from '../../../common/guards/roles.guard';
+import { Roles, CurrentUser, Public } from '../../../common/decorators';
+import { UserRole } from '../../../common/types';
 
 @ApiTags('Seller Accounts')
 @ApiBearerAuth()
@@ -121,6 +64,7 @@ export class SellerAccountController {
   // ============================================================================
 
   @Get()
+  @Public()
   @ApiOperation({ 
     summary: 'Get public seller listings',
     description: 'Get public seller information for ecommerce listings. Returns only seller name, store name, and verification status.'
@@ -159,8 +103,8 @@ export class SellerAccountController {
   @ApiResponse({ status: 200, description: 'Seller accounts retrieved successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async findAllAdmin(
     @Query() filters: SellerAccountFilters,
     @Query() includes: SellerAccountIncludeOptions,
@@ -178,152 +122,155 @@ export class SellerAccountController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get seller account by ID' })
   @ApiResponse({ status: 200, description: 'Seller account retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Seller account not found' })
+  @ApiResponse({ status: 400, description: 'Invalid ID format' })
   async findById(
     @Param('id') id: string,
     @Query() includes: SellerAccountIncludeOptions,
     @Req() request?: any,
   ) {
-    const user = request?.user;
-    const account = await this.sellerAccountRepository.findById(id, includes);
-    
-    if (!account) {
-      throw new Error('Seller account not found');
+    // Validate ID format (basic validation)
+    if (!id || id.trim().length === 0) {
+      throw new BadRequestException('Invalid ID format');
     }
 
-    // If user is authenticated and is a seller, check access
-    if (user?.roles?.includes('SELLER') && account.sellerId !== user.id) {
-      throw new Error('Access denied');
-    }
+    try {
+      const user = request?.user;
+      const account = await this.sellerAccountRepository.findById(id, includes);
+      
+      // Check if account exists
+      if (!account) {
+        throw new NotFoundException('Seller account not found');
+      }
 
-    // For public access (no user), return limited information
-    if (!user) {
-      return {
-        id: account.id,
-        sellerName: account.accountHolderName,
-        storeName: account.businessName,
-        isVerified: account.isVerified,
-        createdAt: account.createdAt
-      };
-    }
+      // If user is authenticated and is a seller, check access
+      if (user?.roles?.includes(UserRole.SELLER) && account.sellerId !== user.id) {
+        throw new UnauthorizedException('Access denied');
+      }
 
-    return account;
+      // For public access (no user), return limited information
+      if (!user) {
+        return {
+          id: account.id,
+          sellerName: account.accountHolderName,
+          storeName: account.businessName,
+          isVerified: account.isVerified,
+          createdAt: account.createdAt
+        };
+      }
+
+      return account;
+    } catch (error) {
+      // Handle database errors (like invalid ID format for database)
+      if (error.message?.includes('Invalid ID') || error.message?.includes('invalid input syntax')) {
+        throw new BadRequestException('Invalid ID format');
+      }
+      
+      // Re-throw known HTTP exceptions
+      if (error instanceof NotFoundException || 
+          error instanceof BadRequestException || 
+          error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      // Handle unexpected errors
+      console.error('Error in findById:', error);
+      throw new NotFoundException('Seller account not found');
+    }
   }
 
   @Get('seller/:sellerId')
+  @Public()
   @ApiOperation({ summary: 'Get seller account by seller ID' })
   @ApiResponse({ status: 200, description: 'Seller account retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Seller account not found' })
+  @ApiResponse({ status: 400, description: 'Invalid seller ID format' })
   async findBySellerId(
     @Param('sellerId') sellerId: string,
     @Query() includes: SellerAccountIncludeOptions,
     @Req() request?: any,
   ) {
-    const user = request?.user;
-    
-    // If user is authenticated and is a seller, check access
-    if (user?.roles?.includes('SELLER') && sellerId !== user.id) {
-      throw new Error('Access denied');
+    // Validate seller ID format
+    if (!sellerId || sellerId.trim().length === 0) {
+      throw new BadRequestException('Invalid seller ID format');
     }
 
-    const account = await this.sellerAccountRepository.findBySellerId(sellerId, includes);
-    
-    if (!account) {
-      throw new Error('Seller account not found');
-    }
+    try {
+      const user = request?.user;
+      
+      // If user is authenticated and is a seller, check access
+      if (user?.roles?.includes(UserRole.SELLER) && sellerId !== user.id) {
+        throw new UnauthorizedException('Access denied');
+      }
 
-    // For public access (no user), return limited information
-    if (!user) {
-      return {
-        id: account.id,
-        sellerName: account.accountHolderName,
-        storeName: account.businessName,
-        isVerified: account.isVerified,
-        createdAt: account.createdAt
-      };
-    }
+      const account = await this.sellerAccountRepository.findBySellerId(sellerId, includes);
+      
+      if (!account) {
+        throw new NotFoundException('Seller account not found');
+      }
 
-    return account;
+      // For public access (no user), return limited information
+      if (!user) {
+        return {
+          id: account.id,
+          sellerName: account.accountHolderName,
+          storeName: account.businessName,
+          isVerified: account.isVerified,
+          createdAt: account.createdAt
+        };
+      }
+
+      return account;
+    } catch (error) {
+      // Handle database errors
+      if (error.message?.includes('Invalid ID') || error.message?.includes('invalid input syntax')) {
+        throw new BadRequestException('Invalid seller ID format');
+      }
+      
+      // Re-throw known HTTP exceptions
+      if (error instanceof NotFoundException || 
+          error instanceof BadRequestException || 
+          error instanceof UnauthorizedException) {
+        throw error;
+      }
+      
+      // Handle unexpected errors
+      console.error('Error in findBySellerId:', error);
+      throw new NotFoundException('Seller account not found');
+    }
   }
 
   @Post()
   @ApiOperation({ 
     summary: 'Create a new seller account',
-    description: 'Create a new seller account with bank details and business information. Authentication required.'
+    description: 'Create a new seller account with bank details and business information. Allows BUYER users to upgrade to SELLER role.'
   })
   @ApiBody({ 
     type: CreateSellerAccountDto,
-    description: 'Seller account creation data',
-    examples: {
-      individual: {
-        summary: 'Individual seller account',
-        value: {
-          sellerId: 'seller_123',
-          accountHolderName: 'John Doe',
-          accountNumber: '1234567890',
-          ifscCode: 'HDFC0001234',
-          bankName: 'HDFC Bank',
-          branchName: 'Mumbai Main Branch',
-          accountType: 'SAVINGS',
-          businessType: 'INDIVIDUAL',
-          panNumber: 'ABCDE1234F'
-        }
-      },
-      business: {
-        summary: 'Business seller account',
-        value: {
-          sellerId: 'seller_456',
-          accountHolderName: 'ABC Private Limited',
-          accountNumber: '9876543210',
-          ifscCode: 'ICIC0001234',
-          bankName: 'ICICI Bank',
-          branchName: 'Delhi Branch',
-          accountType: 'CURRENT',
-          businessName: 'ABC Private Limited',
-          businessType: 'PRIVATE_LIMITED',
-          gstNumber: '29ABCDE1234F1Z5',
-          panNumber: 'ABCDE1234F'
-        }
-      }
-    }
+    description: 'Seller account creation data'
   })
   @ApiResponse({ 
     status: 201, 
-    description: 'Seller account created successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        sellerId: { type: 'string' },
-        accountHolderName: { type: 'string' },
-        bankName: { type: 'string' },
-        kycStatus: { type: 'string', example: 'PENDING' },
-        status: { type: 'string', example: 'ACTIVE' },
-        isVerified: { type: 'boolean', example: false },
-        createdAt: { type: 'string', format: 'date-time' }
-      }
-    }
+    description: 'Seller account created successfully'
   })
   @ApiResponse({ status: 400, description: 'Invalid seller account data' })
   @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
   @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-  @UseGuards(StrictJwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SELLER, UserRole.BUYER)
   async createSellerAccount(
     @Body() dto: CreateSellerAccountDto,
-    @Req() request: any,
+    @CurrentUser() user: any,
   ) {
-    // Get user from request (set by StrictJwtAuthGuard)
-    const user = request.user;
-    
     if (!user) {
       throw new UnauthorizedException('User not found in request');
     }
 
-    // Sellers can only create their own account
-    if (user.roles?.includes('SELLER')) {
+    // Non-admin users can only create their own account
+    if (user.roles?.includes(UserRole.SELLER) || user.roles?.includes(UserRole.BUYER)) {
       dto.sellerId = user.id;
     }
 
@@ -345,15 +292,13 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Update seller account' })
   @ApiResponse({ status: 200, description: 'Seller account updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid update data' })
-  @UseGuards(StrictJwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SELLER, UserRole.BUYER)
   async updateSellerAccount(
     @Param('id') id: string,
     @Body() dto: UpdateSellerAccountDto,
-    @Req() request: any,
+    @CurrentUser() user: any,
   ) {
-    const user = request.user;
-    
     if (!user) {
       throw new UnauthorizedException('User not found in request');
     }
@@ -361,12 +306,12 @@ export class SellerAccountController {
     const account = await this.sellerAccountRepository.findById(id);
     
     if (!account) {
-      throw new Error('Seller account not found');
+      throw new NotFoundException('Seller account not found');
     }
     
-    // Sellers can only update their own account
-    if (user.roles?.includes('SELLER') && account.sellerId !== user.id) {
-      throw new Error('Access denied');
+    // Non-admin users can only update their own account
+    if ((user.roles?.includes(UserRole.SELLER) || user.roles?.includes(UserRole.BUYER)) && account.sellerId !== user.id) {
+      throw new UnauthorizedException('Access denied');
     }
 
     return this.sellerAccountRepository.update(id, dto);
@@ -382,65 +327,15 @@ export class SellerAccountController {
     description: 'Submit KYC documents for verification. Required for account activation.'
   })
   @ApiParam({ name: 'id', description: 'Seller account ID' })
-  @ApiBody({
-    description: 'KYC documents submission',
-    schema: {
-      type: 'object',
-      required: ['documents'],
-      properties: {
-        documents: {
-          type: 'object',
-          properties: {
-            panCard: {
-              type: 'object',
-              properties: {
-                number: { type: 'string', example: 'ABCDE1234F' },
-                imageUrl: { type: 'string', example: 'https://example.com/pan.jpg' }
-              }
-            },
-            aadharCard: {
-              type: 'object',
-              properties: {
-                number: { type: 'string', example: '1234-5678-9012' },
-                imageUrl: { type: 'string', example: 'https://example.com/aadhar.jpg' }
-              }
-            },
-            bankStatement: {
-              type: 'object',
-              properties: {
-                imageUrl: { type: 'string', example: 'https://example.com/statement.pdf' }
-              }
-            },
-            gstCertificate: {
-              type: 'object',
-              properties: {
-                number: { type: 'string', example: '29ABCDE1234F1Z5' },
-                imageUrl: { type: 'string', example: 'https://example.com/gst.pdf' }
-              }
-            }
-          }
-        },
-        metadata: { type: 'object' }
-      }
-    }
-  })
   @ApiResponse({ 
     status: 200, 
-    description: 'KYC documents submitted successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        kycStatus: { type: 'string', example: 'SUBMITTED' },
-        message: { type: 'string', example: 'KYC documents submitted for verification' }
-      }
-    }
+    description: 'KYC documents submitted successfully'
   })
   @ApiResponse({ status: 400, description: 'Invalid KYC data or account not eligible for KYC submission' })
   @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({ status: 404, description: 'Seller account not found' })
-  @UseGuards(StrictJwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SELLER, UserRole.BUYER)
   async submitKyc(
     @Param('id') id: string,
     @Body() dto: Omit<SubmitKycDto, 'accountId'>,
@@ -449,12 +344,12 @@ export class SellerAccountController {
     const account = await this.sellerAccountRepository.findById(id);
     
     if (!account) {
-      throw new Error('Seller account not found');
+      throw new NotFoundException('Seller account not found');
     }
     
-    // Sellers can only submit KYC for their own account
-    if (user.roles?.includes('SELLER') && account.sellerId !== user.id) {
-      throw new Error('Access denied');
+    // Non-admin users can only submit KYC for their own account
+    if ((user.roles?.includes(UserRole.SELLER) || user.roles?.includes(UserRole.BUYER)) && account.sellerId !== user.id) {
+      throw new UnauthorizedException('Access denied');
     }
 
     const submitDto: SubmitKycDto = {
@@ -465,7 +360,7 @@ export class SellerAccountController {
     // Get current account and submit KYC
     const currentAccount = await this.sellerAccountRepository.findById(id);
     if (!currentAccount) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     currentAccount.submitKyc(submitDto.documents);
@@ -481,7 +376,8 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Verify KYC documents' })
   @ApiResponse({ status: 200, description: 'KYC verified successfully' })
   @ApiResponse({ status: 400, description: 'Cannot verify KYC' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async verifyKyc(
     @Param('id') id: string,
     @Body() dto: Omit<VerifyKycDto, 'accountId'>,
@@ -496,7 +392,7 @@ export class SellerAccountController {
     // Get current account and verify KYC
     const account = await this.sellerAccountRepository.findById(id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     account.verifyKyc(verifyDto.verifiedBy, verifyDto.notes);
@@ -514,7 +410,8 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Reject KYC documents' })
   @ApiResponse({ status: 200, description: 'KYC rejected successfully' })
   @ApiResponse({ status: 400, description: 'Cannot reject KYC' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async rejectKyc(
     @Param('id') id: string,
     @Body() dto: Omit<RejectKycDto, 'accountId'>,
@@ -529,7 +426,7 @@ export class SellerAccountController {
     // Get current account and reject KYC
     const account = await this.sellerAccountRepository.findById(id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     account.rejectKyc(rejectDto.rejectedBy, rejectDto.reason, rejectDto.notes);
@@ -550,7 +447,8 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Update account status' })
   @ApiResponse({ status: 200, description: 'Account status updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid status update' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async updateAccountStatus(
     @Param('id') id: string,
     @Body() dto: Omit<UpdateAccountStatusDto, 'accountId'>,
@@ -565,7 +463,7 @@ export class SellerAccountController {
     // Get current account and update status
     const account = await this.sellerAccountRepository.findById(id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     // Update status based on the new status
@@ -574,25 +472,25 @@ export class SellerAccountController {
         if (account.canActivate()) {
           account.activate();
         } else {
-          throw new Error('Cannot activate account');
+          throw new BadRequestException('Cannot activate account');
         }
         break;
       case 'SUSPENDED':
         if (account.canSuspend()) {
           account.suspend();
         } else {
-          throw new Error('Cannot suspend account');
+          throw new BadRequestException('Cannot suspend account');
         }
         break;
       case 'CLOSED':
         if (account.canClose()) {
           account.close();
         } else {
-          throw new Error('Cannot close account');
+          throw new BadRequestException('Cannot close account');
         }
         break;
       default:
-        throw new Error('Invalid status');
+        throw new BadRequestException('Invalid status');
     }
     
     return this.sellerAccountRepository.update(id, {
@@ -615,7 +513,8 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Setup Razorpay integration' })
   @ApiResponse({ status: 200, description: 'Razorpay integration setup successfully' })
   @ApiResponse({ status: 400, description: 'Failed to setup Razorpay integration' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async setupRazorpayIntegration(
     @Param('id') id: string,
     @Body() dto: Omit<SetupRazorpayAccountDto, 'accountId'>,
@@ -628,7 +527,7 @@ export class SellerAccountController {
     // Get current account
     const account = await this.sellerAccountRepository.findById(id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     // Create Razorpay fund account
@@ -653,11 +552,12 @@ export class SellerAccountController {
   @ApiOperation({ summary: 'Create Razorpay fund account' })
   @ApiResponse({ status: 200, description: 'Fund account created successfully' })
   @ApiResponse({ status: 400, description: 'Failed to create fund account' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async createRazorpayFundAccount(@Param('id') id: string) {
     const account = await this.sellerAccountRepository.findById(id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     const result = await this.razorpayPayoutService.createFundAccount(account);
@@ -675,6 +575,7 @@ export class SellerAccountController {
   // ============================================================================
 
   @Get(':id/validation')
+  @Public()
   @ApiOperation({ summary: 'Validate seller account setup' })
   @ApiResponse({ status: 200, description: 'Account validation completed' })
   async validateAccountSetup(
@@ -684,12 +585,12 @@ export class SellerAccountController {
     const account = await this.sellerAccountRepository.findById(id);
     
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
     
     // If user is authenticated and is a seller, check access
-    if (user?.roles?.includes('SELLER') && account.sellerId !== user.id) {
-      throw new Error('Access denied');
+    if (user?.roles?.includes(UserRole.SELLER) && account.sellerId !== user.id) {
+      throw new UnauthorizedException('Access denied');
     }
 
     return this.settlementValidationService.validateSellerAccountSetup(account.sellerId);
@@ -698,7 +599,8 @@ export class SellerAccountController {
   @Get('kyc/pending')
   @ApiOperation({ summary: 'Get accounts with pending KYC' })
   @ApiResponse({ status: 200, description: 'Pending KYC accounts retrieved' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async getPendingKycAccounts(@Query() pagination: PaginationOptions) {
     return this.sellerAccountRepository.findAccountsRequiringKyc(pagination);
   }
@@ -706,7 +608,8 @@ export class SellerAccountController {
   @Get('verified')
   @ApiOperation({ summary: 'Get verified accounts' })
   @ApiResponse({ status: 200, description: 'Verified accounts retrieved' })
-  @Roles('ADMIN', 'FINANCE')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FINANCE)
   async getVerifiedAccounts(@Query() pagination: PaginationOptions) {
     return this.sellerAccountRepository.findVerifiedAccounts(pagination);
   }
@@ -718,7 +621,8 @@ export class SellerAccountController {
   @Get('my-account')
   @ApiOperation({ summary: 'Get current seller account' })
   @ApiResponse({ status: 200, description: 'Seller account retrieved' })
-  @Roles('SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER)
   async getMyAccount(
     @Query() includes: SellerAccountIncludeOptions,
     @CurrentUser() user: any,
@@ -729,7 +633,8 @@ export class SellerAccountController {
   @Post('my-account')
   @ApiOperation({ summary: 'Create seller account for current user' })
   @ApiResponse({ status: 201, description: 'Seller account created successfully' })
-  @Roles('SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER)
   async createMyAccount(
     @Body() dto: Omit<CreateSellerAccountDto, 'sellerId'>,
     @CurrentUser() user: any,
@@ -745,14 +650,15 @@ export class SellerAccountController {
   @Put('my-account')
   @ApiOperation({ summary: 'Update current seller account' })
   @ApiResponse({ status: 200, description: 'Seller account updated successfully' })
-  @Roles('SELLER')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(UserRole.SELLER)
   async updateMyAccount(
     @Body() dto: UpdateSellerAccountDto,
     @CurrentUser() user: any,
   ) {
     const account = await this.sellerAccountRepository.findBySellerId(user.id);
     if (!account) {
-      throw new Error('Account not found');
+      throw new NotFoundException('Account not found');
     }
 
     return this.sellerAccountRepository.update(account.id, dto);
