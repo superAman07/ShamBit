@@ -20,9 +20,35 @@ export class SellerAccountRepository implements ISellerAccountRepository {
   // ============================================================================
 
   async create(data: Partial<SellerAccount>): Promise<SellerAccount> {
+    // Validate that sellerId is provided
+    if (!data.sellerId) {
+      throw new Error('sellerId is required to create a seller account');
+    }
+
+    // First check if the user exists
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: data.sellerId },
+      select: { id: true }
+    });
+
+    if (!userExists) {
+      throw new Error(`User with ID ${data.sellerId} does not exist`);
+    }
+
+    // Check if seller account already exists for this user
+    const existingAccount = await this.prisma.sellerAccount.findUnique({
+      where: { sellerId: data.sellerId }
+    });
+
+    if (existingAccount) {
+      throw new Error(`Seller account already exists for user ${data.sellerId}`);
+    }
+
     const account = await this.prisma.sellerAccount.create({
       data: {
-        sellerId: data.sellerId!,
+        seller: {
+          connect: { id: data.sellerId }
+        },
         accountHolderName: data.accountHolderName!,
         accountNumber: data.accountNumber!,
         ifscCode: data.ifscCode!,
@@ -44,8 +70,6 @@ export class SellerAccountRepository implements ISellerAccountRepository {
         gstNumber: data.gstNumber,
         panNumber: data.panNumber,
         metadata: data.metadata || {},
-        createdAt: data.createdAt || new Date(),
-        updatedAt: data.updatedAt || new Date(),
       },
     });
 

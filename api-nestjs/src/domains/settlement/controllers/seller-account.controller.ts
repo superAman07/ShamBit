@@ -284,7 +284,31 @@ export class SellerAccountController {
     } catch (error) {
       console.error('❌ Failed to create seller account:', error.message);
       console.error('❌ Full error:', error);
-      throw error;
+      
+      // Handle specific error cases
+      if (error.message?.includes('does not exist')) {
+        throw new BadRequestException('Invalid user ID provided');
+      }
+      
+      if (error.message?.includes('already exists')) {
+        throw new BadRequestException('Seller account already exists for this user');
+      }
+      
+      if (error.message?.includes('sellerId is required')) {
+        throw new BadRequestException('Seller ID is required');
+      }
+      
+      // Handle Prisma constraint errors
+      if (error.code === 'P2002') {
+        throw new BadRequestException('A seller account with this information already exists');
+      }
+      
+      if (error.code === 'P2003') {
+        throw new BadRequestException('Invalid seller ID - user does not exist');
+      }
+      
+      // Re-throw as BadRequestException for other validation errors
+      throw new BadRequestException(error.message || 'Failed to create seller account');
     }
   }
 
