@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { TokenDenylistService } from '../../infrastructure/security/token-denylist.service';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 
@@ -28,7 +29,13 @@ import { RedisModule } from '../../infrastructure/redis/redis.module';
     RedisModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthRepository, JwtStrategy, GoogleStrategy],
-  exports: [AuthService, JwtModule],
+  providers: [
+    AuthService, 
+    AuthRepository, 
+    JwtStrategy, 
+    GoogleStrategy,
+    TokenDenylistService,
+  ],
+  exports: [AuthService, JwtModule, TokenDenylistService],
 })
 export class AuthModule {}

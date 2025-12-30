@@ -7,10 +7,12 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 
 import { AuthRepository } from './auth.repository';
 import { LoginDto, RegisterDto, GoogleAuthDto, AuthResponseDto } from './dto/auth.dto';
 import { UserRole } from '../../common/types';
+import { TokenDenylistService } from '../../infrastructure/security/token-denylist.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +20,7 @@ export class AuthService {
     private readonly authRepository: AuthRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly tokenDenylistService: TokenDenylistService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -102,7 +105,10 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      // Generate new tokens (refresh token rotation)
       const tokens = await this.generateTokens(user.id, user.email, user.roles);
+      
+      // Save new refresh token and invalidate old one
       await this.authRepository.saveRefreshToken(user.id, tokens.refreshToken);
 
       return {
@@ -120,8 +126,14 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string): Promise<void> {
+  async logout(userId: string, accessToken?: string): Promise<void> {
+    // Remove refresh token from storage
     await this.authRepository.removeRefreshToken(userId);
+    
+    // Add access token to denylist if provided
+    if (accessToken) {
+      await this.tokenDenylistService.denyToken(accessToken);
+    }
   }
 
   async getProfile(userId: string) {
@@ -142,7 +154,8 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string, email: string, roles: string[]) {
-    const payload = { sub: userId, email, roles };
+    const jti = uuidv4(); // JWT ID for tracking
+    const payload = { sub: userId, email, roles, jti };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {

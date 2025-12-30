@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { ObservabilityModule } from './infrastructure/observability/observability.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { SecurityModule } from './infrastructure/security/security.module';
 
 // Domain modules (in dependency order)
 import { AttributeModule } from './domains-backup/attribute/attribute.module';
@@ -51,6 +52,7 @@ import { SettlementModule } from './domains/settlement/settlement.module';
     PrismaModule,
     ObservabilityModule,
     RedisModule,
+    SecurityModule,
     
     // Core modules
     HealthModule,

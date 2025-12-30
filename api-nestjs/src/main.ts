@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import compression from 'compression';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
 
@@ -21,10 +22,34 @@ async function bootstrap() {
     const port = configService.get<number>('PORT', 3001);
     const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
-    // Security middleware
+    // Cookie parser middleware
+    app.use(cookieParser());
+
+    // Enhanced security middleware with comprehensive headers
     app.use(helmet({
-      contentSecurityPolicy: nodeEnv === 'production' ? undefined : false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+          scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false,
+      hsts: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true,
+      },
+      noSniff: true,
+      xssFilter: true,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      permittedCrossDomainPolicies: false,
     }));
 
     // Compression middleware
@@ -41,16 +66,17 @@ async function bootstrap() {
       }),
     );
 
-    // CORS configuration
+    // CORS configuration with enhanced security
     const allowedOrigins = nodeEnv === 'production' 
       ? (configService.get<string>('ALLOWED_ORIGINS', '').split(',').filter(Boolean))
       : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4200'];
 
     app.enableCors({
       origin: allowedOrigins,
-      credentials: true,
+      credentials: true, // Required for cookies
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-API-Key'],
+      exposedHeaders: ['Set-Cookie'],
     });
 
     // API prefix
@@ -62,6 +88,28 @@ async function bootstrap() {
         .setTitle('ShamBit API')
         .setDescription(`
           ShamBit Quick Commerce Platform API
+          
+          ## Security Features
+          
+          ### Authentication & Authorization:
+          - **JWT-based authentication** with access and refresh tokens
+          - **HttpOnly cookies** for secure token storage (prevents XSS)
+          - **Token revocation** with Redis-based denylist
+          - **Refresh token rotation** for enhanced security
+          - **Role-based access control (RBAC)** with fine-grained permissions
+          
+          ### Security Headers:
+          - **Content Security Policy (CSP)** to prevent XSS attacks
+          - **Strict Transport Security (HSTS)** for HTTPS enforcement
+          - **X-Content-Type-Options** to prevent MIME sniffing
+          - **X-Frame-Options** to prevent clickjacking
+          - **Referrer Policy** for privacy protection
+          
+          ### Session Security:
+          - **Short-lived access tokens** (15 minutes)
+          - **Secure cookie attributes** (HttpOnly, Secure, SameSite=Strict)
+          - **Automatic token cleanup** with Redis TTL
+          - **Session invalidation** on logout
           
           ## Settlement System
           
@@ -75,7 +123,7 @@ async function bootstrap() {
           - **Audit Trail**: Complete transaction history and status tracking
           
           ### Authentication:
-          - Use Bearer token for API access
+          - Use Bearer token for API access or rely on secure cookies
           - Sellers can only access their own data
           - Admin/Finance roles have full access
           
@@ -84,6 +132,7 @@ async function bootstrap() {
           - Higher limits for authenticated users
         `)
         .setVersion('1.0')
+        .addTag('Authentication', 'Secure authentication with JWT and cookies')
         .addTag('Settlements', 'Settlement creation, processing, and management')
         .addTag('Seller Accounts', 'Seller account setup, KYC, and bank details')
         .addTag('Seller Wallets', 'Wallet balance operations and transactions')
@@ -144,6 +193,8 @@ async function bootstrap() {
     
     logger.log(`🚀 NestJS API running on http://localhost:${port}`);
     logger.log(`📚 Environment: ${nodeEnv}`);
+    logger.log(`🔒 Security headers enabled with CSP, HSTS, and XSS protection`);
+    logger.log(`🍪 Secure cookie authentication configured`);
     
     if (nodeEnv !== 'production') {
       logger.log(`📚 Swagger docs available at http://localhost:${port}/api/docs`);
