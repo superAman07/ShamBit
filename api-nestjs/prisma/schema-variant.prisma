@@ -1,0 +1,172 @@
+// ================================
+// VARIANT ENGINE SCHEMA
+// ================================
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  productId   String
+  sku         String   @unique
+  status      String   @default("DRAFT") // DRAFT, ACTIVE, DISABLED, ARCHIVED
+  
+  // Pricing
+  priceOverride Decimal? @db.Decimal(10, 2)
+  
+  // Media
+  images      String[] @default([])
+  displayOrder Int     @default(0)
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // Versioning & Concurrency
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  product           Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeValues   ProductVariantAttribute[]
+  inventory         Inventory[]
+  orderItems        OrderItem[]
+  cartItems         CartItem[]
+  auditLogs         ProductVariantAuditLog[]
+  
+  // Indexes
+  @@index([productId])
+  @@index([status])
+  @@index([sku])
+  @@index([productId, status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  
+  @@map("product_variants")
+}
+
+model ProductVariantAttribute {
+  id          String @id @default(cuid())
+  variantId   String
+  attributeId String
+  value       String // Serialized attribute value
+  
+  // Relations
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attribute Attribute      @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([variantId, attributeId])
+  @@index([variantId])
+  @@index([attributeId])
+  
+  @@map("product_variant_attributes")
+}
+
+model ProductVariantImage {
+  id          String @id @default(cuid())
+  variantId   String
+  imageUrl    String
+  altText     String?
+  displayOrder Int   @default(0)
+  isPrimary   Boolean @default(false)
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([variantId])
+  @@index([variantId, displayOrder])
+  
+  @@map("product_variant_images")
+}
+
+model ProductVariantAuditLog {
+  id          String   @id @default(cuid())
+  variantId   String
+  action      String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, ACTIVATE, DISABLE
+  userId      String
+  oldValues   Json?
+  newValues   Json?
+  reason      String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([variantId])
+  @@index([variantId, createdAt])
+  @@index([action])
+  @@index([userId])
+  
+  @@map("product_variant_audit_logs")
+}
+
+// SKU Generation Configuration
+model SkuConfiguration {
+  id          String @id @default(cuid())
+  sellerId    String @unique
+  prefix      String @default("")
+  suffix      String @default("")
+  pattern     String @default("AUTO") // AUTO, CUSTOM, TEMPLATE
+  template    String? // Template for SKU generation
+  counter     Int    @default(1)
+  isActive    Boolean @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  seller User @relation(fields: [sellerId], references: [id])
+  
+  @@map("sku_configurations")
+}
+
+// Variant Generation Jobs
+model VariantGenerationJob {
+  id          String   @id @default(cuid())
+  productId   String
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  jobType     String   // FULL_GENERATION, PARTIAL_GENERATION, REBUILD
+  
+  // Configuration
+  attributeIds String[] // Attributes to use for generation
+  options     Json     @default("{}")
+  
+  // Results
+  variantsCreated Int     @default(0)
+  variantsUpdated Int     @default(0)
+  variantsSkipped Int     @default(0)
+  errorMessage    String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([productId])
+  @@index([status])
+  @@index([createdAt])
+  
+  @@map("variant_generation_jobs")
+}

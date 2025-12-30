@@ -1,0 +1,5105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ================================
+// ENUMS
+// ================================
+
+// Refund System Enums
+enum RefundJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  RETRYING
+}
+
+enum RefundLedgerEntryType {
+  REFUND_INITIATED
+  REFUND_PROCESSED
+  REFUND_COMPLETED
+  REFUND_FAILED
+  FEE_DEDUCTED
+  GATEWAY_FEE
+  ADJUSTMENT_APPLIED
+}
+
+enum RefundAuditAction {
+  CREATE
+  UPDATE
+  APPROVE
+  REJECT
+  PROCESS
+  COMPLETE
+  FAIL
+  RETRY
+}
+
+// Product System Enums
+enum ProductStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PUBLISHED
+  ARCHIVED
+  SUSPENDED
+}
+
+enum ProductModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum ProductVisibility {
+  PRIVATE
+  PUBLIC
+  RESTRICTED
+}
+
+enum ReviewType {
+  PRODUCT
+  SELLER
+  ORDER
+}
+
+// Attribute System Enums
+enum AttributeDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  ENUM
+  DATE
+  MULTI_SELECT
+  JSON
+}
+
+enum AttributeVisibility {
+  PUBLIC
+  PRIVATE
+  ADMIN_ONLY
+}
+
+enum AttributeStatus {
+  ACTIVE
+  INACTIVE
+  DEPRECATED
+}
+
+// ================================
+// MAIN SCHEMA CONTENT
+// ================================
+
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+
+
+
+
+// ================================
+// MULTI-TENANCY
+// ================================
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  type      String // ENTERPRISE, BUSINESS, STARTER, TRIAL
+  status    String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userTenants    UserTenant[]
+  tenantFeatures TenantFeature[]
+  apiKeys        ApiKey[]
+
+  @@map("tenants")
+}
+
+model UserTenant {
+  id       String   @id @default(cuid())
+  userId   String
+  tenantId String
+  roles    String[] @default([])
+  status   String   @default("ACTIVE") // ACTIVE, INACTIVE
+  joinedAt DateTime @default(now())
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@map("user_tenants")
+}
+
+model Feature {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  // Relations
+  tenantFeatures TenantFeature[]
+
+  @@map("features")
+}
+
+model TenantFeature {
+  id        String  @id @default(cuid())
+  tenantId  String
+  featureId String
+  isEnabled Boolean @default(true)
+  config    Json    @default("{}")
+
+  // Relations
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureId])
+  @@map("tenant_features")
+}
+
+// ================================
+// USER & AUTHENTICATION
+// ================================
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  phone           String?
+  password        String
+  roles           String[]  @default(["BUYER"])
+  status          String    @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED, BANNED
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
+  lastLoginAt     DateTime?
+  deletedAt       DateTime?
+  deletedBy       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  sellerProfile SellerProfile?
+  addresses     Address[]
+  orders        Order[]
+  userTenants   UserTenant[]
+
+  // New relations for extended functionality
+  carts                   Cart[]
+  mediaFiles              MediaFile[]
+  reviews                 Review[]
+  reviewsModerated        Review[]                 @relation("ReviewModerator")
+  reviewHelpful           ReviewHelpful[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  bannersCreated          Banner[]
+  campaignsCreated        Campaign[]
+  jobsPosted              Job[]
+  applications            Application[]
+  applicationsReviewed    Application[]            @relation("ApplicationReviewer")
+  featureFlagsCreated     FeatureFlag[]
+  auditLogsAsActor        AuditLog[]               @relation("AuditActor")
+  webhooksCreated         Webhook[]
+  userRoles               UserRole[]
+  inventoryReservations   InventoryReservation[]
+
+  @@map("users")
+}
+
+model Address {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String   @default("HOME") // HOME, WORK, OTHER
+  name         String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  country      String
+  postalCode   String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("addresses")
+}
+
+// ================================
+// SELLER MANAGEMENT
+// ================================
+
+model SellerProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  businessName      String
+  businessType      String // INDIVIDUAL, PARTNERSHIP, COMPANY, LLP
+  gstNumber         String?
+  panNumber         String
+  businessAddress   Json
+  bankDetails       Json
+  status            String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, SUSPENDED
+  verificationLevel String    @default("NONE") // NONE, BASIC, VERIFIED, PREMIUM
+  approvedAt        DateTime?
+  approvedBy        String?
+  rejectedAt        DateTime?
+  rejectedBy        String?
+  rejectionReason   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products  Product[]
+  brands    Brand[]
+  cartItems CartItem[]
+
+  @@map("seller_profiles")
+}
+
+// ================================
+// CATEGORY & ATTRIBUTE SYSTEM
+// ================================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  slug        String   @unique
+  parentId    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  imageUrl    String?
+  level       Int      @default(0)
+  path        String // Materialized path for efficient queries
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  parent     Category?           @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children   Category[]          @relation("CategoryHierarchy")
+  attributes CategoryAttribute[]
+  products   Product[]
+  brands     CategoryBrand[]
+
+  @@map("categories")
+}
+
+model Attribute {
+  id                 String   @id @default(cuid())
+  name               String
+  key                String   @unique
+  description        String
+  type               String // STRING, NUMBER, BOOLEAN, ENUM, DATE, MULTI_SELECT
+  inputType          String // TEXT, TEXTAREA, NUMBER, SELECT, MULTI_SELECT, CHECKBOX, RADIO, DATE, COLOR
+  isRequired         Boolean  @default(false)
+  isVariantAttribute Boolean  @default(false)
+  isFilterable       Boolean  @default(true)
+  isSearchable       Boolean  @default(false)
+  sortOrder          Int      @default(0)
+  options            String[] // For ENUM and MULTI_SELECT types
+  validationRules    Json? // Custom validation rules
+  placeholder        String?
+  helpText           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  categories    CategoryAttribute[]
+  productValues ProductAttributeValue[]
+  variantValues VariantAttributeValue[]
+
+  @@map("attributes")
+}
+
+model CategoryAttribute {
+  categoryId  String
+  attributeId String
+  isRequired  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, attributeId])
+  @@map("category_attributes")
+}
+
+// ================================
+// BRAND SYSTEM
+// ================================
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  logoUrl     String?
+  isActive    Boolean   @default(true)
+  sellerId    String?
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvedAt  DateTime?
+  approvedBy  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  seller     SellerProfile?  @relation(fields: [sellerId], references: [id])
+  categories CategoryBrand[]
+  products   Product[]
+
+  @@map("brands")
+}
+
+model CategoryBrand {
+  categoryId String
+  brandId    String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  brand    Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, brandId])
+  @@map("category_brands")
+}
+
+// ================================
+// PRODUCT SYSTEM
+// ================================
+
+model Product {
+  id              String    @id @default(cuid())
+  name            String
+  description     String
+  slug            String    @unique
+  categoryId      String
+  brandId         String?
+  sellerId        String
+  status          String    @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ACTIVE, INACTIVE
+  isActive        Boolean   @default(false)
+  isFeatured      Boolean   @default(false)
+  hasVariants     Boolean   @default(false)
+  moderationStatus String?
+  scheduledPublishAt String? // Scheduled publish date as string
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
+  updatedBy       String?
+  deletedAt       DateTime?
+  deletedBy       String?
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  category        Category                @relation(fields: [categoryId], references: [id])
+  brand           Brand?                  @relation(fields: [brandId], references: [id])
+  seller          SellerProfile           @relation(fields: [sellerId], references: [id])
+  attributeValues ProductAttributeValue[]
+  variants        ProductVariant[]
+  images          ProductImage[]
+
+  @@map("products")
+}
+
+model ProductAttributeValue {
+  id           String   @id @default(cuid())
+  productId    String
+  attributeId  String
+  value        Json     // Flexible value storage
+  stringValue  String?  // For string values
+  numberValue  Float?   // For numeric values
+  booleanValue Boolean? // For boolean values
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  option    AttributeOption? @relation(fields: [optionId], references: [id])
+  optionId  String?
+
+  @@unique([productId, attributeId])
+  @@map("product_attribute_values")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  altText   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+// ================================
+// VARIANT SYSTEM
+// ================================
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  sku        String   @unique
+  variantKey String // Deterministic key based on variant attributes
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  product         Product                 @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeValues VariantAttributeValue[]
+  pricing         VariantPricing?
+  inventory       VariantInventory?
+  images          VariantImage[]
+  orderItems      OrderItem[]
+  cartItems       CartItem[]
+
+  @@unique([productId, variantKey])
+  @@map("product_variants")
+}
+
+model VariantAttributeValue {
+  id          String   @id @default(cuid())
+  variantId   String
+  attributeId String
+  value       Json // Flexible value storage
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attribute Attribute      @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, attributeId])
+  @@map("variant_attribute_values")
+}
+
+model VariantImage {
+  id        String   @id @default(cuid())
+  variantId String
+  url       String
+  altText   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("variant_images")
+}
+
+// ================================
+// PRICING SYSTEM
+// ================================
+
+model VariantPricing {
+  id           String    @id @default(cuid())
+  variantId    String    @unique
+  mrp          Decimal   @db.Decimal(10, 2)
+  sellingPrice Decimal   @db.Decimal(10, 2)
+  costPrice    Decimal?  @db.Decimal(10, 2)
+  discount     Decimal?  @db.Decimal(5, 2) // Percentage
+  isActive     Boolean   @default(true)
+  validFrom    DateTime  @default(now())
+  validTo      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("variant_pricing")
+}
+
+// ================================
+// INVENTORY SYSTEM
+// ================================
+
+model VariantInventory {
+  id                String   @id @default(cuid())
+  variantId         String   @unique
+  quantity          Int      @default(0)
+  reservedQuantity  Int      @default(0)
+  availableQuantity Int      @default(0) // Computed: quantity - reservedQuantity
+  lowStockThreshold Int      @default(5)
+  isTrackingEnabled Boolean  @default(true)
+  lastUpdatedAt     DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  variant      ProductVariant         @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  reservations InventoryReservation[]
+  movements    InventoryMovement[]
+
+  @@map("variant_inventory")
+}
+
+model InventoryReservation {
+  id          String  @id @default(cuid())
+  inventoryId String
+  orderId     String?
+
+  // Reservation details
+  quantity       Int
+  reservationKey String @unique // Idempotent key (e.g., cart_item_id)
+
+  // Expiry
+  expiresAt DateTime
+  isExpired Boolean  @default(false)
+
+  // Status
+  status String @default("ACTIVE") // ACTIVE, COMMITTED, RELEASED, EXPIRED
+
+  // Reference information
+  referenceType String // CART, ORDER, QUOTE
+  referenceId   String // ID of the referenced entity
+
+  // Metadata
+  metadata Json @default("{}")
+
+  // System Fields
+  createdBy String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  inventory VariantInventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  order     Order?           @relation(fields: [orderId], references: [id])
+  user      User             @relation(fields: [createdBy], references: [id])
+
+  // Indexes
+  @@index([inventoryId])
+  @@index([reservationKey])
+  @@index([expiresAt])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  @@map("inventory_reservations")
+}
+
+model InventoryMovement {
+  id          String   @id @default(cuid())
+  inventoryId String
+  type        String // IN, OUT, RESERVED, RELEASED
+  quantity    Int
+  reason      String
+  reference   String? // Order ID, Return ID, etc.
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  inventory VariantInventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_movements")
+}
+
+// ================================
+// COMMISSION SYSTEM
+// ================================
+
+model CommissionRule {
+  id          String    @id @default(cuid())
+  name        String
+  type        String // CATEGORY, SELLER, PRODUCT
+  commissionType String // PERCENTAGE, FIXED
+  entityId    String // Category ID, Seller ID, or Product ID
+  rate        Decimal   @db.Decimal(5, 2) // Percentage
+  value       Decimal   @db.Decimal(10, 2) // Commission value (percentage or fixed amount)
+  fixedAmount Decimal?  @db.Decimal(10, 2)
+  minAmount   Decimal?  @db.Decimal(10, 2)
+  maxAmount   Decimal?  @db.Decimal(10, 2)
+  priority    Int       @default(0) // Higher priority wins
+  isActive    Boolean   @default(true)
+  validFrom   DateTime  @default(now())
+  validTo     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("commission_rules")
+}
+
+// ================================
+// ORDER SYSTEM
+// ================================
+
+model Order {
+  id                String    @id @default(cuid())
+  orderNumber       String    @unique
+  userId            String
+  status            String    @default("PENDING") // PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+  totalAmount       Decimal   @db.Decimal(10, 2)
+  discountAmount    Decimal   @default(0) @db.Decimal(10, 2)
+  taxAmount         Decimal   @default(0) @db.Decimal(10, 2)
+  shippingAmount    Decimal   @default(0) @db.Decimal(10, 2)
+  finalAmount       Decimal   @db.Decimal(10, 2)
+  paymentStatus     String    @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  shippingAddressId String
+  billingAddressId  String?
+  notes             String?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  user            User                   @relation(fields: [userId], references: [id])
+  shippingAddress Address                @relation(fields: [shippingAddressId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  shipments       Shipment[]
+  reservations    InventoryReservation[]
+  reviews         Review[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String
+  variantId        String
+  quantity         Int
+  unitPrice        Decimal  @db.Decimal(10, 2)
+  totalPrice       Decimal  @db.Decimal(10, 2)
+  discountAmount   Decimal  @default(0) @db.Decimal(10, 2)
+  taxAmount        Decimal  @default(0) @db.Decimal(10, 2)
+  commissionRate   Decimal  @db.Decimal(5, 2)
+  commissionAmount Decimal  @db.Decimal(10, 2)
+  // Snapshots for immutability
+  productSnapshot  Json
+  variantSnapshot  Json
+  pricingSnapshot  Json
+  createdAt        DateTime @default(now())
+
+  // Relations
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("order_items")
+}
+
+// ================================
+// PAYMENT SYSTEM
+// ================================
+
+model Payment {
+  id              String    @id @default(cuid())
+  orderId         String
+  paymentIntentId String    @unique
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("INR")
+  status          String    @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELLED
+  method          String // CARD, UPI, NETBANKING, WALLET, COD
+  paymentMethod   String // CARD, UPI, NETBANKING, WALLET, COD
+  gatewayResponse Json?
+  failureReason   String?
+  processedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ================================
+// DELIVERY & LOGISTICS
+// ================================
+
+model Shipment {
+  id                String    @id @default(cuid())
+  orderId           String
+  trackingNumber    String    @unique
+  carrier           String
+  status            String    @default("PENDING") // PENDING, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  order    Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tracking ShipmentTracking[]
+
+  @@map("shipments")
+}
+
+model ShipmentTracking {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  status      String
+  location    String?
+  description String
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  // Relations
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@map("shipment_tracking")
+}
+
+// ================================
+// AUDIT & LOGGING
+// ================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String // USER, PRODUCT, ORDER, etc.
+  entityId   String
+  action     String // CREATE, UPDATE, DELETE, APPROVE, REJECT
+  changes    Json? // Before/after values
+  actorId    String?
+  actorType  String   @default("USER") // USER, SYSTEM, API
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ================================
+// ================================
+// CART SYSTEM
+// ================================
+
+model Cart {
+  id                String    @id @default(cuid())
+  userId            String?
+  sessionId         String?
+  subtotal          Float     @default(0)
+  discountAmount    Float     @default(0)
+  totalAmount       Float     @default(0)
+  appliedPromotions String[]  @default([])
+  expiresAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@unique([userId])
+  @@unique([sessionId])
+  @@map("carts")
+}
+
+model CartItem {
+  id            String   @id @default(cuid())
+  cartId        String
+  variantId     String
+  sellerId      String
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  isAvailable   Boolean  @default(true)
+  reservationId String?
+  addedAt       DateTime @default(now())
+
+  // Relations
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+  seller  SellerProfile  @relation(fields: [sellerId], references: [id])
+
+  @@unique([cartId, variantId, sellerId])
+  @@map("cart_items")
+}
+
+// ================================
+// MEDIA & ASSETS
+// ================================
+
+model MediaFile {
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  url          String
+  cdnUrl       String?
+  type         String // PRODUCT_IMAGE, VARIANT_IMAGE, BANNER_IMAGE, etc.
+  entityId     String?
+  entityType   String?
+  metadata     Json     @default("{}")
+  status       String   @default("PENDING") // PENDING, PROCESSED, FAILED
+  uploadedBy   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  uploader User @relation(fields: [uploadedBy], references: [id])
+
+  @@map("media_files")
+}
+
+// ================================
+// RATINGS & REVIEWS
+// ================================
+
+model Review {
+  id                 String    @id @default(cuid())
+  userId             String
+  type               String // PRODUCT, SELLER
+  entityId           String // productId or sellerId
+  orderId            String?
+  rating             Int // 1-5
+  title              String?
+  comment            String?
+  images             String[]  @default([])
+  status             String    @default("PENDING") // PENDING, APPROVED, REJECTED, FLAGGED
+  isVerifiedPurchase Boolean   @default(false)
+  helpfulCount       Int       @default(0)
+  reportCount        Int       @default(0)
+  moderatedBy        String?
+  moderatedAt        DateTime?
+  moderationReason   String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  user      User            @relation(fields: [userId], references: [id])
+  order     Order?          @relation(fields: [orderId], references: [id])
+  moderator User?           @relation("ReviewModerator", fields: [moderatedBy], references: [id])
+  helpful   ReviewHelpful[]
+
+  @@unique([userId, type, entityId])
+  @@map("reviews")
+}
+
+model ReviewHelpful {
+  id        String  @id @default(cuid())
+  reviewId  String
+  userId    String
+  isHelpful Boolean
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([reviewId, userId])
+  @@map("review_helpful")
+}
+
+model AggregatedRating {
+  id            String   @id @default(cuid())
+  entityType    String // PRODUCT, SELLER
+  entityId      String
+  averageRating Float    @default(0)
+  totalReviews  Int      @default(0)
+  rating1Count  Int      @default(0)
+  rating2Count  Int      @default(0)
+  rating3Count  Int      @default(0)
+  rating4Count  Int      @default(0)
+  rating5Count  Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@map("aggregated_ratings")
+}
+
+// ================================
+// NOTIFICATIONS
+// ================================
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // ORDER_CONFIRMATION, PAYMENT_SUCCESS, etc.
+  channel   String // IN_APP, EMAIL, PUSH, SMS
+  priority  String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  title     String
+  message   String
+  data      Json?     @default("{}")
+  isRead    Boolean   @default(false)
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id     String  @id @default(cuid())
+  userId String
+  type   String // Notification type
+  email  Boolean @default(true)
+  push   Boolean @default(true)
+  inApp  Boolean @default(true)
+  sms    Boolean @default(false)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}
+
+model NotificationTemplate {
+  id        String   @id @default(cuid())
+  type      String   @unique
+  channel   String
+  subject   String?
+  title     String
+  message   String
+  variables String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_templates")
+}
+
+// ================================
+// BANNERS & CMS
+// ================================
+
+model Banner {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  position    String // HOMEPAGE_HERO, CATEGORY_TOP, SIDEBAR, etc.
+  priority    Int       @default(0)
+  isActive    Boolean   @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  targetRules Json?     @default("{}")
+  clickCount  Int       @default(0)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("banners")
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String // PROMOTIONAL, SEASONAL, PRODUCT_LAUNCH, etc.
+  status      String   @default("DRAFT") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  startDate   DateTime
+  endDate     DateTime
+  budget      Float?
+  targetRules Json?    @default("{}")
+  metrics     Json?    @default("{}")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("campaigns")
+}
+
+// ================================
+// CAREER / JOBS MODULE
+// ================================
+
+model Job {
+  id           String    @id @default(cuid())
+  title        String
+  description  String
+  department   String
+  location     String
+  type         String // FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP
+  experience   String // ENTRY, MID, SENIOR, EXECUTIVE
+  salary       String?
+  requirements String[]
+  benefits     String[]
+  status       String    @default("ACTIVE") // ACTIVE, PAUSED, CLOSED
+  postedBy     String
+  postedAt     DateTime  @default(now())
+  closesAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  poster       User          @relation(fields: [postedBy], references: [id])
+  applications Application[]
+
+  @@map("jobs")
+}
+
+model Application {
+  id          String    @id @default(cuid())
+  jobId       String
+  userId      String?
+  email       String
+  name        String
+  phone       String?
+  resumeUrl   String
+  coverLetter String?
+  status      String    @default("SUBMITTED") // SUBMITTED, REVIEWED, SHORTLISTED, REJECTED, HIRED
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  notes       String?
+  appliedAt   DateTime  @default(now())
+
+  // Relations
+  job      Job   @relation(fields: [jobId], references: [id])
+  user     User? @relation(fields: [userId], references: [id])
+  reviewer User? @relation("ApplicationReviewer", fields: [reviewedBy], references: [id])
+
+  @@map("applications")
+}
+
+// ================================
+// FEATURE FLAGS & CONFIGURATION
+// ================================
+
+model FeatureFlag {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  name              String
+  description       String?
+  isEnabled         Boolean  @default(false)
+  rolloutPercentage Int      @default(0)
+  targetRules       Json?    @default("{}")
+  environment       String   @default("production")
+  createdBy         String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("feature_flags")
+}
+
+// ================================
+// WEBHOOKS & INTEGRATIONS
+// ================================
+
+model Webhook {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  events     String[] // Array of event types to listen for
+  secret     String?
+  isActive   Boolean  @default(true)
+  retryCount Int      @default(3)
+  timeout    Int      @default(30000) // milliseconds
+  headers    Json?    @default("{}")
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  creator    User              @relation(fields: [createdBy], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id           String    @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      Json
+  status       String    @default("PENDING") // PENDING, SUCCESS, FAILED
+  responseCode Int?
+  responseBody String?
+  attempts     Int       @default(0)
+  nextRetryAt  DateTime?
+  deliveredAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_deliveries")
+}
+
+// ================================
+// SEARCH & DISCOVERY
+// ================================
+
+model SearchIndex {
+  id         String   @id @default(cuid())
+  entityType String // PRODUCT, CATEGORY, BRAND
+  entityId   String
+  title      String
+  content    String
+  keywords   String[]
+  metadata   Json     @default("{}")
+  isActive   Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@map("search_index")
+}
+
+// ================================
+// PROMOTIONS & DISCOUNTS
+// ================================
+
+model Promotion {
+  id             String   @id @default(cuid())
+  name           String
+  code           String   @unique // Promotion code
+  description    String?
+  type           String // PERCENTAGE, FIXED_AMOUNT, BUY_X_GET_Y
+  value          Decimal  @db.Decimal(10, 2)
+  minOrderAmount Decimal? @db.Decimal(10, 2)
+  maxDiscount    Decimal? @db.Decimal(10, 2)
+  usageLimit     Int?
+  usageCount     Int      @default(0)
+  isActive       Boolean  @default(true)
+  priority       Int      @default(0)
+  applicableCategories String[] @default([])
+  startDate      DateTime
+  endDate        DateTime
+  validTo        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  usages PromotionUsage[]
+
+  @@map("promotions")
+}
+
+model PromotionUsage {
+  id             String   @id @default(cuid())
+  promotionId    String
+  userId         String
+  orderId        String
+  discountAmount Decimal  @db.Decimal(10, 2)
+  usedAt         DateTime @default(now())
+
+  // Relations
+  promotion Promotion @relation(fields: [promotionId], references: [id])
+
+  @@map("promotion_usage")
+}
+
+// ================================
+// DOMAIN EVENTS
+// ================================
+
+model DomainEvent {
+  id            String    @id @default(cuid())
+  eventType     String
+  aggregateId   String
+  aggregateType String
+  eventData     Json
+  version       Int       @default(1)
+  occurredAt    DateTime  @default(now())
+  processedAt   DateTime?
+  isProcessed   Boolean   @default(false)
+
+  @@map("domain_events")
+}
+
+// ================================
+// ADVANCED AUTHORIZATION (RBAC + ABAC)
+// ================================
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  tenantId    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([name, tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  resource    String
+  action      String
+  description String?
+  conditions  Json     @default("[]") // ABAC conditions
+  createdAt   DateTime @default(now())
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  tenantId   String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, tenantId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ================================
+// DYNAMIC CONFIGURATION
+// ================================
+
+model Configuration {
+  id          String   @id @default(cuid())
+  key         String
+  value       String
+  type        String   @default("string") // string, number, boolean, json
+  tenantId    String   @default("")
+  environment String   @default("development")
+  description String?
+  isSecret    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, tenantId, environment])
+  @@map("configurations")
+}
+
+// ================================
+// SAGA ORCHESTRATION
+// ================================
+
+model SagaInstance {
+  id            String   @id @default(cuid())
+  sagaType      String
+  tenantId      String
+  userId        String
+  status        String // PENDING, RUNNING, COMPLETED, FAILED, COMPENSATING, COMPENSATED
+  data          Json
+  stepResults   Json     @default("{}")
+  currentStep   Int      @default(0)
+  correlationId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("saga_instances")
+}
+
+// ================================
+// READ MODELS & PROJECTIONS
+// ================================
+
+model ProductReadModel {
+  id          String   @id @default(cuid())
+  tenantId    String
+  sellerId    String
+  name        String
+  slug        String
+  description String?
+  status      String
+  categoryId  String
+  brandId     String?
+  images      Json     @default("[]")
+  variants    Json     @default("[]")
+  pricing     Json     @default("{}")
+  inventory   Json     @default("{}")
+  ratings     Json     @default("{}")
+  version     Int      @default(1)
+  lastUpdated DateTime @default(now())
+
+  @@unique([slug, tenantId])
+  @@map("product_read_models")
+}
+
+model OrderReadModel {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  orderNumber String
+  status      String
+  totalAmount Decimal
+  items       Json     @default("[]")
+  shipping    Json     @default("{}")
+  payment     Json     @default("{}")
+  timeline    Json     @default("[]")
+  version     Int      @default(1)
+  lastUpdated DateTime @default(now())
+
+  @@unique([orderNumber, tenantId])
+  @@map("order_read_models")
+}
+
+model InventoryReadModel {
+  id             String   @id @default(cuid())
+  tenantId       String
+  variantId      String
+  productId      String
+  sellerId       String
+  totalStock     Int
+  availableStock Int
+  reservedStock  Int
+  lowStockAlert  Boolean  @default(false)
+  version        Int      @default(1)
+  lastUpdated    DateTime @default(now())
+
+  @@unique([variantId, tenantId])
+  @@map("inventory_read_models")
+}
+
+model FailedProjection {
+  id          String    @id @default(cuid())
+  eventId     String
+  eventType   String
+  handlerName String
+  error       String
+  eventData   Json
+  tenantId    String
+  retryCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  lastRetryAt DateTime?
+
+  @@map("failed_projections")
+}
+
+// ================================
+// DATA LIFECYCLE MANAGEMENT
+// ================================
+
+model ArchivedData {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String
+  tableName  String
+  data       Json
+  tenantId   String
+  archivedAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([archivedAt])
+  @@map("archived_data")
+}
+
+// ================================
+// API EXPOSURE LAYERS
+// ================================
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  name        String
+  type        String // PUBLIC, INTERNAL, ADMIN, PARTNER
+  permissions String[] // API layers this key can access
+  tenantId    String
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  createdBy   String
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+// ================================
+// TENANT-AWARE UPDATES TO EXISTING MODELS
+// ================================
+
+// Update existing models to include tenantId
+// Note: This would require a migration to add tenantId to existing tables
+
+// ================================
+// FROM: schema-attribute.prisma
+// ================================
+
+// ============================================================================
+// ATTRIBUTE SYSTEM SCHEMA
+// ============================================================================
+// Enterprise-grade attribute system for marketplace backend
+// Supports inheritance, overrides, variants, localization, and performance optimization
+
+// ============================================================================
+// CORE ATTRIBUTE DEFINITION
+// ============================================================================
+
+model Attribute {
+  id          String   @id @default(cuid()) @map("id")
+  
+  // Basic Information
+  name        String   @map("name")
+  slug        String   @map("slug")
+  description String?  @map("description")
+  
+  // Data Type & Validation
+  dataType    AttributeDataType @map("data_type")
+  validation  Json?             @map("validation") // Validation rules as JSON
+  
+  // Behavior Flags
+  isRequired     Boolean @default(false) @map("is_required")
+  isVariant      Boolean @default(false) @map("is_variant")      // Drives product variants
+  isFilterable   Boolean @default(true)  @map("is_filterable")   // Can be used in search filters
+  isSearchable   Boolean @default(false) @map("is_searchable")   // Indexed for full-text search
+  isComparable   Boolean @default(false) @map("is_comparable")   // Can be used in product comparison
+  
+  // Display & Organization
+  displayOrder   Int     @default(0)     @map("display_order")
+  groupName      String? @map("group_name")                      // Logical grouping (e.g., "Physical", "Technical")
+  helpText       String? @map("help_text")                      // User guidance
+  placeholder    String? @map("placeholder")                    // Input placeholder
+  
+  // Visibility & Access
+  visibility     AttributeVisibility @default(PUBLIC) @map("visibility")
+  adminOnly      Boolean @default(false) @map("admin_only")     // Only admins can set values
+  
+  // Localization Support
+  isLocalizable  Boolean @default(false) @map("is_localizable") // Supports multiple languages
+  
+  // System Fields
+  status         AttributeStatus @default(ACTIVE) @map("status")
+  createdBy      String          @map("created_by")
+  updatedBy      String?         @map("updated_by")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+  
+  // Relationships
+  categoryAttributes CategoryAttribute[]
+  attributeOptions   AttributeOption[]
+  attributeValues    AttributeValue[]
+  localizations      AttributeLocalization[]
+  auditLogs          AttributeAuditLog[]
+  
+  // Indexes
+  @@unique([slug])
+  @@index([dataType])
+  @@index([isVariant])
+  @@index([isFilterable])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("attributes")
+}
+
+// ============================================================================
+// ATTRIBUTE OPTIONS (for ENUM/SELECT types)
+// ============================================================================
+
+model AttributeOption {
+  id          String   @id @default(cuid()) @map("id")
+  attributeId String   @map("attribute_id")
+  
+  // Option Details
+  value       String   @map("value")        // Internal value
+  label       String   @map("label")        // Display label
+  description String?  @map("description")
+  color       String?  @map("color")        // For color swatches
+  imageUrl    String?  @map("image_url")    // For visual options
+  
+  // Organization
+  displayOrder Int     @default(0) @map("display_order")
+  isDefault    Boolean @default(false) @map("is_default")
+  
+  // System Fields
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  attribute         Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attributeValues   AttributeValue[]
+  localizations     AttributeOptionLocalization[]
+  
+  // Indexes
+  @@unique([attributeId, value])
+  @@index([attributeId, displayOrder])
+  @@map("attribute_options")
+}
+
+// ============================================================================
+// CATEGORY-ATTRIBUTE RELATIONSHIP (Inheritance & Overrides)
+// ============================================================================
+
+model CategoryAttribute {
+  id         String   @id @default(cuid()) @map("id")
+  categoryId String   @map("category_id")
+  attributeId String  @map("attribute_id")
+  
+  // Inheritance Behavior
+  inheritanceType AttributeInheritanceType @default(INHERITED) @map("inheritance_type")
+  sourceId        String?                  @map("source_id")    // Source category for inherited attributes
+  
+  // Override Settings
+  isRequired      Boolean? @map("is_required")      // Override global setting
+  isVariant       Boolean? @map("is_variant")       // Override global setting
+  isFilterable    Boolean? @map("is_filterable")    // Override global setting
+  displayOrder    Int?     @map("display_order")   // Override global setting
+  groupName       String?  @map("group_name")      // Override global setting
+  
+  // Validation Overrides
+  validationOverride Json? @map("validation_override") // Category-specific validation rules
+  
+  // System Fields
+  createdBy    String    @map("created_by")
+  updatedBy    String?   @map("updated_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  
+  // Relationships
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([categoryId, attributeId])
+  @@index([categoryId])
+  @@index([attributeId])
+  @@index([inheritanceType])
+  @@map("category_attributes")
+}
+
+// ============================================================================
+// ATTRIBUTE VALUES (Product/Variant Values)
+// ============================================================================
+
+model AttributeValue {
+  id          String   @id @default(cuid()) @map("id")
+  
+  // Reference
+  entityType  AttributeEntityType @map("entity_type") // PRODUCT, VARIANT, etc.
+  entityId    String              @map("entity_id")   // Product/Variant ID
+  attributeId String              @map("attribute_id")
+  
+  // Value Storage (polymorphic)
+  stringValue   String?   @map("string_value")
+  numberValue   Decimal?  @map("number_value") @db.Decimal(15, 4)
+  booleanValue  Boolean?  @map("boolean_value")
+  dateValue     DateTime? @map("date_value")
+  jsonValue     Json?     @map("json_value")
+  optionId      String?   @map("option_id")    // For ENUM/SELECT types
+  
+  // Localization
+  locale        String?   @default("en") @map("locale")
+  
+  // System Fields
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relationships
+  attribute Attribute        @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  option    AttributeOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  
+  // Constraints & Indexes
+  @@unique([entityType, entityId, attributeId, locale])
+  @@index([entityType, entityId])
+  @@index([attributeId])
+  @@index([stringValue])
+  @@index([numberValue])
+  @@index([booleanValue])
+  @@index([dateValue])
+  @@index([optionId])
+  @@map("attribute_values")
+}
+
+// ============================================================================
+// LOCALIZATION SUPPORT
+// ============================================================================
+
+model AttributeLocalization {
+  id          String @id @default(cuid()) @map("id")
+  attributeId String @map("attribute_id")
+  locale      String @map("locale")
+  
+  // Localized Fields
+  name        String  @map("name")
+  description String? @map("description")
+  helpText    String? @map("help_text")
+  placeholder String? @map("placeholder")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([attributeId, locale])
+  @@map("attribute_localizations")
+}
+
+model AttributeOptionLocalization {
+  id       String @id @default(cuid()) @map("id")
+  optionId String @map("option_id")
+  locale   String @map("locale")
+  
+  // Localized Fields
+  label       String  @map("label")
+  description String? @map("description")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  option AttributeOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([optionId, locale])
+  @@map("attribute_option_localizations")
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+model AttributeAuditLog {
+  id          String   @id @default(cuid()) @map("id")
+  attributeId String   @map("attribute_id")
+  
+  // Action Details
+  action      String   @map("action")        // CREATE, UPDATE, DELETE, etc.
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  changes     Json?    @map("changes")
+  
+  // Context
+  userId      String   @map("user_id")
+  userRole    String   @map("user_role")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  reason      String?  @map("reason")
+  metadata    Json?    @map("metadata")
+  batchId     String?  @map("batch_id")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relationships
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([attributeId])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([batchId])
+  @@map("attribute_audit_logs")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum AttributeDataType {
+  STRING      // Text input
+  TEXT        // Textarea
+  NUMBER      // Numeric input
+  DECIMAL     // Decimal number
+  BOOLEAN     // Checkbox/toggle
+  DATE        // Date picker
+  DATETIME    // Date + time picker
+  EMAIL       // Email input
+  URL         // URL input
+  PHONE       // Phone number
+  COLOR       // Color picker
+  ENUM        // Single select dropdown
+  MULTI_ENUM  // Multi-select dropdown
+  JSON        // Complex structured data
+  FILE        // File upload
+  IMAGE       // Image upload
+  RICH_TEXT   // Rich text editor
+  
+  @@map("attribute_data_type")
+}
+
+enum AttributeStatus {
+  DRAFT       // Being created/edited
+  ACTIVE      // Available for use
+  DEPRECATED  // Still usable but discouraged
+  ARCHIVED    // No longer usable
+  
+  @@map("attribute_status")
+}
+
+enum AttributeVisibility {
+  PUBLIC      // Visible to all users
+  INTERNAL    // Visible to sellers/admins only
+  ADMIN_ONLY  // Visible to admins only
+  
+  @@map("attribute_visibility")
+}
+
+enum AttributeInheritanceType {
+  INHERITED   // Inherited from parent category
+  OVERRIDDEN  // Overridden in this category
+  DIRECT      // Directly assigned to this category
+  
+  @@map("attribute_inheritance_type")
+}
+
+enum AttributeEntityType {
+  PRODUCT     // Product-level attribute
+  VARIANT     // Variant-level attribute
+  CATEGORY    // Category-level attribute (for metadata)
+  
+  @@map("attribute_entity_type")
+}
+
+// ============================================================================
+// PERFORMANCE INDEXES
+// ============================================================================
+
+// Additional composite indexes for performance
+// These would be added to existing models:
+
+// On Category model (if not already present):
+// @@index([path, status])           // Tree traversal with status filter
+// @@index([parentId, displayOrder]) // Sibling ordering
+
+// On Product model (future):
+// @@index([categoryId, status])     // Products by category
+// @@index([brandId, status])        // Products by brand
+
+// On ProductVariant model (future):
+// @@index([productId, status])      // Variants by product
+
+// ================================
+// FROM: schema-brand.prisma
+// ================================
+
+// Brand Domain Schema - Enterprise Edition
+// Add this to your main schema.prisma file
+
+enum BrandStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum BrandScope {
+  GLOBAL
+  SELLER_PRIVATE
+  SELLER_SHARED
+}
+
+enum BrandPermission {
+  VIEW
+  USE
+}
+
+enum BrandRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum BrandRequestType {
+  NEW_BRAND
+  BRAND_UPDATE
+  BRAND_REACTIVATION
+}
+
+model Brand {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  slug        String      @unique
+  description String?
+  logoUrl     String?
+  websiteUrl  String?
+  status      BrandStatus @default(DRAFT)
+  
+  // Enhanced ownership model
+  scope       BrandScope  @default(SELLER_PRIVATE)
+  isVerified  Boolean     @default(false) // Official/verified brands
+  
+  // Ownership
+  ownerId     String      // Brand owner (creator)
+  owner       User        @relation("BrandOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Metadata with validation rules
+  metadata    Json?       // Flexible metadata storage
+  
+  // Category constraints
+  allowedCategories    String[] // Category IDs where brand can be used
+  restrictedCategories String[] // Category IDs where brand cannot be used
+  
+  // Brand access control
+  brandAccess BrandAccess[]
+  
+  // Category relationships
+  categories  BrandCategory[]
+  
+  // Products using this brand
+  products    Product[]   @relation("ProductBrand")
+  
+  // Audit fields
+  createdBy   String
+  createdByUser User      @relation("BrandCreatedBy", fields: [createdBy], references: [id])
+  updatedBy   String?
+  updatedByUser User?     @relation("BrandUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Enhanced soft delete
+  deletedAt   DateTime?
+  deletedBy   String?
+  deletedByUser User?     @relation("BrandDeletedBy", fields: [deletedBy], references: [id])
+  
+  // Related requests
+  requests    BrandRequest[]
+  
+  // Audit trail
+  auditLogs   BrandAuditLog[]
+  
+  @@map("brands")
+  @@index([ownerId])
+  @@index([status])
+  @@index([scope])
+  @@index([slug])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([name]) // For search
+}
+
+// Brand access control - who can use which brands
+model BrandAccess {
+  id          String         @id @default(cuid())
+  brandId     String
+  sellerId    String
+  permission  BrandPermission @default(VIEW)
+  
+  brand       Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  seller      User           @relation("BrandAccessSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  
+  // Grant tracking
+  grantedBy   String
+  grantedByUser User         @relation("BrandAccessGranter", fields: [grantedBy], references: [id])
+  grantedAt   DateTime       @default(now())
+  
+  // Revocation tracking
+  revokedAt   DateTime?
+  revokedBy   String?
+  revokedByUser User?        @relation("BrandAccessRevoker", fields: [revokedBy], references: [id])
+  
+  @@unique([brandId, sellerId])
+  @@map("brand_access")
+  @@index([brandId])
+  @@index([sellerId])
+  @@index([permission])
+  @@index([grantedAt])
+}
+
+model BrandRequest {
+  id          String            @id @default(cuid())
+  type        BrandRequestType  @default(NEW_BRAND)
+  status      BrandRequestStatus @default(PENDING)
+  
+  // Idempotency support
+  idempotencyKey String?        @unique
+  
+  // Request data
+  brandName   String
+  brandSlug   String
+  description String?
+  logoUrl     String?
+  websiteUrl  String?
+  categoryIds String[]          // JSON array of category IDs
+  scope       BrandScope        @default(SELLER_PRIVATE)
+  
+  // Justification
+  businessJustification String
+  expectedUsage        String?
+  
+  // Existing brand (for updates/reactivation)
+  brandId     String?
+  brand       Brand?            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  
+  // Requester
+  requesterId String
+  requester   User              @relation("BrandRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  
+  // Admin handling
+  handledBy   String?
+  handledByUser User?           @relation("BrandRequestHandler", fields: [handledBy], references: [id])
+  handledAt   DateTime?
+  adminNotes  String?
+  rejectionReason String?
+  
+  // Timestamps
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  
+  @@map("brand_requests")
+  @@index([requesterId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@index([idempotencyKey])
+}
+
+// Junction table for Brand-Category many-to-many relationship
+model BrandCategory {
+  id         String   @id @default(cuid())
+  brandId    String
+  categoryId String
+  
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  // Metadata for the relationship
+  isPrimary  Boolean  @default(false) // Primary category for the brand
+  createdAt  DateTime @default(now())
+  createdBy  String
+  
+  @@unique([brandId, categoryId])
+  @@map("brand_categories")
+  @@index([brandId])
+  @@index([categoryId])
+}
+
+// Enhanced audit log for brand changes
+model BrandAuditLog {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  
+  action    String   // CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, APPROVE, REJECT, etc.
+  oldValues Json?    // Previous values
+  newValues Json?    // New values
+  changes   Json?    // Specific field changes
+  
+  // Actor
+  userId    String
+  user      User     @relation("BrandAuditUser", fields: [userId], references: [id])
+  userRole  String   // Role at time of action
+  
+  // Context
+  ipAddress String?
+  userAgent String?
+  reason    String?  // Reason for change
+  
+  createdAt DateTime @default(now())
+  
+  @@map("brand_audit_logs")
+  @@index([brandId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Add to existing User model
+model User {
+  // ... existing fields ...
+  
+  // Enhanced brand relationships
+  ownedBrands      Brand[]           @relation("BrandOwner")
+  createdBrands    Brand[]           @relation("BrandCreatedBy")
+  updatedBrands    Brand[]           @relation("BrandUpdatedBy")
+  deletedBrands    Brand[]           @relation("BrandDeletedBy")
+  
+  // Brand access relationships
+  brandAccess      BrandAccess[]     @relation("BrandAccessSeller")
+  grantedAccess    BrandAccess[]     @relation("BrandAccessGranter")
+  revokedAccess    BrandAccess[]     @relation("BrandAccessRevoker")
+  
+  // Brand requests
+  brandRequests    BrandRequest[]    @relation("BrandRequester")
+  handledRequests  BrandRequest[]    @relation("BrandRequestHandler")
+  
+  // Audit logs
+  brandAuditLogs   BrandAuditLog[]   @relation("BrandAuditUser")
+}
+
+// Add to existing Category model
+model Category {
+  // ... existing fields ...
+  
+  // Brand relationships
+  brands           BrandCategory[]
+}
+
+// Add to existing Product model
+model Product {
+  // ... existing fields ...
+  
+  // Brand relationship
+  brandId          String?
+  brand            Brand?            @relation("ProductBrand", fields: [brandId], references: [id], onDelete: SetNull)
+}
+
+// ================================
+// FROM: schema-category-enhanced.prisma
+// ================================
+
+// Category Domain Schema - Enterprise Persistence Layer
+// Add this to your main schema.prisma file
+
+enum CategoryStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  REJECTED
+}
+
+enum CategoryVisibility {
+  PUBLIC      // Visible to all users
+  INTERNAL    // Visible to sellers only
+  RESTRICTED  // Admin-only visibility
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SELECT
+  MULTI_SELECT
+  DATE
+  URL
+  EMAIL
+  JSON
+  FILE_URL
+  COLOR
+  DIMENSION
+  WEIGHT
+  CURRENCY
+}
+
+enum AttributeValidationRule {
+  REQUIRED
+  UNIQUE
+  MIN_LENGTH
+  MAX_LENGTH
+  MIN_VALUE
+  MAX_VALUE
+  REGEX_PATTERN
+  ALLOWED_VALUES
+  FILE_TYPES
+  MAX_FILE_SIZE
+}
+
+model Category {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  
+  // Hybrid tree structure for optimal performance
+  parentId    String?
+  parent      Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Category[]       @relation("CategoryHierarchy")
+  
+  // Materialized path for efficient subtree queries
+  path        String           @unique // e.g., "/electronics/computers/laptops"
+  pathIds     String[]         // Array of ancestor IDs: ["root_id", "parent_id"]
+  depth       Int              @default(0)
+  
+  // Cached tree statistics for performance
+  childCount      Int          @default(0)      // Direct children count
+  descendantCount Int          @default(0)      // All descendants count
+  productCount    Int          @default(0)      // Products in this category
+  
+  // Category lifecycle and visibility
+  status      CategoryStatus   @default(DRAFT)
+  visibility  CategoryVisibility @default(PUBLIC)
+  
+  // SEO optimization fields
+  seoTitle       String?       @db.VarChar(60)   // Optimal for search engines
+  seoDescription String?       @db.VarChar(160)  // Optimal for search engines
+  seoKeywords    String[]      // Array of keywords
+  
+  // Rich metadata support
+  metadata       Json?         // Flexible metadata storage
+  
+  // Display and UI properties
+  iconUrl        String?
+  bannerUrl      String?
+  displayOrder   Int          @default(0)
+  isLeaf         Boolean      @default(true)    // Can contain products
+  isFeatured     Boolean      @default(false)
+  
+  // Brand integration constraints
+  allowedBrands     String[]   // Brand IDs allowed in this category
+  restrictedBrands  String[]   // Brand IDs restricted from this category
+  requiresBrand     Boolean    @default(false)  // Products must have a brand
+  
+  // Multi-tenant support (future-ready)
+  tenantId       String?      // For multi-tenant deployments
+  
+  // Version control for concurrent updates
+  version        Int          @default(1)      // Optimistic locking
+  
+  // Category attributes and inheritance
+  attributes        CategoryAttribute[]
+  inheritedAttributes CategoryAttributeInheritance[]
+  
+  // Relationships with other domains
+  brandCategories   BrandCategory[] // From brand domain
+  products          Product[]       // Products in this category
+  
+  // Comprehensive audit fields
+  createdBy    String
+  createdByUser User           @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  updatedBy    String?
+  updatedByUser User?          @relation("CategoryUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Soft delete with full audit trail
+  deletedAt    DateTime?
+  deletedBy    String?
+  deletedByUser User?          @relation("CategoryDeletedBy", fields: [deletedBy], references: [id])
+  
+  // Audit trail
+  auditLogs    CategoryAuditLog[]
+  
+  @@map("categories")
+  
+  // Performance-optimized indexes
+  @@index([parentId])                    // Tree traversal
+  @@index([path])                        // Path-based queries
+  @@index([pathIds])                     // Ancestor queries
+  @@index([status])                      // Status filtering
+  @@index([visibility])                  // Visibility filtering
+  @@index([depth])                       // Level-based queries
+  @@index([displayOrder])                // Sorting
+  @@index([isLeaf])                      // Leaf category queries
+  @@index([isFeatured])                  // Featured categories
+  @@index([createdAt])                   // Temporal queries
+  @@index([deletedAt])                   // Soft delete queries
+  @@index([slug])                        // Slug lookups
+  @@index([tenantId])                    // Multi-tenant support
+  @@index([version])                     // Optimistic locking
+  
+  // Composite indexes for complex queries
+  @@index([status, visibility])          // Active visible categories
+  @@index([parentId, displayOrder])      // Ordered children
+  @@index([path, status])                // Active subtrees
+  @@index([tenantId, status, visibility]) // Multi-tenant active categories
+  @@index([depth, status])               // Level-based active categories
+  @@index([isLeaf, status])              // Active leaf categories
+  @@index([pathIds, status])             // Ancestor-based active queries
+}
+
+model CategoryAttribute {
+  id          String           @id @default(cuid())
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  // Attribute definition
+  name        String           // e.g., "Color", "Size", "Material"
+  slug        String           // e.g., "color", "size", "material"
+  type        AttributeType
+  description String?
+  
+  // Inheritance and behavior flags
+  isRequired     Boolean       @default(false)
+  isInheritable  Boolean       @default(true)
+  isOverridable  Boolean       @default(true)
+  isVariant      Boolean       @default(false) // Drives product variants
+  isFilterable   Boolean       @default(true)  // Can be used in search filters
+  isSearchable   Boolean       @default(false) // Included in search index
+  
+  // Type-specific configuration
+  defaultValue   String?       // Default value for the attribute
+  allowedValues  String[]      // For SELECT/MULTI_SELECT types
+  validationRules Json?        // Type-specific validation rules
+  
+  // Display and UI properties
+  displayOrder   Int          @default(0)
+  displayName    String?      // Human-readable name
+  helpText       String?      // Help text for sellers
+  placeholder    String?      // Input placeholder
+  
+  // Inheritance tracking
+  inheritedFrom  String?      // Category ID this attribute was inherited from
+  overriddenAt   String?      // Category ID where this was overridden
+  
+  // Version control
+  version        Int          @default(1)
+  
+  // Audit fields
+  createdBy      String
+  createdByUser  User         @relation("CategoryAttributeCreatedBy", fields: [createdBy], references: [id])
+  updatedBy      String?
+  updatedByUser  User?        @relation("CategoryAttributeUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  // Relationships
+  inheritanceRules CategoryAttributeInheritance[]
+  
+  @@unique([categoryId, slug])
+  @@map("category_attributes")
+  
+  // Performance indexes
+  @@index([categoryId])
+  @@index([type])
+  @@index([isRequired])
+  @@index([isVariant])
+  @@index([isFilterable])
+  @@index([displayOrder])
+  @@index([inheritedFrom])
+  @@index([version])
+  
+  // Composite indexes
+  @@index([categoryId, displayOrder])
+  @@index([type, isFilterable])
+  @@index([isVariant, isRequired])
+}
+
+// Tracks attribute inheritance relationships for efficient queries
+model CategoryAttributeInheritance {
+  id                String            @id @default(cuid())
+  
+  // Source attribute (parent)
+  sourceAttributeId String
+  sourceAttribute   CategoryAttribute @relation(fields: [sourceAttributeId], references: [id], onDelete: Cascade)
+  
+  // Target category (child)
+  targetCategoryId  String
+  targetCategory    Category          @relation(fields: [targetCategoryId], references: [id], onDelete: Cascade)
+  
+  // Inheritance properties
+  isActive          Boolean           @default(true)
+  isOverridden      Boolean           @default(false)
+  overriddenValues  Json?             // Values that were overridden
+  
+  // Version control
+  version           Int               @default(1)
+  
+  // Audit
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@unique([sourceAttributeId, targetCategoryId])
+  @@map("category_attribute_inheritance")
+  
+  // Performance indexes
+  @@index([sourceAttributeId])
+  @@index([targetCategoryId])
+  @@index([isActive])
+  @@index([isOverridden])
+  @@index([version])
+}
+
+// Enhanced audit log for comprehensive tracking
+model CategoryAuditLog {
+  id        String   @id @default(cuid())
+  categoryId String
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  action    String   // CREATE, UPDATE, DELETE, MOVE, ACTIVATE, ARCHIVE, etc.
+  oldValues Json?    // Previous values
+  newValues Json?    // New values
+  changes   Json?    // Specific field changes
+  
+  // Tree operation specific fields
+  oldPath   String?  // Previous path (for move operations)
+  newPath   String?  // New path (for move operations)
+  oldParentId String? // Previous parent (for move operations)
+  newParentId String? // New parent (for move operations)
+  
+  // Actor information
+  userId    String
+  user      User     @relation("CategoryAuditUser", fields: [userId], references: [id])
+  userRole  String   // Role at time of action
+  
+  // Context and metadata
+  ipAddress String?
+  userAgent String?
+  reason    String?  // Reason for change
+  metadata  Json?    // Additional context
+  
+  // Correlation for batch operations
+  batchId   String?  // For grouping related operations
+  
+  createdAt DateTime @default(now())
+  
+  @@map("category_audit_logs")
+  
+  // Performance indexes
+  @@index([categoryId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([batchId])
+  
+  // Composite indexes
+  @@index([categoryId, action])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+// Materialized view for high-performance tree queries (optional)
+model CategoryTreeView {
+  id            String   @id @default(cuid())
+  categoryId    String   @unique
+  ancestorId    String
+  depth         Int
+  path          String
+  
+  // Cached category information for performance
+  categoryName  String
+  categorySlug  String
+  categoryStatus CategoryStatus
+  categoryVisibility CategoryVisibility
+  
+  // Tree statistics
+  childCount    Int
+  descendantCount Int
+  productCount  Int
+  
+  // Timestamps for cache invalidation
+  lastUpdated   DateTime @default(now())
+  
+  @@map("category_tree_view")
+  
+  // Optimized indexes for tree queries
+  @@index([categoryId])
+  @@index([ancestorId])
+  @@index([depth])
+  @@index([path])
+  @@index([categoryStatus])
+  @@index([lastUpdated])
+  
+  // Composite indexes
+  @@index([ancestorId, depth])
+  @@index([categoryStatus, categoryVisibility])
+  @@index([path, categoryStatus])
+}
+
+// Category slug history for SEO and redirects
+model CategorySlugHistory {
+  id         String   @id @default(cuid())
+  categoryId String
+  oldSlug    String
+  newSlug    String
+  changedBy  String
+  changedAt  DateTime @default(now())
+  reason     String?
+  
+  @@map("category_slug_history")
+  @@index([categoryId])
+  @@index([oldSlug])
+  @@index([newSlug])
+  @@index([changedAt])
+}
+
+// ================================
+// FROM: schema-category.prisma
+// ================================
+
+// Category Domain Schema - Enterprise Edition
+// Add this to your main schema.prisma file
+
+enum CategoryStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  REJECTED
+}
+
+enum CategoryVisibility {
+  PUBLIC      // Visible to all users
+  INTERNAL    // Visible to sellers only
+  RESTRICTED  // Admin-only visibility
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  SELECT
+  MULTI_SELECT
+  DATE
+  URL
+  EMAIL
+  JSON
+  FILE_URL
+  COLOR
+  DIMENSION
+  WEIGHT
+  CURRENCY
+}
+
+enum AttributeValidationRule {
+  REQUIRED
+  UNIQUE
+  MIN_LENGTH
+  MAX_LENGTH
+  MIN_VALUE
+  MAX_VALUE
+  REGEX_PATTERN
+  ALLOWED_VALUES
+  FILE_TYPES
+  MAX_FILE_SIZE
+}
+
+model Category {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  
+  // Tree structure - Hybrid approach
+  parentId    String?
+  parent      Category?        @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children    Category[]       @relation("CategoryHierarchy")
+  
+  // Materialized path for efficient queries
+  path        String           @unique // e.g., "/electronics/computers/laptops"
+  pathIds     String[]         // Array of ancestor IDs for efficient queries
+  depth       Int              @default(0)
+  
+  // Tree statistics (cached for performance)
+  childCount      Int          @default(0)
+  descendantCount Int          @default(0)
+  productCount    Int          @default(0)
+  
+  // Category properties
+  status      CategoryStatus   @default(DRAFT)
+  visibility  CategoryVisibility @default(PUBLIC)
+  
+  // SEO and metadata
+  seoTitle       String?
+  seoDescription String?
+  seoKeywords    String[]
+  metadata       Json?         // Flexible metadata storage
+  
+  // Display properties
+  iconUrl        String?
+  bannerUrl      String?
+  displayOrder   Int          @default(0)
+  isLeaf         Boolean      @default(true) // Can have products
+  isFeatured     Boolean      @default(false)
+  
+  // Brand constraints
+  allowedBrands     String[]   // Brand IDs allowed in this category
+  restrictedBrands  String[]   // Brand IDs restricted from this category
+  requiresBrand     Boolean    @default(false) // Products must have a brand
+  
+  // Category attributes and inheritance
+  attributes        CategoryAttribute[]
+  inheritedAttributes CategoryAttributeInheritance[]
+  
+  // Relationships
+  brandCategories   BrandCategory[] // From brand domain
+  products          Product[]       // Products in this category
+  
+  // Audit fields
+  createdBy    String
+  createdByUser User           @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  updatedBy    String?
+  updatedByUser User?          @relation("CategoryUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Soft delete
+  deletedAt    DateTime?
+  deletedBy    String?
+  deletedByUser User?          @relation("CategoryDeletedBy", fields: [deletedBy], references: [id])
+  
+  // Audit trail
+  auditLogs    CategoryAuditLog[]
+  
+  @@map("categories")
+  @@index([parentId])
+  @@index([path])
+  @@index([pathIds])
+  @@index([status])
+  @@index([visibility])
+  @@index([depth])
+  @@index([displayOrder])
+  @@index([isLeaf])
+  @@index([isFeatured])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@index([slug])
+  // Composite indexes for common queries
+  @@index([status, visibility])
+  @@index([parentId, displayOrder])
+  @@index([path, status])
+}
+
+model CategoryAttribute {
+  id          String           @id @default(cuid())
+  categoryId  String
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  // Attribute definition
+  name        String           // e.g., "Color", "Size", "Material"
+  slug        String           // e.g., "color", "size", "material"
+  type        AttributeType
+  description String?
+  
+  // Validation rules
+  isRequired     Boolean       @default(false)
+  isInheritable  Boolean       @default(true)
+  isOverridable  Boolean       @default(true)
+  isVariant      Boolean       @default(false) // Drives product variants
+  isFilterable   Boolean       @default(true)  // Can be used in search filters
+  isSearchable   Boolean       @default(false) // Included in search index
+  
+  // Type-specific configuration
+  defaultValue   String?       // Default value for the attribute
+  allowedValues  String[]      // For SELECT/MULTI_SELECT types
+  validationRules Json?        // Type-specific validation rules
+  
+  // Display properties
+  displayOrder   Int          @default(0)
+  displayName    String?      // Human-readable name
+  helpText       String?      // Help text for sellers
+  placeholder    String?      // Input placeholder
+  
+  // Inheritance tracking
+  inheritedFrom  String?      // Category ID this attribute was inherited from
+  overriddenAt   String?      // Category ID where this was overridden
+  
+  // Audit fields
+  createdBy      String
+  createdByUser  User         @relation("CategoryAttributeCreatedBy", fields: [createdBy], references: [id])
+  updatedBy      String?
+  updatedByUser  User?        @relation("CategoryAttributeUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  
+  // Relationships
+  inheritanceRules CategoryAttributeInheritance[]
+  
+  @@unique([categoryId, slug])
+  @@map("category_attributes")
+  @@index([categoryId])
+  @@index([type])
+  @@index([isRequired])
+  @@index([isVariant])
+  @@index([isFilterable])
+  @@index([displayOrder])
+}
+
+// Tracks attribute inheritance relationships
+model CategoryAttributeInheritance {
+  id                String            @id @default(cuid())
+  
+  // Source attribute (parent)
+  sourceAttributeId String
+  sourceAttribute   CategoryAttribute @relation(fields: [sourceAttributeId], references: [id], onDelete: Cascade)
+  
+  // Target category (child)
+  targetCategoryId  String
+  targetCategory    Category          @relation(fields: [targetCategoryId], references: [id], onDelete: Cascade)
+  
+  // Inheritance properties
+  isActive          Boolean           @default(true)
+  isOverridden      Boolean           @default(false)
+  overriddenValues  Json?             // Values that were overridden
+  
+  // Audit
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@unique([sourceAttributeId, targetCategoryId])
+  @@map("category_attribute_inheritance")
+  @@index([sourceAttributeId])
+  @@index([targetCategoryId])
+  @@index([isActive])
+}
+
+// Audit log for category changes
+model CategoryAuditLog {
+  id        String   @id @default(cuid())
+  categoryId String
+  category  Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  action    String   // CREATE, UPDATE, DELETE, MOVE, ACTIVATE, ARCHIVE, etc.
+  oldValues Json?    // Previous values
+  newValues Json?    // New values
+  changes   Json?    // Specific field changes
+  
+  // Tree operation specific
+  oldPath   String?  // Previous path (for move operations)
+  newPath   String?  // New path (for move operations)
+  
+  // Actor
+  userId    String
+  user      User     @relation("CategoryAuditUser", fields: [userId], references: [id])
+  userRole  String   // Role at time of action
+  
+  // Context
+  ipAddress String?
+  userAgent String?
+  reason    String?  // Reason for change
+  
+  createdAt DateTime @default(now())
+  
+  @@map("category_audit_logs")
+  @@index([categoryId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Category tree materialized view for performance (optional)
+model CategoryTreeView {
+  id            String   @id @default(cuid())
+  categoryId    String   @unique
+  ancestorId    String
+  depth         Int
+  path          String
+  
+  // Cached for performance
+  categoryName  String
+  categorySlug  String
+  categoryStatus CategoryStatus
+  
+  @@map("category_tree_view")
+  @@index([categoryId])
+  @@index([ancestorId])
+  @@index([depth])
+  @@index([path])
+}
+
+// Add to existing User model
+model User {
+  // ... existing fields ...
+  
+  // Category relationships
+  createdCategories     Category[]            @relation("CategoryCreatedBy")
+  updatedCategories     Category[]            @relation("CategoryUpdatedBy")
+  deletedCategories     Category[]            @relation("CategoryDeletedBy")
+  
+  // Category attribute relationships
+  createdAttributes     CategoryAttribute[]   @relation("CategoryAttributeCreatedBy")
+  updatedAttributes     CategoryAttribute[]   @relation("CategoryAttributeUpdatedBy")
+  
+  // Audit logs
+  categoryAuditLogs     CategoryAuditLog[]    @relation("CategoryAuditUser")
+}
+
+// Add to existing Product model
+model Product {
+  // ... existing fields ...
+  
+  // Category relationship
+  categoryId            String?
+  category              Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  // Category path for efficient queries
+  categoryPath          String?               // Materialized category path
+  categoryPathIds       String[]              // Array of category IDs in path
+}
+
+// ================================
+// FROM: schema-inventory.prisma
+// ================================
+
+// ================================
+// INVENTORY SYSTEM SCHEMA
+// ================================
+
+model Inventory {
+  id          String   @id @default(cuid())
+  variantId   String
+  sellerId    String
+  warehouseId String?  // Future-ready for multi-warehouse
+  
+  // Derived quantities (never directly updated)
+  availableQuantity Int @default(0)
+  reservedQuantity  Int @default(0)
+  totalQuantity     Int @default(0) // availableQuantity + reservedQuantity
+  
+  // Thresholds
+  lowStockThreshold  Int? @default(10)
+  outOfStockThreshold Int? @default(0)
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // Versioning for optimistic locking
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  variant       ProductVariant      @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  seller        User               @relation(fields: [sellerId], references: [id])
+  warehouse     Warehouse?         @relation(fields: [warehouseId], references: [id])
+  ledgerEntries InventoryLedger[]
+  reservations  InventoryReservation[]
+  auditLogs     InventoryAuditLog[]
+  
+  // Constraints
+  @@unique([variantId, sellerId, warehouseId])
+  @@index([variantId])
+  @@index([sellerId])
+  @@index([warehouseId])
+  @@index([availableQuantity])
+  @@index([totalQuantity])
+  @@index([createdAt])
+  @@index([updatedAt])
+  
+  @@map("inventory")
+}
+
+model InventoryLedger {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Movement details
+  type        String   // INBOUND, OUTBOUND, RESERVATION, RELEASE, ADJUSTMENT
+  quantity    Int      // Positive for inbound, negative for outbound
+  
+  // Running balance after this entry
+  runningBalance Int
+  
+  // Reference information
+  referenceType String?  // ORDER, REFUND, ADMIN, IMPORT, RESERVATION
+  referenceId   String?  // ID of the referenced entity
+  
+  // Metadata
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [createdBy], references: [id])
+  
+  // Indexes for performance
+  @@index([inventoryId])
+  @@index([inventoryId, createdAt])
+  @@index([type])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  
+  @@map("inventory_ledger")
+}
+
+model InventoryReservation {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Reservation details
+  quantity    Int
+  reservationKey String @unique // Idempotent key (e.g., cart_item_id)
+  
+  // Expiry
+  expiresAt   DateTime
+  isExpired   Boolean  @default(false)
+  
+  // Status
+  status      String   @default("ACTIVE") // ACTIVE, COMMITTED, RELEASED, EXPIRED
+  
+  // Reference information
+  referenceType String  // CART, ORDER, QUOTE
+  referenceId   String  // ID of the referenced entity
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([inventoryId])
+  @@index([reservationKey])
+  @@index([expiresAt])
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@index([createdAt])
+  
+  @@map("inventory_reservations")
+}
+
+model InventoryAuditLog {
+  id          String   @id @default(cuid())
+  inventoryId String
+  
+  // Audit details
+  action      String   // CREATE, UPDATE, RESERVE, RELEASE, COMMIT, ADJUST
+  userId      String
+  
+  // State changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([inventoryId])
+  @@index([inventoryId, createdAt])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  
+  @@map("inventory_audit_logs")
+}
+
+// Future-ready warehouse model
+model Warehouse {
+  id          String @id @default(cuid())
+  name        String
+  code        String @unique
+  address     Json   // Structured address
+  isActive    Boolean @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  inventory   Inventory[]
+  
+  @@map("warehouses")
+}
+
+// Inventory movement jobs for bulk operations
+model InventoryMovementJob {
+  id          String   @id @default(cuid())
+  type        String   // BULK_ADJUSTMENT, IMPORT, EXPORT, RECOUNT
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  
+  // Job configuration
+  filters     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Progress tracking
+  totalItems  Int      @default(0)
+  processedItems Int   @default(0)
+  successfulItems Int  @default(0)
+  failedItems Int      @default(0)
+  
+  // Results
+  errorMessage String?
+  results     Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([createdBy])
+  @@index([createdAt])
+  
+  @@map("inventory_movement_jobs")
+}
+
+// ================================
+// FROM: schema-order.prisma
+// ================================
+
+// ================================
+// ORDER SYSTEM SCHEMA
+// ================================
+
+model Order {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique // Human-readable order number
+  
+  // Customer Information
+  customerId  String
+  
+  // Order Status & Lifecycle
+  status      String   @default("PENDING") // PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+  
+  // Multi-seller Support
+  isSplit     Boolean  @default(false) // True if order spans multiple sellers
+  parentOrderId String? // For split orders, reference to parent
+  
+  // Pricing (Snapshot at order time)
+  subtotal    Decimal  @db.Decimal(10, 2)
+  taxAmount   Decimal  @db.Decimal(10, 2) @default(0)
+  shippingAmount Decimal @db.Decimal(10, 2) @default(0)
+  discountAmount Decimal @db.Decimal(10, 2) @default(0)
+  totalAmount Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  
+  // Addresses (Snapshot)
+  shippingAddress Json
+  billingAddress  Json
+  
+  // Fulfillment
+  shippingMethod  String?
+  trackingNumber  String?
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+  
+  // Expiry & Timeouts
+  expiresAt   DateTime? // Order expiry for payment
+  confirmedAt DateTime? // When payment confirmed
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  notes       String?
+  
+  // Versioning for optimistic locking
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  customer      User              @relation(fields: [customerId], references: [id])
+  parentOrder   Order?            @relation("OrderSplit", fields: [parentOrderId], references: [id])
+  childOrders   Order[]           @relation("OrderSplit")
+  items         OrderItem[]
+  payments      OrderPayment[]
+  refunds       OrderRefund[]
+  auditLogs     OrderAuditLog[]
+  statusHistory OrderStatusHistory[]
+  
+  // Indexes
+  @@index([customerId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([parentOrderId])
+  @@index([createdAt])
+  @@index([expiresAt])
+  @@index([customerId, status])
+  @@index([customerId, createdAt])
+  
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  
+  // Product Information (Snapshot)
+  variantId   String
+  productId   String
+  sellerId    String
+  sku         String
+  productName String
+  variantName String?
+  
+  // Quantity & Pricing (Snapshot at order time)
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  
+  // Inventory Integration
+  reservationKey String? // Link to inventory reservation
+  
+  // Fulfillment Status
+  status      String   @default("PENDING") // PENDING, RESERVED, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+  
+  // Refund Tracking
+  refundedQuantity Int @default(0)
+  refundedAmount   Decimal @db.Decimal(10, 2) @default(0)
+  
+  // Product Snapshot (Immutable)
+  productSnapshot Json // Complete product/variant data at order time
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant   ProductVariant  @relation(fields: [variantId], references: [id])
+  product   Product         @relation(fields: [productId], references: [id])
+  seller    User            @relation(fields: [sellerId], references: [id])
+  refunds   OrderItemRefund[]
+  
+  // Indexes
+  @@index([orderId])
+  @@index([variantId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([reservationKey])
+  @@index([orderId, sellerId]) // For multi-seller order splitting
+  
+  @@map("order_items")
+}
+
+model OrderPayment {
+  id          String   @id @default(cuid())
+  orderId     String
+  
+  // Payment Details
+  paymentMethod String  // CREDIT_CARD, PAYPAL, STRIPE, etc.
+  paymentIntentId String? // External payment system ID
+  
+  // Amount & Status
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, REFUNDED
+  
+  // Payment Gateway Response
+  gatewayResponse Json @default("{}")
+  
+  // Failure Handling
+  failureReason String?
+  retryCount    Int    @default(0)
+  
+  // Timestamps
+  processedAt DateTime?
+  completedAt DateTime?
+  failedAt    DateTime?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user    User  @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([orderId])
+  @@index([status])
+  @@index([paymentIntentId])
+  @@index([createdAt])
+  
+  @@map("order_payments")
+}
+
+model OrderRefund {
+  id          String   @id @default(cuid())
+  orderId     String
+  
+  // Refund Details
+  refundNumber String  @unique
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  reason      String
+  
+  // Status & Processing
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+  
+  // Payment Gateway Integration
+  paymentRefundId String? // External refund ID
+  gatewayResponse Json    @default("{}")
+  
+  // Timestamps
+  processedAt DateTime?
+  completedAt DateTime?
+  failedAt    DateTime?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  order     Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [createdBy], references: [id])
+  itemRefunds OrderItemRefund[]
+  
+  // Indexes
+  @@index([orderId])
+  @@index([status])
+  @@index([refundNumber])
+  @@index([createdAt])
+  
+  @@map("order_refunds")
+}
+
+model OrderItemRefund {
+  id          String   @id @default(cuid())
+  refundId    String
+  orderItemId String
+  
+  // Refund Details
+  quantity    Int
+  amount      Decimal  @db.Decimal(10, 2)
+  reason      String?
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  refund    OrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem OrderItem   @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([refundId])
+  @@index([orderItemId])
+  
+  @@map("order_item_refunds")
+}
+
+model OrderStatusHistory {
+  id          String   @id @default(cuid())
+  orderId     String
+  
+  // Status Change
+  fromStatus  String?
+  toStatus    String
+  reason      String?
+  
+  // System Fields
+  changedBy   String
+  changedAt   DateTime @default(now())
+  
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [changedBy], references: [id])
+  
+  // Indexes
+  @@index([orderId])
+  @@index([orderId, changedAt])
+  
+  @@map("order_status_history")
+}
+
+model OrderAuditLog {
+  id          String   @id @default(cuid())
+  orderId     String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, CANCEL, REFUND, SHIP, etc.
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([orderId])
+  @@index([orderId, createdAt])
+  @@index([action])
+  @@index([userId])
+  
+  @@map("order_audit_logs")
+}
+
+// Order Processing Jobs for async operations
+model OrderProcessingJob {
+  id          String   @id @default(cuid())
+  orderId     String
+  type        String   // PAYMENT_PROCESSING, INVENTORY_RESERVATION, FULFILLMENT, CANCELLATION
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([orderId])
+  @@index([type])
+  @@index([status])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("order_processing_jobs")
+}
+
+// ================================
+// FROM: schema-payment.prisma
+// ================================
+
+// ================================
+// PAYMENT SYSTEM SCHEMA
+// ================================
+
+model PaymentIntent {
+  id          String   @id @default(cuid())
+  
+  // Order Association
+  orderId     String
+  
+  // Payment Intent Details
+  intentId    String   @unique // External gateway intent ID
+  clientSecret String? // For client-side confirmation
+  
+  // Amount & Currency (Immutable)
+  amount      Int      // Amount in cents (e.g., $10.50 = 1050)
+  currency    String   @default("USD")
+  
+  // Gateway Information
+  gatewayProvider String // STRIPE, RAZORPAY, PAYPAL, etc.
+  gatewayIntentId String // Gateway-specific intent ID
+  
+  // Status & Lifecycle
+  status      String   @default("CREATED") // CREATED, REQUIRES_PAYMENT_METHOD, REQUIRES_CONFIRMATION, REQUIRES_ACTION, PROCESSING, SUCCEEDED, CANCELED
+  
+  // Payment Methods
+  allowedPaymentMethods String[] @default([]) // CARD, BANK_TRANSFER, WALLET, etc.
+  
+  // Confirmation Details
+  confirmationMethod String @default("AUTOMATIC") // AUTOMATIC, MANUAL
+  captureMethod     String @default("AUTOMATIC") // AUTOMATIC, MANUAL
+  
+  // Multi-seller Support
+  transferGroup     String? // For marketplace transfers
+  applicationFee    Int?    // Platform fee in cents
+  
+  // Metadata & Configuration
+  metadata    Json     @default("{}")
+  description String?
+  
+  // Expiry & Timeouts
+  expiresAt   DateTime?
+  
+  // Versioning for optimistic locking
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  transactions  PaymentTransaction[]
+  attempts      PaymentAttempt[]
+  webhooks      PaymentWebhook[]
+  auditLogs     PaymentAuditLog[]
+  
+  // Indexes
+  @@index([orderId])
+  @@index([status])
+  @@index([gatewayProvider])
+  @@index([gatewayIntentId])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([orderId, status])
+  
+  @@map("payment_intents")
+}
+
+model PaymentTransaction {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Transaction Details
+  transactionId   String   @unique // Our internal transaction ID
+  gatewayTransactionId String? // Gateway's transaction ID
+  
+  // Amount & Currency
+  amount      Int      // Amount in cents
+  currency    String
+  
+  // Transaction Type & Status
+  type        String   // PAYMENT, REFUND, PARTIAL_REFUND, CHARGEBACK
+  status      String   @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELED, DISPUTED
+  
+  // Payment Method Details (Snapshot)
+  paymentMethod Json   // Complete payment method details at transaction time
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  gatewayFees     Int  @default(0) // Gateway fees in cents
+  
+  // Failure Information
+  failureCode    String?
+  failureMessage String?
+  
+  // Processing Details
+  processedAt    DateTime?
+  settledAt      DateTime?
+  
+  // Reconciliation
+  reconciled     Boolean  @default(false)
+  reconciledAt   DateTime?
+  
+  // Metadata
+  metadata       Json     @default("{}")
+  
+  // System Fields
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent      @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  refunds       PaymentRefund[]
+  disputes      PaymentDispute[]
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([status])
+  @@index([type])
+  @@index([gatewayTransactionId])
+  @@index([processedAt])
+  @@index([reconciled])
+  @@index([createdAt])
+  
+  @@map("payment_transactions")
+}
+
+model PaymentAttempt {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Attempt Details
+  attemptNumber   Int
+  idempotencyKey  String   @unique // For retry safety
+  
+  // Gateway Information
+  gatewayProvider String
+  gatewayAttemptId String?
+  
+  // Status & Result
+  status      String   @default("INITIATED") // INITIATED, PROCESSING, SUCCEEDED, FAILED, ABANDONED
+  
+  // Failure Information
+  errorCode   String?
+  errorMessage String?
+  errorType   String? // CARD_ERROR, RATE_LIMIT_ERROR, INVALID_REQUEST_ERROR, etc.
+  
+  // Retry Information
+  isRetry     Boolean  @default(false)
+  retryAfter  DateTime?
+  
+  // Processing Times
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([status])
+  @@index([attemptNumber])
+  @@index([idempotencyKey])
+  @@index([retryAfter])
+  @@index([createdAt])
+  
+  @@map("payment_attempts")
+}
+
+model PaymentWebhook {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association (Optional - some webhooks are global)
+  paymentIntentId String?
+  
+  // Webhook Details
+  webhookId   String   @unique // External webhook ID
+  eventType   String   // payment_intent.succeeded, payment_intent.payment_failed, etc.
+  
+  // Gateway Information
+  gatewayProvider String
+  
+  // Processing Status
+  status      String   @default("RECEIVED") // RECEIVED, PROCESSING, PROCESSED, FAILED, IGNORED
+  
+  // Signature Verification
+  signature   String?
+  verified    Boolean  @default(false)
+  
+  // Payload & Response
+  payload     Json     // Raw webhook payload
+  headers     Json     @default("{}")
+  
+  // Processing Details
+  processedAt DateTime?
+  errorMessage String?
+  
+  // Idempotency
+  processed   Boolean  @default(false)
+  
+  // System Fields
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([webhookId])
+  @@index([eventType])
+  @@index([status])
+  @@index([processed])
+  @@index([receivedAt])
+  
+  @@map("payment_webhooks")
+}
+
+model PaymentRefund {
+  id          String   @id @default(cuid())
+  
+  // Transaction Association
+  transactionId String
+  
+  // Refund Details
+  refundId    String   @unique // Our internal refund ID
+  gatewayRefundId String? // Gateway's refund ID
+  
+  // Amount & Currency
+  amount      Int      // Refund amount in cents
+  currency    String
+  
+  // Refund Information
+  reason      String   // DUPLICATE, FRAUDULENT, REQUESTED_BY_CUSTOMER, etc.
+  description String?
+  
+  // Status & Processing
+  status      String   @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, FAILED, CANCELED
+  
+  // Gateway Response
+  gatewayResponse Json @default("{}")
+  
+  // Processing Details
+  processedAt DateTime?
+  settledAt   DateTime?
+  
+  // Failure Information
+  failureCode    String?
+  failureMessage String?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([transactionId])
+  @@index([status])
+  @@index([gatewayRefundId])
+  @@index([processedAt])
+  @@index([createdAt])
+  
+  @@map("payment_refunds")
+}
+
+model PaymentDispute {
+  id          String   @id @default(cuid())
+  
+  // Transaction Association
+  transactionId String
+  
+  // Dispute Details
+  disputeId   String   @unique // Gateway's dispute ID
+  
+  // Dispute Information
+  reason      String   // FRAUDULENT, UNRECOGNIZED, DUPLICATE, etc.
+  status      String   // WARNING_NEEDS_RESPONSE, WARNING_UNDER_REVIEW, WARNING_CLOSED, etc.
+  
+  // Amount & Currency
+  amount      Int      // Disputed amount in cents
+  currency    String
+  
+  // Evidence & Response
+  evidence    Json     @default("{}")
+  response    Json     @default("{}")
+  
+  // Important Dates
+  evidenceDueBy DateTime?
+  respondedAt   DateTime?
+  
+  // Gateway Information
+  gatewayResponse Json @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([transactionId])
+  @@index([status])
+  @@index([disputeId])
+  @@index([evidenceDueBy])
+  @@index([createdAt])
+  
+  @@map("payment_disputes")
+}
+
+model PaymentAuditLog {
+  id          String   @id @default(cuid())
+  
+  // Payment Intent Association
+  paymentIntentId String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, CONFIRM, CANCEL, REFUND, etc.
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  paymentIntent PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([paymentIntentId])
+  @@index([paymentIntentId, createdAt])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  
+  @@map("payment_audit_logs")
+}
+
+// Gateway Configuration
+model PaymentGateway {
+  id          String   @id @default(cuid())
+  
+  // Gateway Details
+  provider    String   @unique // STRIPE, RAZORPAY, PAYPAL, etc.
+  name        String
+  
+  // Configuration
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  
+  // Supported Features
+  supportedMethods    String[] @default([]) // CARD, BANK_TRANSFER, WALLET, etc.
+  supportedCurrencies String[] @default([])
+  supportedCountries  String[] @default([])
+  
+  // API Configuration (Encrypted)
+  apiConfig   Json     @default("{}")
+  
+  // Webhook Configuration
+  webhookUrl  String?
+  webhookSecret String?
+  
+  // Fee Structure
+  feeStructure Json    @default("{}")
+  
+  // Limits & Constraints
+  minAmount   Int?     // Minimum amount in cents
+  maxAmount   Int?     // Maximum amount in cents
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user User @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([provider])
+  @@index([isActive])
+  @@index([isDefault])
+  
+  @@map("payment_gateways")
+}
+
+// Payment Processing Jobs
+model PaymentJob {
+  id          String   @id @default(cuid())
+  
+  // Job Details
+  type        String   // PROCESS_PAYMENT, RETRY_PAYMENT, WEBHOOK_PROCESSING, RECONCILIATION
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Associated Entities
+  paymentIntentId String?
+  orderId         String?
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  paymentIntent PaymentIntent? @relation(fields: [paymentIntentId], references: [id])
+  order         Order?         @relation(fields: [orderId], references: [id])
+  user          User           @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([paymentIntentId])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("payment_jobs")
+}
+
+// ================================
+// FROM: schema-product.prisma
+// ================================
+
+// ============================================================================
+// PRODUCT CORE DOMAIN SCHEMA
+// ============================================================================
+// Enterprise-grade product system for marketplace backend
+// Supports lifecycle management, ownership, moderation, and variant preparation
+
+// ============================================================================
+// CORE PRODUCT MODEL
+// ============================================================================
+
+model Product {
+  id          String   @id @default(cuid()) @map("id")
+  
+  // Basic Information
+  name        String   @map("name")
+  slug        String   @unique @map("slug")
+  description String?  @map("description")
+  shortDescription String? @map("short_description")
+  
+  // Relationships (Required)
+  categoryId  String   @map("category_id")
+  brandId     String   @map("brand_id")
+  sellerId    String   @map("seller_id")
+  
+  // Product Lifecycle
+  status      ProductStatus @default(DRAFT) @map("status")
+  visibility  ProductVisibility @default(PRIVATE) @map("visibility")
+  
+  // Moderation & Approval
+  moderationStatus ProductModerationStatus @default(PENDING) @map("moderation_status")
+  moderationNotes  String? @map("moderation_notes")
+  moderatedBy      String? @map("moderated_by")
+  moderatedAt      DateTime? @map("moderated_at")
+  
+  // Publishing Control
+  publishedAt      DateTime? @map("published_at")
+  scheduledPublishAt DateTime? @map("scheduled_publish_at")
+  
+  // SEO & Marketing
+  seoTitle         String? @map("seo_title")
+  seoDescription   String? @map("seo_description")
+  seoKeywords      String[] @map("seo_keywords")
+  metaData         Json? @map("meta_data")
+  
+  // Media
+  images           String[] @map("images")           // Array of image URLs
+  videos           String[] @map("videos")           // Array of video URLs
+  documents        String[] @map("documents")        // Array of document URLs
+  
+  // Organization
+  tags             String[] @map("tags")
+  displayOrder     Int @default(0) @map("display_order")
+  isFeatured       Boolean @default(false) @map("is_featured")
+  
+  // Variant Configuration
+  hasVariants      Boolean @default(false) @map("has_variants")
+  variantAttributes String[] @map("variant_attributes") // Attribute IDs that drive variants
+  
+  // Versioning & Concurrency
+  version          Int @default(1) @map("version")
+  
+  // System Fields
+  createdBy        String    @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+  deletedBy        String?   @map("deleted_by")
+  
+  // Relationships
+  category         Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brand            Brand @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  seller           User @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Restrict)
+  
+  attributeValues  ProductAttributeValue[]
+  variants         ProductVariant[]
+  auditLogs        ProductAuditLog[]
+  reviews          ProductReview[]
+  
+  // Indexes for Performance
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([visibility])
+  @@index([moderationStatus])
+  @@index([publishedAt])
+  @@index([isFeatured])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@index([slug])
+  @@index([sellerId, status])
+  @@index([categoryId, status, visibility])
+  @@index([brandId, status, visibility])
+  @@map("products")
+}
+
+// ============================================================================
+// PRODUCT ATTRIBUTE VALUES
+// ============================================================================
+
+model ProductAttributeValue {
+  id          String   @id @default(cuid()) @map("id")
+  productId   String   @map("product_id")
+  attributeId String   @map("attribute_id")
+  
+  // Value Storage (polymorphic based on attribute data type)
+  stringValue   String?   @map("string_value")
+  numberValue   Decimal?  @map("number_value") @db.Decimal(15, 4)
+  booleanValue  Boolean?  @map("boolean_value")
+  dateValue     DateTime? @map("date_value")
+  jsonValue     Json?     @map("json_value")
+  optionId      String?   @map("option_id")    // For ENUM/SELECT types
+  
+  // Localization
+  locale        String    @default("en") @map("locale")
+  
+  // Inheritance Tracking
+  inheritedFrom String?   @map("inherited_from") // Category ID if inherited
+  isOverridden  Boolean   @default(false) @map("is_overridden")
+  
+  // System Fields
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relationships
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute     Attribute @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+  option        AttributeOption? @relation(fields: [optionId], references: [id], onDelete: SetNull)
+  
+  // Constraints
+  @@unique([productId, attributeId, locale])
+  @@index([productId])
+  @@index([attributeId])
+  @@index([stringValue])
+  @@index([numberValue])
+  @@index([booleanValue])
+  @@index([dateValue])
+  @@index([optionId])
+  @@map("product_attribute_values")
+}
+
+// ============================================================================
+// PRODUCT VARIANTS (Placeholder for future implementation)
+// ============================================================================
+
+model ProductVariant {
+  id          String   @id @default(cuid()) @map("id")
+  productId   String   @map("product_id")
+  
+  // Variant Identity
+  sku         String   @unique @map("sku")
+  name        String?  @map("name")           // Optional variant name
+  
+  // Variant Attributes (combination that defines this variant)
+  attributeValues Json @map("attribute_values") // Stored as JSON for now
+  
+  // Status
+  status      ProductVariantStatus @default(ACTIVE) @map("status")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([productId])
+  @@index([status])
+  @@map("product_variants")
+}
+
+// ============================================================================
+// PRODUCT AUDIT LOGGING
+// ============================================================================
+
+model ProductAuditLog {
+  id          String   @id @default(cuid()) @map("id")
+  productId   String   @map("product_id")
+  
+  // Action Details
+  action      String   @map("action")        // CREATE, UPDATE, DELETE, PUBLISH, etc.
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  changes     Json?    @map("changes")
+  
+  // Context
+  userId      String   @map("user_id")
+  userRole    String   @map("user_role")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  reason      String?  @map("reason")
+  metadata    Json?    @map("metadata")
+  batchId     String?  @map("batch_id")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relationships
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([productId])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([batchId])
+  @@map("product_audit_logs")
+}
+
+// ============================================================================
+// PRODUCT REVIEWS (Placeholder for future implementation)
+// ============================================================================
+
+model ProductReview {
+  id          String   @id @default(cuid()) @map("id")
+  productId   String   @map("product_id")
+  userId      String   @map("user_id")
+  
+  // Review Content
+  rating      Int      @map("rating")        // 1-5 stars
+  title       String?  @map("title")
+  content     String?  @map("content")
+  
+  // Status
+  status      ReviewStatus @default(PENDING) @map("status")
+  
+  // System Fields
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relationships
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([productId])
+  @@index([userId])
+  @@index([status])
+  @@index([rating])
+  @@map("product_reviews")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum ProductStatus {
+  DRAFT       // Being created/edited by seller
+  SUBMITTED   // Submitted for review
+  APPROVED    // Approved by admin/moderator
+  PUBLISHED   // Live and visible to customers
+  REJECTED    // Rejected during review
+  SUSPENDED   // Temporarily suspended
+  ARCHIVED    // Permanently archived
+  
+  @@map("product_status")
+}
+
+enum ProductVisibility {
+  PRIVATE     // Only visible to seller and admins
+  INTERNAL    // Visible to sellers and admins
+  PUBLIC      // Visible to everyone (when published)
+  
+  @@map("product_visibility")
+}
+
+enum ProductModerationStatus {
+  PENDING     // Awaiting moderation
+  APPROVED    // Approved by moderator
+  REJECTED    // Rejected by moderator
+  FLAGGED     // Flagged for review
+  REVIEWING   // Currently under review
+  
+  @@map("product_moderation_status")
+}
+
+enum ProductVariantStatus {
+  ACTIVE      // Available for sale
+  INACTIVE    // Not available for sale
+  ARCHIVED    // Permanently archived
+  
+  @@map("product_variant_status")
+}
+
+enum ReviewStatus {
+  PENDING     // Awaiting moderation
+  APPROVED    // Approved and visible
+  REJECTED    // Rejected and hidden
+  FLAGGED     // Flagged for review
+  
+  @@map("review_status")
+}
+
+// ============================================================================
+// ADDITIONAL INDEXES FOR PERFORMANCE
+// ============================================================================
+
+// Composite indexes for common query patterns
+// @@index([sellerId, status, updatedAt])     // Seller's products by status
+// @@index([categoryId, status, publishedAt]) // Category products by publish date
+// @@index([brandId, status, isFeatured])     // Brand featured products
+// @@index([status, visibility, publishedAt]) // Public product listings
+// @@index([moderationStatus, createdAt])     // Moderation queue
+// @@index([isFeatured, status, displayOrder]) // Featured product ordering
+
+// ================================
+// FROM: schema-refund.prisma
+// ================================
+
+// ================================
+// REFUND SYSTEM SCHEMA (RAZORPAY)
+// ================================
+
+model Refund {
+  id          String   @id @default(cuid())
+  
+  // Refund Identification
+  refundId    String   @unique // Our internal refund ID
+  refundNumber String  @unique // Human-readable refund number (REF-2024-001)
+  
+  // Order & Payment Association
+  orderId     String
+  paymentIntentId String?
+  paymentTransactionId String?
+  
+  // Refund Type & Classification
+  refundType  String   // FULL, PARTIAL, ITEM_LEVEL
+  refundCategory String // CUSTOMER_REQUEST, MERCHANT_INITIATED, SYSTEM_INITIATED, DISPUTE_RESOLUTION
+  
+  // Amount Details (in paise/cents)
+  requestedAmount Int    // Originally requested refund amount
+  approvedAmount  Int    // Final approved refund amount
+  processedAmount Int?   // Actually processed amount (may differ due to fees)
+  currency        String @default("INR")
+  
+  // Refund Reason & Details
+  reason          String // CUSTOMER_REQUEST, DEFECTIVE_PRODUCT, WRONG_ITEM, CANCELLATION, etc.
+  reasonCode      String // Standardized reason code
+  description     String?
+  customerNotes   String?
+  merchantNotes   String?
+  
+  // Status & Lifecycle
+  status          String @default("PENDING") // PENDING, APPROVED, REJECTED, PROCESSING, COMPLETED, FAILED, CANCELLED
+  
+  // Approval Workflow
+  requiresApproval Boolean @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  
+  // Gateway Integration
+  gatewayProvider String @default("RAZORPAY")
+  gatewayRefundId String? // Razorpay refund ID
+  gatewayResponse Json   @default("{}")
+  
+  // Processing Details
+  processedAt     DateTime?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  
+  // Failure Information
+  failureCode     String?
+  failureMessage  String?
+  failureReason   String?
+  
+  // Retry Logic
+  retryCount      Int    @default(0)
+  maxRetries      Int    @default(3)
+  nextRetryAt     DateTime?
+  
+  // Idempotency
+  idempotencyKey  String @unique
+  
+  // Eligibility & Validation
+  eligibilityChecked Boolean @default(false)
+  eligibilityResult  Json?   // Detailed eligibility check results
+  
+  // Inventory Impact
+  restockRequired Boolean @default(false)
+  restockCompleted Boolean @default(false)
+  restockJobId    String?
+  
+  // Financial Impact
+  refundFees      Int    @default(0) // Gateway refund fees
+  adjustmentAmount Int   @default(0) // Any adjustments applied
+  
+  // Metadata & Context
+  metadata        Json   @default("{}")
+  tags            String[] @default([])
+  
+  // Audit Trail
+  auditTrail      Json   @default("[]") // Array of audit events
+  
+  // System Fields
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  order           Order              @relation(fields: [orderId], references: [id])
+  paymentIntent   PaymentIntent?     @relation(fields: [paymentIntentId], references: [id])
+  paymentTransaction PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id])
+  creator         User               @relation("RefundCreator", fields: [createdBy], references: [id])
+  approver        User?              @relation("RefundApprover", fields: [approvedBy], references: [id])
+  rejecter        User?              @relation("RefundRejecter", fields: [rejectedBy], references: [id])
+  
+  items           RefundItem[]
+  ledgerEntries   RefundLedgerEntry[]
+  auditLogs       RefundAuditLog[]
+  webhooks        RefundWebhook[]
+  jobs            RefundJob[]
+  
+  // Indexes
+  @@index([orderId])
+  @@index([paymentIntentId])
+  @@index([paymentTransactionId])
+  @@index([status])
+  @@index([refundType])
+  @@index([gatewayRefundId])
+  @@index([idempotencyKey])
+  @@index([createdBy])
+  @@index([approvedBy])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  @@index([orderId, status])
+  @@index([status, createdAt])
+  
+  @@map("refunds")
+}
+
+model RefundItem {
+  id          String   @id @default(cuid())
+  
+  // Refund Association
+  refundId    String
+  
+  // Order Item Association
+  orderItemId String
+  
+  // Item Details (Snapshot)
+  variantId   String
+  productId   String
+  sellerId    String
+  sku         String
+  productName String
+  variantName String?
+  
+  // Refund Quantity & Amount
+  requestedQuantity Int
+  approvedQuantity  Int
+  unitPrice         Int    // Price per unit in paise/cents
+  totalAmount       Int    // Total refund amount for this item
+  
+  // Item-specific Reason
+  reason            String?
+  reasonCode        String?
+  condition         String? // NEW, USED, DAMAGED, DEFECTIVE
+  
+  // Inventory Impact
+  restockQuantity   Int    @default(0)
+  restockStatus     String @default("PENDING") // PENDING, COMPLETED, FAILED, NOT_REQUIRED
+  
+  // Item Snapshot (Immutable)
+  itemSnapshot      Json   // Complete item data at refund time
+  
+  // System Fields
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  refund            Refund     @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  orderItem         OrderItem  @relation(fields: [orderItemId], references: [id])
+  variant           ProductVariant @relation(fields: [variantId], references: [id])
+  product           Product    @relation(fields: [productId], references: [id])
+  seller            User       @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([refundId])
+  @@index([orderItemId])
+  @@index([variantId])
+  @@index([sellerId])
+  @@index([restockStatus])
+  
+  @@map("refund_items")
+}
+
+model RefundLedgerEntry {
+  id          String   @id @default(cuid())
+  
+  // Refund Association
+  refundId    String
+  
+  // Ledger Entry Details
+  entryType   String   // REFUND_INITIATED, REFUND_PROCESSED, REFUND_COMPLETED, REFUND_FAILED, FEE_DEDUCTED
+  amount      Int      // Amount in paise/cents (can be negative for debits)
+  currency    String   @default("INR")
+  
+  // Account Information
+  accountType String   // CUSTOMER, MERCHANT, PLATFORM, GATEWAY
+  accountId   String?  // Account identifier
+  
+  // Transaction Details
+  description String
+  reference   String?  // External reference (gateway transaction ID, etc.)
+  
+  // Balances (Running totals)
+  runningBalance Int?
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdBy   String
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  refund      Refund   @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  creator     User     @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([refundId])
+  @@index([entryType])
+  @@index([accountType])
+  @@index([createdAt])
+  @@index([refundId, createdAt])
+  
+  @@map("refund_ledger_entries")
+}
+
+model RefundAuditLog {
+  id          String   @id @default(cuid())
+  
+  // Refund Association
+  refundId    String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, APPROVE, REJECT, PROCESS, COMPLETE, FAIL, RETRY
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // IP & User Agent (for security)
+  ipAddress   String?
+  userAgent   String?
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  refund      Refund   @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([refundId])
+  @@index([refundId, createdAt])
+  @@index([action])
+  @@index([userId])
+  @@index([createdAt])
+  
+  @@map("refund_audit_logs")
+}
+
+model RefundWebhook {
+  id          String   @id @default(cuid())
+  
+  // Refund Association (Optional - some webhooks are global)
+  refundId    String?
+  
+  // Webhook Details
+  webhookId   String   @unique // External webhook ID
+  eventType   String   // refund.processed, refund.failed, etc.
+  
+  // Gateway Information
+  gatewayProvider String @default("RAZORPAY")
+  
+  // Processing Status
+  status      String   @default("RECEIVED") // RECEIVED, PROCESSING, PROCESSED, FAILED, IGNORED
+  
+  // Signature Verification
+  signature   String?
+  verified    Boolean  @default(false)
+  
+  // Payload & Response
+  payload     Json     // Raw webhook payload
+  headers     Json     @default("{}")
+  
+  // Processing Details
+  processedAt DateTime?
+  errorMessage String?
+  
+  // Idempotency
+  processed   Boolean  @default(false)
+  
+  // System Fields
+  receivedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  refund      Refund?  @relation(fields: [refundId], references: [id])
+  
+  // Indexes
+  @@index([refundId])
+  @@index([webhookId])
+  @@index([eventType])
+  @@index([status])
+  @@index([processed])
+  @@index([receivedAt])
+  
+  @@map("refund_webhooks")
+}
+
+model RefundJob {
+  id          String   @id @default(cuid())
+  
+  // Job Details
+  type        String   // PROCESS_REFUND, RESTOCK_INVENTORY, SEND_NOTIFICATION, SYNC_GATEWAY
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Associated Entities
+  refundId    String?
+  orderId     String?
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  refund      Refund?  @relation(fields: [refundId], references: [id])
+  order       Order?   @relation(fields: [orderId], references: [id])
+  creator     User     @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([refundId])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("refund_jobs")
+}
+
+// Refund Policy Configuration
+model RefundPolicy {
+  id          String   @id @default(cuid())
+  
+  // Policy Details
+  name        String
+  description String?
+  
+  // Scope
+  sellerId    String?  // Seller-specific policy (null for global)
+  categoryId  String?  // Category-specific policy
+  productId   String?  // Product-specific policy
+  
+  // Policy Rules
+  isActive    Boolean  @default(true)
+  
+  // Time Limits
+  refundWindowDays Int  @default(30) // Days from delivery/purchase
+  
+  // Refund Types Allowed
+  allowFullRefund    Boolean @default(true)
+  allowPartialRefund Boolean @default(true)
+  allowItemRefund    Boolean @default(true)
+  
+  // Approval Requirements
+  requiresApproval   Boolean @default(false)
+  autoApprovalLimit  Int?    // Auto-approve refunds below this amount
+  
+  // Conditions
+  conditions         Json    @default("{}") // Complex policy conditions
+  
+  // Fees & Deductions
+  refundFeePercent   Decimal @db.Decimal(5, 2) @default(0)
+  refundFeeFixed     Int     @default(0)
+  restockingFee      Int     @default(0)
+  
+  // System Fields
+  createdBy          String
+  updatedBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  // Relations
+  seller             User?    @relation(fields: [sellerId], references: [id])
+  creator            User     @relation("RefundPolicyCreator", fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([productId])
+  @@index([isActive])
+  
+  @@map("refund_policies")
+}
+
+// Refund Eligibility Cache
+model RefundEligibility {
+  id          String   @id @default(cuid())
+  
+  // Order & Item Association
+  orderId     String
+  orderItemId String?  // Null for order-level eligibility
+  
+  // Eligibility Results
+  isEligible  Boolean
+  reason      String?  // Reason if not eligible
+  
+  // Eligibility Details
+  maxRefundAmount Int?
+  refundWindowEnd DateTime?
+  
+  // Policy Applied
+  policyId    String?
+  policySnapshot Json? // Snapshot of policy at check time
+  
+  // Cache Details
+  checkedAt   DateTime @default(now())
+  expiresAt   DateTime // Cache expiry
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  order       Order    @relation(fields: [orderId], references: [id])
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+  policy      RefundPolicy? @relation(fields: [policyId], references: [id])
+  
+  // Indexes
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([expiresAt])
+  @@index([orderId, orderItemId])
+  
+  @@map("refund_eligibility_cache")
+}
+
+// Refund Statistics & Analytics
+model RefundStatistics {
+  id          String   @id @default(cuid())
+  
+  // Time Period
+  periodType  String   // DAILY, WEEKLY, MONTHLY, YEARLY
+  periodStart DateTime
+  periodEnd   DateTime
+  
+  // Scope
+  sellerId    String?  // Seller-specific stats (null for global)
+  categoryId  String?  // Category-specific stats
+  
+  // Refund Metrics
+  totalRefunds        Int @default(0)
+  totalRefundAmount   Int @default(0)
+  
+  // Refund Types
+  fullRefunds         Int @default(0)
+  partialRefunds      Int @default(0)
+  itemRefunds         Int @default(0)
+  
+  // Status Breakdown
+  pendingRefunds      Int @default(0)
+  approvedRefunds     Int @default(0)
+  rejectedRefunds     Int @default(0)
+  completedRefunds    Int @default(0)
+  failedRefunds       Int @default(0)
+  
+  // Processing Metrics
+  avgProcessingTime   Int? // Average processing time in minutes
+  avgApprovalTime     Int? // Average approval time in minutes
+  
+  // Reason Analysis
+  reasonBreakdown     Json @default("{}") // Refund reasons with counts
+  
+  // System Fields
+  calculatedAt        DateTime @default(now())
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  seller              User? @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([periodType, periodStart])
+  @@index([sellerId])
+  @@index([categoryId])
+  @@index([periodStart, periodEnd])
+  
+  @@map("refund_statistics")
+}
+
+// ================================
+// FROM: schema-settlement.prisma
+// ================================
+
+// ================================
+// SETTLEMENT SYSTEM SCHEMA (RAZORPAY)
+// ================================
+
+model Settlement {
+  id          String   @id @default(cuid())
+  
+  // Settlement Details
+  settlementId String  @unique // Razorpay settlement ID
+  
+  // Seller Information
+  sellerId    String
+  sellerAccountId String // Razorpay linked account ID
+  
+  // Settlement Period
+  settlementDate Date
+  periodStart    Date
+  periodEnd      Date
+  
+  // Amounts (in paise/cents)
+  grossAmount    Int     // Total transaction amount
+  fees           Int     // Platform + gateway fees
+  tax            Int     // Tax on fees
+  netAmount      Int     // Amount settled to seller
+  
+  // Currency
+  currency       String  @default("INR")
+  
+  // Status
+  status         String  @default("PENDING") // PENDING, PROCESSING, SETTLED, FAILED
+  
+  // Gateway Information
+  gatewayProvider String @default("RAZORPAY")
+  gatewaySettlementId String? // Gateway's settlement ID
+  
+  // Bank Details (Snapshot)
+  bankAccount    Json    // Bank account details at settlement time
+  
+  // UTR & Reference
+  utr            String? // Unique Transaction Reference
+  referenceNumber String?
+  
+  // Processing Details
+  processedAt    DateTime?
+  settledAt      DateTime?
+  failedAt       DateTime?
+  
+  // Failure Information
+  failureReason  String?
+  failureCode    String?
+  
+  // Metadata
+  metadata       Json    @default("{}")
+  notes          String?
+  
+  // System Fields
+  createdBy      String
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  seller         User              @relation(fields: [sellerId], references: [id])
+  transactions   SettlementTransaction[]
+  auditLogs      SettlementAuditLog[]
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([status])
+  @@index([settlementDate])
+  @@index([gatewaySettlementId])
+  @@index([sellerId, settlementDate])
+  @@index([status, settlementDate])
+  @@index([createdAt])
+  
+  @@map("settlements")
+}
+
+model SettlementTransaction {
+  id          String   @id @default(cuid())
+  
+  // Settlement Association
+  settlementId String
+  
+  // Transaction Details
+  paymentTransactionId String
+  orderId              String
+  orderNumber          String
+  
+  // Amount Breakdown (in paise/cents)
+  transactionAmount    Int     // Original transaction amount
+  platformFee          Int     // Platform commission
+  gatewayFee          Int     // Payment gateway fee
+  tax                 Int     // Tax on fees
+  netAmount           Int     // Amount for seller
+  
+  // Transaction Details (Snapshot)
+  transactionDate     Date
+  paymentMethod       String
+  
+  // Customer Information (Snapshot)
+  customerId          String
+  customerEmail       String?
+  
+  // Product Information (Snapshot)
+  productDetails      Json    // Product/variant details
+  
+  // System Fields
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  settlement          Settlement         @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  paymentTransaction  PaymentTransaction @relation(fields: [paymentTransactionId], references: [id])
+  order              Order              @relation(fields: [orderId], references: [id])
+  
+  // Indexes
+  @@index([settlementId])
+  @@index([paymentTransactionId])
+  @@index([orderId])
+  @@index([transactionDate])
+  
+  @@map("settlement_transactions")
+}
+
+model SettlementAuditLog {
+  id          String   @id @default(cuid())
+  
+  // Settlement Association
+  settlementId String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, PROCESS, SETTLE, FAIL, RETRY
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  settlement  Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([settlementId])
+  @@index([settlementId, createdAt])
+  @@index([action])
+  @@index([userId])
+  
+  @@map("settlement_audit_logs")
+}
+
+// Seller Account Management (Razorpay Linked Accounts)
+model SellerAccount {
+  id          String   @id @default(cuid())
+  
+  // Seller Information
+  sellerId    String   @unique
+  
+  // Razorpay Account Details
+  accountId   String   @unique // Razorpay linked account ID
+  accountType String   @default("LINKED") // LINKED, ROUTE
+  
+  // Account Status
+  status      String   @default("CREATED") // CREATED, UNDER_REVIEW, ACTIVATED, NEEDS_CLARIFICATION, SUSPENDED, REJECTED
+  
+  // Business Details (Snapshot)
+  businessDetails Json
+  
+  // Bank Account Details
+  bankAccounts    Json    @default("[]") // Array of bank accounts
+  primaryBankId   String? // Primary bank account ID
+  
+  // KYC Information
+  kycStatus       String  @default("PENDING") // PENDING, UNDER_REVIEW, VERIFIED, REJECTED
+  kycDocuments    Json    @default("[]")
+  
+  // Settlement Configuration
+  settlementSchedule Json @default("{}")
+  
+  // Verification Details
+  verifiedAt      DateTime?
+  verificationNotes String?
+  
+  // System Fields
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  seller          User @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([accountId])
+  @@index([status])
+  @@index([kycStatus])
+  
+  @@map("seller_accounts")
+}
+
+// Settlement Schedule Configuration
+model SettlementSchedule {
+  id          String   @id @default(cuid())
+  
+  // Seller Information
+  sellerId    String   @unique
+  
+  // Schedule Configuration
+  frequency   String   @default("DAILY") // DAILY, WEEKLY, MONTHLY
+  dayOfWeek   Int?     // For weekly (1=Monday, 7=Sunday)
+  dayOfMonth  Int?     // For monthly (1-31)
+  
+  // Minimum Settlement Amount
+  minAmount   Int      @default(100) // Minimum amount in paise/cents
+  
+  // Hold Period
+  holdDays    Int      @default(7) // Days to hold before settlement
+  
+  // Auto Settlement
+  autoSettle  Boolean  @default(true)
+  
+  // Status
+  isActive    Boolean  @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  seller      User @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([frequency])
+  @@index([isActive])
+  
+  @@map("settlement_schedules")
+}
+
+// Settlement Jobs for Processing
+model SettlementJob {
+  id          String   @id @default(cuid())
+  
+  // Job Details
+  type        String   // CALCULATE_SETTLEMENT, PROCESS_SETTLEMENT, SYNC_GATEWAY_SETTLEMENTS
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Associated Entities
+  settlementId String?
+  sellerId     String?
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Processing Period
+  periodStart Date?
+  periodEnd   Date?
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  settlement  Settlement? @relation(fields: [settlementId], references: [id])
+  seller      User?       @relation(fields: [sellerId], references: [id])
+  user        User        @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([settlementId])
+  @@index([sellerId])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("settlement_jobs")
+}
+
+// ================================
+// FROM: schema-variant.prisma
+// ================================
+
+// ================================
+// VARIANT ENGINE SCHEMA
+// ================================
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  productId   String
+  sku         String   @unique
+  status      String   @default("DRAFT") // DRAFT, ACTIVE, DISABLED, ARCHIVED
+  
+  // Pricing
+  priceOverride Decimal? @db.Decimal(10, 2)
+  
+  // Media
+  images      String[] @default([])
+  displayOrder Int     @default(0)
+  
+  // Metadata
+  metadata    Json     @default("{}")
+  
+  // Versioning & Concurrency
+  version     Int      @default(1)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedBy   String?
+  
+  // Relations
+  product           Product                    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeValues   ProductVariantAttribute[]
+  inventory         Inventory[]
+  orderItems        OrderItem[]
+  cartItems         CartItem[]
+  auditLogs         ProductVariantAuditLog[]
+  
+  // Indexes
+  @@index([productId])
+  @@index([status])
+  @@index([sku])
+  @@index([productId, status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  
+  @@map("product_variants")
+}
+
+model ProductVariantAttribute {
+  id          String @id @default(cuid())
+  variantId   String
+  attributeId String
+  value       String // Serialized attribute value
+  
+  // Relations
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attribute Attribute      @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Constraints
+  @@unique([variantId, attributeId])
+  @@index([variantId])
+  @@index([attributeId])
+  
+  @@map("product_variant_attributes")
+}
+
+model ProductVariantImage {
+  id          String @id @default(cuid())
+  variantId   String
+  imageUrl    String
+  altText     String?
+  displayOrder Int   @default(0)
+  isPrimary   Boolean @default(false)
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([variantId])
+  @@index([variantId, displayOrder])
+  
+  @@map("product_variant_images")
+}
+
+model ProductVariantAuditLog {
+  id          String   @id @default(cuid())
+  variantId   String
+  action      String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, ACTIVATE, DISABLE
+  userId      String
+  oldValues   Json?
+  newValues   Json?
+  reason      String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  user    User           @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([variantId])
+  @@index([variantId, createdAt])
+  @@index([action])
+  @@index([userId])
+  
+  @@map("product_variant_audit_logs")
+}
+
+// SKU Generation Configuration
+model SkuConfiguration {
+  id          String @id @default(cuid())
+  sellerId    String @unique
+  prefix      String @default("")
+  suffix      String @default("")
+  pattern     String @default("AUTO") // AUTO, CUSTOM, TEMPLATE
+  template    String? // Template for SKU generation
+  counter     Int    @default(1)
+  isActive    Boolean @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  seller User @relation(fields: [sellerId], references: [id])
+  
+  @@map("sku_configurations")
+}
+
+// Variant Generation Jobs
+model VariantGenerationJob {
+  id          String   @id @default(cuid())
+  productId   String
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  jobType     String   // FULL_GENERATION, PARTIAL_GENERATION, REBUILD
+  
+  // Configuration
+  attributeIds String[] // Attributes to use for generation
+  options     Json     @default("{}")
+  
+  // Results
+  variantsCreated Int     @default(0)
+  variantsUpdated Int     @default(0)
+  variantsSkipped Int     @default(0)
+  errorMessage    String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([productId])
+  @@index([status])
+  @@index([createdAt])
+  
+  @@map("variant_generation_jobs")
+}
+

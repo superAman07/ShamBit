@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: shambit-postgres
+    environment:
+      POSTGRES_DB: shambit_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Aryan21@!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - shambit-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: shambit-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - shambit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NestJS API (Development)
+  api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shambit-api-dev
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:Aryan21@!@postgres:5432/shambit_dev?schema=public
+      - REDIS_URL=redis://redis:6379
+      - PORT=3001
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shambit-network
+    profiles:
+      - dev
+
+  # NestJS API (Production)
+  api-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shambit-api-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:Aryan21@!@postgres:5432/shambit_dev?schema=public
+      - REDIS_URL=redis://redis:6379
+      - PORT=3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shambit-network
+    profiles:
+      - prod
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  shambit-network:
+    driver: bridge

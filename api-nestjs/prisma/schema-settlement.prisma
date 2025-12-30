@@ -1,0 +1,300 @@
+// ================================
+// SETTLEMENT SYSTEM SCHEMA (RAZORPAY)
+// ================================
+
+model Settlement {
+  id          String   @id @default(cuid())
+  
+  // Settlement Details
+  settlementId String  @unique // Razorpay settlement ID
+  
+  // Seller Information
+  sellerId    String
+  sellerAccountId String // Razorpay linked account ID
+  
+  // Settlement Period
+  settlementDate Date
+  periodStart    Date
+  periodEnd      Date
+  
+  // Amounts (in paise/cents)
+  grossAmount    Int     // Total transaction amount
+  fees           Int     // Platform + gateway fees
+  tax            Int     // Tax on fees
+  netAmount      Int     // Amount settled to seller
+  
+  // Currency
+  currency       String  @default("INR")
+  
+  // Status
+  status         String  @default("PENDING") // PENDING, PROCESSING, SETTLED, FAILED
+  
+  // Gateway Information
+  gatewayProvider String @default("RAZORPAY")
+  gatewaySettlementId String? // Gateway's settlement ID
+  
+  // Bank Details (Snapshot)
+  bankAccount    Json    // Bank account details at settlement time
+  
+  // UTR & Reference
+  utr            String? // Unique Transaction Reference
+  referenceNumber String?
+  
+  // Processing Details
+  processedAt    DateTime?
+  settledAt      DateTime?
+  failedAt       DateTime?
+  
+  // Failure Information
+  failureReason  String?
+  failureCode    String?
+  
+  // Metadata
+  metadata       Json    @default("{}")
+  notes          String?
+  
+  // System Fields
+  createdBy      String
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  seller         User              @relation(fields: [sellerId], references: [id])
+  transactions   SettlementTransaction[]
+  auditLogs      SettlementAuditLog[]
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([status])
+  @@index([settlementDate])
+  @@index([gatewaySettlementId])
+  @@index([sellerId, settlementDate])
+  @@index([status, settlementDate])
+  @@index([createdAt])
+  
+  @@map("settlements")
+}
+
+model SettlementTransaction {
+  id          String   @id @default(cuid())
+  
+  // Settlement Association
+  settlementId String
+  
+  // Transaction Details
+  paymentTransactionId String
+  orderId              String
+  orderNumber          String
+  
+  // Amount Breakdown (in paise/cents)
+  transactionAmount    Int     // Original transaction amount
+  platformFee          Int     // Platform commission
+  gatewayFee          Int     // Payment gateway fee
+  tax                 Int     // Tax on fees
+  netAmount           Int     // Amount for seller
+  
+  // Transaction Details (Snapshot)
+  transactionDate     Date
+  paymentMethod       String
+  
+  // Customer Information (Snapshot)
+  customerId          String
+  customerEmail       String?
+  
+  // Product Information (Snapshot)
+  productDetails      Json    // Product/variant details
+  
+  // System Fields
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  settlement          Settlement         @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  paymentTransaction  PaymentTransaction @relation(fields: [paymentTransactionId], references: [id])
+  order              Order              @relation(fields: [orderId], references: [id])
+  
+  // Indexes
+  @@index([settlementId])
+  @@index([paymentTransactionId])
+  @@index([orderId])
+  @@index([transactionDate])
+  
+  @@map("settlement_transactions")
+}
+
+model SettlementAuditLog {
+  id          String   @id @default(cuid())
+  
+  // Settlement Association
+  settlementId String
+  
+  // Audit Details
+  action      String   // CREATE, UPDATE, PROCESS, SETTLE, FAIL, RETRY
+  userId      String
+  
+  // State Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  reason      String?
+  metadata    Json     @default("{}")
+  
+  // System Fields
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  settlement  Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id])
+  
+  // Indexes
+  @@index([settlementId])
+  @@index([settlementId, createdAt])
+  @@index([action])
+  @@index([userId])
+  
+  @@map("settlement_audit_logs")
+}
+
+// Seller Account Management (Razorpay Linked Accounts)
+model SellerAccount {
+  id          String   @id @default(cuid())
+  
+  // Seller Information
+  sellerId    String   @unique
+  
+  // Razorpay Account Details
+  accountId   String   @unique // Razorpay linked account ID
+  accountType String   @default("LINKED") // LINKED, ROUTE
+  
+  // Account Status
+  status      String   @default("CREATED") // CREATED, UNDER_REVIEW, ACTIVATED, NEEDS_CLARIFICATION, SUSPENDED, REJECTED
+  
+  // Business Details (Snapshot)
+  businessDetails Json
+  
+  // Bank Account Details
+  bankAccounts    Json    @default("[]") // Array of bank accounts
+  primaryBankId   String? // Primary bank account ID
+  
+  // KYC Information
+  kycStatus       String  @default("PENDING") // PENDING, UNDER_REVIEW, VERIFIED, REJECTED
+  kycDocuments    Json    @default("[]")
+  
+  // Settlement Configuration
+  settlementSchedule Json @default("{}")
+  
+  // Verification Details
+  verifiedAt      DateTime?
+  verificationNotes String?
+  
+  // System Fields
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  seller          User @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([accountId])
+  @@index([status])
+  @@index([kycStatus])
+  
+  @@map("seller_accounts")
+}
+
+// Settlement Schedule Configuration
+model SettlementSchedule {
+  id          String   @id @default(cuid())
+  
+  // Seller Information
+  sellerId    String   @unique
+  
+  // Schedule Configuration
+  frequency   String   @default("DAILY") // DAILY, WEEKLY, MONTHLY
+  dayOfWeek   Int?     // For weekly (1=Monday, 7=Sunday)
+  dayOfMonth  Int?     // For monthly (1-31)
+  
+  // Minimum Settlement Amount
+  minAmount   Int      @default(100) // Minimum amount in paise/cents
+  
+  // Hold Period
+  holdDays    Int      @default(7) // Days to hold before settlement
+  
+  // Auto Settlement
+  autoSettle  Boolean  @default(true)
+  
+  // Status
+  isActive    Boolean  @default(true)
+  
+  // System Fields
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  seller      User @relation(fields: [sellerId], references: [id])
+  
+  // Indexes
+  @@index([sellerId])
+  @@index([frequency])
+  @@index([isActive])
+  
+  @@map("settlement_schedules")
+}
+
+// Settlement Jobs for Processing
+model SettlementJob {
+  id          String   @id @default(cuid())
+  
+  // Job Details
+  type        String   // CALCULATE_SETTLEMENT, PROCESS_SETTLEMENT, SYNC_GATEWAY_SETTLEMENTS
+  status      String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, RETRYING
+  
+  // Associated Entities
+  settlementId String?
+  sellerId     String?
+  
+  // Job Configuration
+  payload     Json     @default("{}")
+  options     Json     @default("{}")
+  
+  // Processing Period
+  periodStart Date?
+  periodEnd   Date?
+  
+  // Retry Logic
+  retryCount  Int      @default(0)
+  maxRetries  Int      @default(3)
+  nextRetryAt DateTime?
+  
+  // Results
+  result      Json?
+  errorMessage String?
+  
+  // System Fields
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  settlement  Settlement? @relation(fields: [settlementId], references: [id])
+  seller      User?       @relation(fields: [sellerId], references: [id])
+  user        User        @relation(fields: [createdBy], references: [id])
+  
+  // Indexes
+  @@index([type])
+  @@index([status])
+  @@index([settlementId])
+  @@index([sellerId])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  
+  @@map("settlement_jobs")
+}
