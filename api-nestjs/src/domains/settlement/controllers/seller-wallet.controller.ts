@@ -39,9 +39,25 @@ import type {
   WalletIncludeOptions,
 } from '../interfaces/settlement-repository.interface';
 
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+
 // Mock guards - replace with actual guards
-const JwtAuthGuard = () => (target: any, propertyName: string, descriptor: PropertyDescriptor) => {};
-const RolesGuard = () => (target: any, propertyName: string, descriptor: PropertyDescriptor) => {};
+@Injectable()
+class JwtAuthGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    // TODO: Implement JWT validation
+    return true; // Allow all for now
+  }
+}
+
+@Injectable()
+class RolesGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    // TODO: Implement role-based access control
+    return true; // Allow all for now
+  }
+}
+
 const Roles = (...roles: string[]) => (target: any, propertyName: string, descriptor: PropertyDescriptor) => {};
 const CurrentUser = () => (target: any, propertyName: string, parameterIndex: number) => {};
 
