@@ -33,9 +33,10 @@ export class RegisterDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty()
+  @ApiProperty({ required: false, description: 'Refresh token (optional if using cookies)' })
+  @IsOptional()
   @IsString()
-  refreshToken: string;
+  refreshToken?: string;
 }
 
 export class GoogleAuthDto {

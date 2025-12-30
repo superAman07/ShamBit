@@ -8,6 +8,7 @@ import {
   Get,
   Res,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response, Request } from 'express';
@@ -97,15 +98,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   async refresh(
-    @Body() refreshTokenDto: RefreshTokenDto,
+    @Body() refreshTokenDto: Partial<RefreshTokenDto>,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<{ message: string; user: any }> {
-    // Get refresh token from cookie or body
-    const refreshToken = refreshTokenDto.refreshToken || request.cookies?.refreshToken;
+    // Priority: Cookie first, then body (for backward compatibility)
+    const refreshToken = request.cookies?.refreshToken || refreshTokenDto.refreshToken;
     
     if (!refreshToken) {
-      throw new Error('Refresh token not provided');
+      throw new BadRequestException('Refresh token not provided in cookie or request body');
     }
 
     const result = await this.authService.refreshToken(refreshToken);

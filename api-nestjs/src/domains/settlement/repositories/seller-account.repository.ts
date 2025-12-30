@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SellerAccount } from '../entities/seller-account.entity';
+import { PublicSellerDto, PublicSellerListResponse } from '../dtos/public-seller.dto';
 import {
   ISellerAccountRepository,
   SellerAccountFilters,
@@ -194,6 +195,71 @@ export class SellerAccountRepository implements ISellerAccountRepository {
   }
 
   // ============================================================================
+  // PUBLIC METHODS (FOR ECOMMERCE LISTINGS)
+  // ============================================================================
+
+  async findAllPublic(
+    filters?: SellerAccountFilters,
+    pagination?: PaginationOptions,
+    sort?: SortOptions[]
+  ): Promise<PublicSellerListResponse> {
+    const where = this.buildWhereClause(filters);
+    const orderBy = this.buildOrderBy(sort);
+    const { skip, take } = this.buildPagination(pagination);
+
+    const [accounts, total] = await Promise.all([
+      this.prisma.sellerAccount.findMany({
+        where,
+        orderBy,
+        skip,
+        take,
+        select: {
+          id: true,
+          accountHolderName: true,
+          businessName: true,
+          isVerified: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.sellerAccount.count({ where }),
+    ]);
+
+    const publicData = accounts.map(account => this.mapToPublicDto(account));
+    
+    return this.buildPublicPaginatedResult(publicData, total, pagination);
+  }
+
+  private mapToPublicDto(account: any): PublicSellerDto {
+    return {
+      id: account.id,
+      sellerName: account.accountHolderName,
+      storeName: account.businessName || undefined,
+      isVerified: account.isVerified,
+      createdAt: account.createdAt,
+    };
+  }
+
+  private buildPublicPaginatedResult(
+    data: PublicSellerDto[],
+    total: number,
+    pagination?: PaginationOptions
+  ): PublicSellerListResponse {
+    const page = parseInt(String(pagination?.page || 1), 10);
+    const limit = parseInt(String(pagination?.limit || 50), 10);
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }
+
+  // ============================================================================
   // HELPER METHODS
   // ============================================================================
 
@@ -264,11 +330,11 @@ export class SellerAccountRepository implements ISellerAccountRepository {
   private buildPagination(pagination?: PaginationOptions): { skip?: number; take?: number } {
     if (!pagination) return {};
 
-    const page = pagination.page || 1;
-    const limit = pagination.limit || 50;
+    const page = parseInt(String(pagination.page || 1), 10);
+    const limit = parseInt(String(pagination.limit || 50), 10);
 
     return {
-      skip: pagination.offset || (page - 1) * limit,
+      skip: pagination.offset ? parseInt(String(pagination.offset), 10) : (page - 1) * limit,
       take: limit,
     };
   }
@@ -304,8 +370,8 @@ export class SellerAccountRepository implements ISellerAccountRepository {
     total: number,
     pagination?: PaginationOptions
   ): PaginatedResult<T> {
-    const page = pagination?.page || 1;
-    const limit = pagination?.limit || 50;
+    const page = parseInt(String(pagination?.page || 1), 10);
+    const limit = parseInt(String(pagination?.limit || 50), 10);
     const totalPages = Math.ceil(total / limit);
 
     return {

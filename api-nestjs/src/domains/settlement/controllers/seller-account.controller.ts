@@ -7,8 +7,8 @@ import {
   Body,
   Query,
   UseGuards,
-  HttpStatus,
-  HttpCode,
+  UnauthorizedException,
+  Req,
 } from '@nestjs/common';
 import { 
   ApiTags, 
@@ -16,10 +16,7 @@ import {
   ApiResponse, 
   ApiBearerAuth, 
   ApiParam, 
-  ApiQuery,
-  ApiBody,
-  ApiConsumes,
-  ApiProduces
+  ApiBody
 } from '@nestjs/swagger';
 
 import { SellerAccountRepository } from '../repositories/seller-account.repository';
@@ -42,32 +39,76 @@ import type {
   SellerAccountIncludeOptions,
 } from '../interfaces/settlement-repository.interface';
 
+import { PublicSellerListResponse } from '../dtos/public-seller.dto';
+
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 
 // Mock guards - replace with actual guards
 @Injectable()
 class JwtAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    // TODO: Implement JWT validation
-    return true; // Allow all for now
+  canActivate(_context: ExecutionContext): boolean {
+    const request = _context.switchToHttp().getRequest();
+    
+    // Check for Authorization header
+    const authHeader = request.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // For public endpoints: allow requests without auth
+      // The controller methods will handle what data to return
+      return true;
+    }
+    
+    // Mock user for testing - replace with actual JWT validation
+    request.user = {
+      id: 'cmjslcuyr0004g8doe4ovm3c0',
+      roles: ['SELLER'],
+      email: 'test@example.com'
+    };
+    
+    return true;
+  }
+}
+
+@Injectable()
+class StrictJwtAuthGuard implements CanActivate {
+  canActivate(_context: ExecutionContext): boolean {
+    const request = _context.switchToHttp().getRequest();
+    
+    // Check for Authorization header
+    const authHeader = request.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    
+    // Mock user for testing - replace with actual JWT validation
+    request.user = {
+      id: 'cmjslcuyr0004g8doe4ovm3c0',
+      roles: ['SELLER'],
+      email: 'test@example.com'
+    };
+    
+    return true;
   }
 }
 
 @Injectable()
 class RolesGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  canActivate(_context: ExecutionContext): boolean {
     // TODO: Implement role-based access control
     return true; // Allow all for now
   }
 }
 
-const Roles = (...roles: string[]) => (target: any, propertyName: string, descriptor: PropertyDescriptor) => {};
-const CurrentUser = () => (target: any, propertyName: string, parameterIndex: number) => {};
+const Roles = (..._roles: string[]) => (_target: any, _propertyName: string, _descriptor: PropertyDescriptor) => {};
+const CurrentUser = () => (target: any, propertyName: string, parameterIndex: number) => {
+  // This is a mock decorator - in production, use a proper implementation
+  // For now, we'll handle user extraction in the guard
+};
 
 @ApiTags('Seller Accounts')
 @ApiBearerAuth()
 @Controller('seller-accounts')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class SellerAccountController {
   constructor(
     private readonly sellerAccountRepository: SellerAccountRepository,
@@ -80,14 +121,59 @@ export class SellerAccountController {
   // ============================================================================
 
   @Get()
-  @ApiOperation({ summary: 'Get all seller accounts' })
+  @ApiOperation({ 
+    summary: 'Get public seller listings',
+    description: 'Get public seller information for ecommerce listings. Returns only seller name, store name, and verification status.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Public seller listings retrieved successfully',
+    type: PublicSellerListResponse
+  })
+  async findAllPublic(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<PublicSellerListResponse> {
+    const pagination: PaginationOptions = {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    };
+    
+    // For testing: show all sellers regardless of verification status
+    // In production: uncomment the filters below to only show verified sellers
+    const filters: SellerAccountFilters = {
+      // isVerified: true,
+      status: 'ACTIVE'
+    };
+    
+    return this.sellerAccountRepository.findAllPublic(filters, pagination);
+  }
+
+  @Get('admin')
+  @ApiOperation({ 
+    summary: 'Get all seller accounts (Admin only)',
+    description: 'Get complete seller account information including sensitive data. Admin access required.'
+  })
   @ApiResponse({ status: 200, description: 'Seller accounts retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin access required' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'FINANCE')
-  async findAll(
+  async findAllAdmin(
     @Query() filters: SellerAccountFilters,
-    @Query() pagination: PaginationOptions,
     @Query() includes: SellerAccountIncludeOptions,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
+    const pagination: PaginationOptions = {
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    };
+    
     return this.sellerAccountRepository.findAll(filters, pagination, undefined, includes);
   }
 
@@ -98,13 +184,29 @@ export class SellerAccountController {
   async findById(
     @Param('id') id: string,
     @Query() includes: SellerAccountIncludeOptions,
-    @CurrentUser() user: any,
+    @Req() request?: any,
   ) {
+    const user = request?.user;
     const account = await this.sellerAccountRepository.findById(id, includes);
     
-    // Sellers can only view their own account
-    if (user.role === 'SELLER' && account?.sellerId !== user.id) {
+    if (!account) {
+      throw new Error('Seller account not found');
+    }
+
+    // If user is authenticated and is a seller, check access
+    if (user?.roles?.includes('SELLER') && account.sellerId !== user.id) {
       throw new Error('Access denied');
+    }
+
+    // For public access (no user), return limited information
+    if (!user) {
+      return {
+        id: account.id,
+        sellerName: account.accountHolderName,
+        storeName: account.businessName,
+        isVerified: account.isVerified,
+        createdAt: account.createdAt
+      };
     }
 
     return account;
@@ -117,20 +219,39 @@ export class SellerAccountController {
   async findBySellerId(
     @Param('sellerId') sellerId: string,
     @Query() includes: SellerAccountIncludeOptions,
-    @CurrentUser() user: any,
+    @Req() request?: any,
   ) {
-    // Sellers can only view their own account
-    if (user.role === 'SELLER' && sellerId !== user.id) {
+    const user = request?.user;
+    
+    // If user is authenticated and is a seller, check access
+    if (user?.roles?.includes('SELLER') && sellerId !== user.id) {
       throw new Error('Access denied');
     }
 
-    return this.sellerAccountRepository.findBySellerId(sellerId, includes);
+    const account = await this.sellerAccountRepository.findBySellerId(sellerId, includes);
+    
+    if (!account) {
+      throw new Error('Seller account not found');
+    }
+
+    // For public access (no user), return limited information
+    if (!user) {
+      return {
+        id: account.id,
+        sellerName: account.accountHolderName,
+        storeName: account.businessName,
+        isVerified: account.isVerified,
+        createdAt: account.createdAt
+      };
+    }
+
+    return account;
   }
 
   @Post()
   @ApiOperation({ 
     summary: 'Create a new seller account',
-    description: 'Create a new seller account with bank details and business information'
+    description: 'Create a new seller account with bank details and business information. Authentication required.'
   })
   @ApiBody({ 
     type: CreateSellerAccountDto,
@@ -186,33 +307,65 @@ export class SellerAccountController {
     }
   })
   @ApiResponse({ status: 400, description: 'Invalid seller account data' })
-  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Authentication required' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+  @UseGuards(StrictJwtAuthGuard, RolesGuard)
   @Roles('ADMIN', 'SELLER')
   async createSellerAccount(
     @Body() dto: CreateSellerAccountDto,
-    @CurrentUser() user: any,
+    @Req() request: any,
   ) {
+    // Get user from request (set by StrictJwtAuthGuard)
+    const user = request.user;
+    
+    if (!user) {
+      throw new UnauthorizedException('User not found in request');
+    }
+
     // Sellers can only create their own account
-    if (user.role === 'SELLER') {
+    if (user.roles?.includes('SELLER')) {
       dto.sellerId = user.id;
     }
 
-    return this.sellerAccountRepository.create(dto);
+    console.log('🔍 Creating seller account with:', JSON.stringify(dto, null, 2));
+    console.log('👤 User context:', JSON.stringify(user, null, 2));
+
+    try {
+      const result = await this.sellerAccountRepository.create(dto);
+      console.log('✅ Seller account created successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to create seller account:', error.message);
+      console.error('❌ Full error:', error);
+      throw error;
+    }
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update seller account' })
   @ApiResponse({ status: 200, description: 'Seller account updated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid update data' })
+  @UseGuards(StrictJwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SELLER')
   async updateSellerAccount(
     @Param('id') id: string,
     @Body() dto: UpdateSellerAccountDto,
-    @CurrentUser() user: any,
+    @Req() request: any,
   ) {
+    const user = request.user;
+    
+    if (!user) {
+      throw new UnauthorizedException('User not found in request');
+    }
+
     const account = await this.sellerAccountRepository.findById(id);
     
+    if (!account) {
+      throw new Error('Seller account not found');
+    }
+    
     // Sellers can only update their own account
-    if (user.role === 'SELLER' && account?.sellerId !== user.id) {
+    if (user.roles?.includes('SELLER') && account.sellerId !== user.id) {
       throw new Error('Access denied');
     }
 
@@ -286,6 +439,8 @@ export class SellerAccountController {
   @ApiResponse({ status: 400, description: 'Invalid KYC data or account not eligible for KYC submission' })
   @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({ status: 404, description: 'Seller account not found' })
+  @UseGuards(StrictJwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'SELLER')
   async submitKyc(
     @Param('id') id: string,
     @Body() dto: Omit<SubmitKycDto, 'accountId'>,
@@ -293,8 +448,12 @@ export class SellerAccountController {
   ) {
     const account = await this.sellerAccountRepository.findById(id);
     
+    if (!account) {
+      throw new Error('Seller account not found');
+    }
+    
     // Sellers can only submit KYC for their own account
-    if (user.role === 'SELLER' && account?.sellerId !== user.id) {
+    if (user.roles?.includes('SELLER') && account.sellerId !== user.id) {
       throw new Error('Access denied');
     }
 
@@ -520,17 +679,17 @@ export class SellerAccountController {
   @ApiResponse({ status: 200, description: 'Account validation completed' })
   async validateAccountSetup(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user?: any,
   ) {
     const account = await this.sellerAccountRepository.findById(id);
     
-    // Sellers can only validate their own account
-    if (user.role === 'SELLER' && account?.sellerId !== user.id) {
-      throw new Error('Access denied');
-    }
-
     if (!account) {
       throw new Error('Account not found');
+    }
+    
+    // If user is authenticated and is a seller, check access
+    if (user?.roles?.includes('SELLER') && account.sellerId !== user.id) {
+      throw new Error('Access denied');
     }
 
     return this.settlementValidationService.validateSellerAccountSetup(account.sellerId);
