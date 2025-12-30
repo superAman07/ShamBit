@@ -6,6 +6,8 @@ import { ReservationService } from './reservation.service';
 import { ReservationRepository } from './reservation.repository';
 import { StockMovementService } from './stock-movement.service';
 import { StockMovementRepository } from './stock-movement.repository';
+import { InventoryAuditService } from './services/inventory-audit.service';
+import { InventoryReservationService } from './services/inventory-reservation.service';
 
 @Module({
   controllers: [InventoryController],
@@ -16,7 +18,15 @@ import { StockMovementRepository } from './stock-movement.repository';
     ReservationRepository,
     StockMovementService,
     StockMovementRepository,
+    InventoryAuditService,
+    InventoryReservationService,
   ],
-  exports: [InventoryService, ReservationService, StockMovementService],
+  exports: [
+    InventoryService, 
+    ReservationService, 
+    StockMovementService,
+    InventoryReservationService,
+    InventoryAuditService,
+  ],
 })
 export class InventoryModule {}

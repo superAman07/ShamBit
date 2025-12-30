@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
@@ -11,6 +11,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { RedisModule } from '../../infrastructure/redis/redis.module';
 
+@Global()
 @Module({
   imports: [
     PassportModule,
@@ -28,6 +29,6 @@ import { RedisModule } from '../../infrastructure/redis/redis.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, AuthRepository, JwtStrategy, GoogleStrategy],
-  exports: [AuthService],
+  exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

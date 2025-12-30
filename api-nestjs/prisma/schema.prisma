@@ -100,6 +100,15 @@ model User {
   userRoles                 UserRole[]
   userTenants               UserTenant[]
   webhooksCreated           Webhook[]
+  
+  // Brand domain relations
+  brandRequestsAsRequester  BrandRequest[]           @relation("BrandRequestRequester")
+  brandRequestsAsHandler    BrandRequest[]           @relation("BrandRequestHandler")
+  brandAccessAsSeller       BrandAccess[]            @relation("BrandAccessSeller")
+  brandAccessAsGranter      BrandAccess[]            @relation("BrandAccessGranter")
+  brandAccessAsRevoker      BrandAccess[]            @relation("BrandAccessRevoker")
+  brandAuditLogs            BrandAuditLog[]          @relation("BrandAuditUser")
+  categoryAuditLogs         CategoryAuditLog[]       @relation("CategoryAuditUser")
 
   @@map("users")
 }
@@ -170,6 +179,7 @@ model Category {
   attributes  CategoryAttribute[]
   brands      CategoryBrand[]
   products    Product[]
+  auditLogs   CategoryAuditLog[]  @relation("CategoryAuditCategory")
 
   @@map("categories")
 }
@@ -310,6 +320,9 @@ model Brand {
   seller      SellerProfile?  @relation(fields: [sellerId], references: [id])
   categories  CategoryBrand[]
   products    Product[]
+  requests    BrandRequest[]  @relation("BrandRequestBrand")
+  auditLogs   BrandAuditLog[] @relation("BrandAuditBrand")
+  brandAccess BrandAccess[]   @relation("BrandAccessBrand")
 
   @@map("brands")
 }
@@ -556,6 +569,7 @@ model Order {
   payments          Payment[]
   reviews           Review[]
   shipments         Shipment[]
+  paymentIntents    PaymentIntent[]        @relation("PaymentIntentOrder")
 
   @@map("orders")
 }
@@ -1199,9 +1213,191 @@ model ApiKey {
   isActive    Boolean   @default(true)
   expiresAt   DateTime?
   lastUsedAt  DateTime?
-  createdAt   DateTime  @default(now())
   createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("api_keys")
+}
+
+// ================================
+// MISSING MODELS FOR DOMAINS-BACKUP
+// ================================
+
+model AttributeValue {
+  id          String   @id @default(cuid())
+  attributeId String
+  entityType  String   // PRODUCT, VARIANT, CATEGORY
+  entityId    String
+  value       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([attributeId, entityType, entityId])
+  @@map("attribute_values")
+}
+
+model BrandRequest {
+  id            String    @id @default(cuid())
+  requesterId   String
+  brandName     String
+  brandSlug     String
+  description   String?
+  logoUrl       String?
+  status        String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  type          String    @default("NEW")
+  reviewedBy    String?
+  handledBy     String?
+  reviewedAt    DateTime?
+  notes         String?
+  idempotencyKey String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  requester     User      @relation("BrandRequestRequester", fields: [requesterId], references: [id])
+  handledByUser User?     @relation("BrandRequestHandler", fields: [handledBy], references: [id])
+  brand         Brand?    @relation("BrandRequestBrand", fields: [brandSlug], references: [slug])
+
+  @@map("brand_requests")
+}
+
+model BrandAccess {
+  id            String    @id @default(cuid())
+  brandId       String
+  sellerId      String
+  permission    String    // Single permission instead of array
+  permissions   String[]  @default([])
+  isActive      Boolean   @default(true)
+  grantedBy     String
+  revokedBy     String?
+  grantedAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  brand         Brand     @relation("BrandAccessBrand", fields: [brandId], references: [id])
+  seller        User      @relation("BrandAccessSeller", fields: [sellerId], references: [id])
+  grantedByUser User      @relation("BrandAccessGranter", fields: [grantedBy], references: [id])
+  revokedByUser User?     @relation("BrandAccessRevoker", fields: [revokedBy], references: [id])
+
+  @@unique([brandId, sellerId])
+  @@map("brand_access")
+}
+
+model BrandAuditLog {
+  id        String   @id @default(cuid())
+  brandId   String
+  userId    String
+  action    String
+  changes   Json?
+  oldValues Json?
+  newValues Json?
+  userRole  String?
+  ipAddress String?
+  userAgent String?
+  reason    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation("BrandAuditUser", fields: [userId], references: [id])
+  brand     Brand    @relation("BrandAuditBrand", fields: [brandId], references: [id])
+
+  @@map("brand_audit_logs")
+}
+
+model CategoryAuditLog {
+  id          String    @id @default(cuid())
+  categoryId  String
+  userId      String
+  action      String
+  changes     Json?
+  oldValues   Json?
+  newValues   Json?
+  oldPath     String?
+  newPath     String?
+  oldParentId String?
+  newParentId String?
+  userRole    String?
+  ipAddress   String?
+  userAgent   String?
+  reason      String?
+  metadata    Json?
+  batchId     String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation("CategoryAuditUser", fields: [userId], references: [id])
+  category    Category  @relation("CategoryAuditCategory", fields: [categoryId], references: [id])
+
+  @@map("category_audit_logs")
+}
+
+model InventoryLedger {
+  id          String   @id @default(cuid())
+  variantId   String
+  type        String   // IN, OUT, ADJUSTMENT
+  quantity    Int
+  reason      String
+  reference   String?
+  metadata    Json?
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@map("inventory_ledger")
+}
+
+model PaymentIntent {
+  id                     String               @id @default(cuid())
+  intentId               String               @unique
+  orderId                String
+  clientSecret           String?
+  amount                 Decimal              @db.Decimal(10, 2)
+  currency               String               @default("INR")
+  status                 String               @default("CREATED")
+  gatewayProvider        String
+  gatewayIntentId        String
+  allowedPaymentMethods  String[]             @default([])
+  confirmationMethod     String               @default("AUTOMATIC")
+  captureMethod          String               @default("AUTOMATIC")
+  transferGroup          String?
+  applicationFee         Decimal?             @db.Decimal(10, 2)
+  description            String?
+  expiresAt              DateTime?
+  version                Int                  @default(1)
+  metadata               Json?
+  createdBy              String
+  updatedBy              String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  deletedAt              DateTime?
+  deletedBy              String?
+  order                  Order                @relation("PaymentIntentOrder", fields: [orderId], references: [id])
+  transactions           PaymentTransaction[] @relation("PaymentIntentTransactions")
+  attempts               PaymentAttempt[]     @relation("PaymentIntentAttempts")
+
+  @@map("payment_intents")
+}
+
+model PaymentTransaction {
+  id               String        @id @default(cuid())
+  paymentIntentId  String
+  transactionId    String        @unique
+  amount           Decimal       @db.Decimal(10, 2)
+  status           String        @default("PENDING")
+  gatewayResponse  Json?
+  processedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  paymentIntent    PaymentIntent @relation("PaymentIntentTransactions", fields: [paymentIntentId], references: [id])
+
+  @@map("payment_transactions")
+}
+
+model PaymentAttempt {
+  id              String        @id @default(cuid())
+  paymentIntentId String
+  attemptNumber   Int
+  status          String        @default("PENDING")
+  errorCode       String?
+  errorMessage    String?
+  gatewayResponse Json?
+  createdAt       DateTime      @default(now())
+  paymentIntent   PaymentIntent @relation("PaymentIntentAttempts", fields: [paymentIntentId], references: [id])
+
+  @@map("payment_attempts")
 }

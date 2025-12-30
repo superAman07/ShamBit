@@ -30,7 +30,8 @@ export class PaymentRepository {
 
   async findById(id: string): Promise<PaymentIntent | null> {
     try {
-      return await this.findPaymentIntentById(id);
+      const result = await this.findPaymentIntentById(id);
+      return result ? new PaymentIntent(result as any) : null;
     } catch (error) {
       this.logger.error('Failed to find payment intent by ID', error, { id });
       throw error;
@@ -39,7 +40,8 @@ export class PaymentRepository {
 
   async findByOrderId(orderId: string): Promise<PaymentIntent | null> {
     try {
-      return await this.findPaymentIntentByOrderId(orderId);
+      const result = await this.findPaymentIntentByOrderId(orderId);
+      return result ? new PaymentIntent(result as any) : null;
     } catch (error) {
       this.logger.error('Failed to find payment intent by order ID', error, { orderId });
       throw error;
@@ -48,7 +50,8 @@ export class PaymentRepository {
 
   async findActiveByOrderId(orderId: string): Promise<PaymentIntent | null> {
     try {
-      return await this.findPaymentIntentByOrderId(orderId);
+      const result = await this.findPaymentIntentByOrderId(orderId);
+      return result ? new PaymentIntent(result as any) : null;
     } catch (error) {
       this.logger.error('Failed to find active payment intent by order ID', error, { orderId });
       throw error;
@@ -57,7 +60,8 @@ export class PaymentRepository {
 
   async create(data: any): Promise<PaymentIntent | null> {
     try {
-      return await this.createPaymentIntent(data);
+      const result = await this.createPaymentIntent(data);
+      return result ? new PaymentIntent(result as any) : null;
     } catch (error) {
       this.logger.error('Failed to create payment intent', error, { data });
       throw error;

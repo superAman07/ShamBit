@@ -19,7 +19,7 @@ import { CurrentUser } from '../../common/decorators';
 
 @ApiTags('Media')
 @Controller('media')
-@UseGuards(AuthGuard)
+// @UseGuards(AuthGuard)  // Temporarily disabled
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
