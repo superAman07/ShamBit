@@ -94,7 +94,6 @@ export class InventoryRepository {
         quantity: total,
         reservedQuantity: reserved,
         availableQuantity: available,
-        updatedBy,
       },
     });
     return this.mapToInventoryModel(record);

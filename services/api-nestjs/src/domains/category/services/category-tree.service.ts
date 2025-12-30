@@ -130,11 +130,21 @@ export class CategoryTreeService {
       filters.status = CategoryStatus.ACTIVE;
     }
 
-    // Pass parentId explicitly. Use 'null' as string if repo expects optional string or handle null.
-    // Assuming repo.findChildren expects string | null or optional string.
-    // If repo expects string | undefined, convert null to undefined.
-    const parentIdArg = parentId === null ? undefined : parentId;
-    const result = await this.categoryRepository.findChildren(parentIdArg, filters, { limit: 1000 });
+    // Handle null parentId - if null, we might want to get root categories instead
+    if (parentId === null) {
+      // Get root categories (categories with no parent)
+      const result = await this.categoryRepository.findRoots(filters, { limit: 1000 });
+      
+      return result.data.map(categoryData => {
+        const category = new Category(categoryData);
+        return Object.assign(category, {
+          directProductCount: categoryData.productCount || 0,
+        });
+      });
+    }
+
+    // Pass parentId as string
+    const result = await this.categoryRepository.findChildren(parentId, filters, { limit: 1000 });
 
     // The productCount is already included in the category entity
     return result.data.map(categoryData => {

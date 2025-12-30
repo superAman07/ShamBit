@@ -29,8 +29,8 @@ export class CategoryPolicies {
 
   // Access control policies
   static canUserViewCategory(category: Category, userId: string, userRole: UserRole): boolean {
-    // Admins can view all categories
-    if (userRole === UserRole.ADMIN) {
+    // Admins and Super Admins can view all categories
+    if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN) {
       return true;
     }
 
@@ -39,27 +39,27 @@ export class CategoryPolicies {
       case CategoryVisibility.PUBLIC:
         return category.isVisible();
       case CategoryVisibility.INTERNAL:
-        return [UserRole.ADMIN, UserRole.SELLER].includes(userRole) && category.isVisible();
+        return [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SELLER].includes(userRole) && category.isVisible();
       case CategoryVisibility.RESTRICTED:
-        return userRole === UserRole.ADMIN;
+        return [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole);
       default:
         return false;
     }
   }
 
   static canUserModifyCategory(category: Category, userId: string, userRole: UserRole): boolean {
-    // Only admins can modify categories
-    return userRole === UserRole.ADMIN;
+    // Only admins and super admins can modify categories
+    return [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole);
   }
 
   static canUserDeleteCategory(category: Category, userId: string, userRole: UserRole): boolean {
-    // Only admins can delete categories
-    return userRole === UserRole.ADMIN;
+    // Only admins and super admins can delete categories
+    return [UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole);
   }
 
   static canUserCreateCategory(parentCategory: Category | null, userId: string, userRole: UserRole): boolean {
-    // Only admins can create categories
-    if (userRole !== UserRole.ADMIN) {
+    // Only admins and super admins can create categories
+    if (![UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole)) {
       return false;
     }
 
@@ -83,8 +83,8 @@ export class CategoryPolicies {
     userId: string,
     userRole: UserRole
   ): boolean {
-    // Only admins can move categories
-    if (userRole !== UserRole.ADMIN) {
+    // Only admins and super admins can move categories
+    if (![UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole)) {
       return false;
     }
 
@@ -128,8 +128,8 @@ export class CategoryPolicies {
 
   // Attribute policies
   static canAddAttributeToCategory(category: Category, userId: string, userRole: UserRole): boolean {
-    // Only admins can manage attributes
-    if (userRole !== UserRole.ADMIN) {
+    // Only admins and super admins can manage attributes
+    if (![UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole)) {
       return false;
     }
 
@@ -159,8 +159,8 @@ export class CategoryPolicies {
     userId: string,
     userRole: UserRole
   ): boolean {
-    // Only admins can override attributes
-    if (userRole !== UserRole.ADMIN) {
+    // Only admins and super admins can override attributes
+    if (![UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(userRole)) {
       return false;
     }
 

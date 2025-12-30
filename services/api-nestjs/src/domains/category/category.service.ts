@@ -456,7 +456,7 @@ export class CategoryService {
 
   // Statistics and analytics
   async getTreeStatistics(tenantId?: string): Promise<TreeStatistics> {
-    return this.categoryRepository.getTreeStatistics(tenantId);
+    return this.categoryRepository.getTreeStatistics();
   }
 
   async getCategoryStatistics(categoryId: string) {

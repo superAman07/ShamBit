@@ -309,7 +309,7 @@ export class CategoryRepository implements ICategoryRepository {
       level: depth,
       isActive: true,
       sortOrder: data.displayOrder || 0,
-      imageUrl: data.iconUrl ?? null,
+      imageUrl: data.iconUrl || null,
     };
 
     const category = await this.prisma.$transaction(async (tx) => {
@@ -369,7 +369,7 @@ export class CategoryRepository implements ICategoryRepository {
           path: data.path,
           level: data.depth,
           sortOrder: data.displayOrder,
-          imageUrl: data.iconUrl ?? null,
+          imageUrl: data.iconUrl || null,
         },
         include: {
           parent: true,
@@ -497,7 +497,7 @@ export class CategoryRepository implements ICategoryRepository {
         category.name,
         oldPath,
         newPath,
-        oldParentId,
+        oldParentId || null,
         newParentId,
         result.affectedDescendants,
         movedBy,
@@ -596,7 +596,7 @@ export class CategoryRepository implements ICategoryRepository {
             level: depth,
             isActive: true,
             sortOrder: categoryData.displayOrder || 0,
-            imageUrl: categoryData.iconUrl ?? null,
+            imageUrl: categoryData.iconUrl || null,
           },
         });
 
@@ -624,7 +624,7 @@ export class CategoryRepository implements ICategoryRepository {
             path: data.path,
             level: data.depth,
             sortOrder: data.displayOrder,
-            imageUrl: data.iconUrl ?? null,
+            imageUrl: data.iconUrl || null,
           },
         });
 
@@ -996,82 +996,20 @@ export class CategoryRepository implements ICategoryRepository {
       seoDescription: prismaData.seoDescription,
       seoKeywords: prismaData.seoKeywords || [],
       metadata: prismaData.metadata,
-      iconUrl: prismaData.imageUrl ?? undefined,
-      // Maintenance operations
-      async rebuildMaterializedPaths(rootId?: string): Promise<void> {
-        const categories = await this.prisma.category.findMany({
-          where: rootId ? { id: rootId } : { parentId: null },
-          include: { children: true }
-        });
-
-        for (const category of categories) {
-          await this.recursivelyUpdatePath(category.id, category.parentId ? await this.getCategoryPath(category.parentId) : '', 0);
-        }
-      }
-
-  private async getCategoryPath(id: string): Promise<string> {
-        const cat = await this.prisma.category.findUnique({ where: { id } });
-        return cat ? cat.path : '';
-      }
-
-  private async recursivelyUpdatePath(categoryId: string, parentPath: string, level: number) {
-        const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
-        if (!category) return;
-
-        const newPath = parentPath ? `${parentPath}/${category.slug}` : `/${category.slug}`;
-
-        await this.prisma.category.update({
-          where: { id: categoryId },
-          data: { path: newPath, level }
-        });
-
-        const children = await this.prisma.category.findMany({ where: { parentId: categoryId } });
-        for (const child of children) {
-          await this.recursivelyUpdatePath(child.id, newPath, level + 1);
-        }
-      }
-
-  async refreshTreeStatistics(rootId?: string): Promise<void> {
-        // This would typically recalculate child counts etc
-        // Since these fields might not exist in DB schema based on previous errors, 
-        // we will leave this as a placeholder or implement logical calculation if possible.
-        // For now, satisfy the interface.
-        return Promise.resolve();
-      }
-
-  private mapToDomain(prismaData: any): Category {
-        return new Category({
-          id: prismaData.id,
-          name: prismaData.name,
-          slug: prismaData.slug,
-          description: prismaData.description,
-          parentId: prismaData.parentId,
-          path: prismaData.path,
-          pathIds: [], // Placeholder, populate if needed
-          depth: prismaData.level,
-          childCount: 0, // Computed
-          descendantCount: 0, // Computed
-          productCount: 0, // Computed, or fetched
-          status: prismaData.isActive ? CategoryStatus.ACTIVE : CategoryStatus.INACTIVE, // Mapping boolean to enum
-          visibility: CategoryVisibility.PUBLIC, // Default
-          seoTitle: null,
-          seoDescription: null,
-          seoKeywords: [],
-          metadata: {},
-          iconUrl: prismaData.imageUrl,
-          bannerUrl: prismaData.bannerUrl,
-          displayOrder: prismaData.sortOrder,
-          isLeaf: !prismaData.children || prismaData.children.length === 0,
-          isFeatured: prismaData.isFeatured || false,
-          allowedBrands: [],
-          restrictedBrands: [],
-          requiresBrand: false,
-          createdBy: prismaData.createdBy,
-          updatedBy: prismaData.updatedBy,
-          createdAt: prismaData.createdAt,
-          updatedAt: prismaData.updatedAt,
-          deletedAt: prismaData.deletedAt,
-          deletedBy: prismaData.deletedBy,
-        });
-      }
-    }
+      iconUrl: prismaData.imageUrl || undefined,
+      bannerUrl: prismaData.bannerUrl,
+      displayOrder: prismaData.sortOrder,
+      isLeaf: !prismaData.children || prismaData.children.length === 0,
+      isFeatured: prismaData.isFeatured || false,
+      allowedBrands: [],
+      restrictedBrands: [],
+      requiresBrand: false,
+      createdBy: prismaData.createdBy,
+      updatedBy: prismaData.updatedBy,
+      createdAt: prismaData.createdAt,
+      updatedAt: prismaData.updatedAt,
+      deletedAt: prismaData.deletedAt,
+      deletedBy: prismaData.deletedBy,
+    });
+  }
+}

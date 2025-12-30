@@ -12,12 +12,12 @@ export class BrandValidators {
   ];
 
   // Profanity filter (basic implementation - use external service in production)
-  private static readonly PROFANITY_WORDS = [
+  private static readonly PROFANITY_WORDS: string[] = [
     // Add profanity words here - keeping empty for example
   ];
 
   // Trademark conflicts (would be populated from external service)
-  private static readonly TRADEMARK_CONFLICTS = [
+  private static readonly TRADEMARK_CONFLICTS: string[] = [
     // Add known trademark conflicts here
   ];
 

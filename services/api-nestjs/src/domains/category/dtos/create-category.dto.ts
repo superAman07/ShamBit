@@ -2,7 +2,7 @@ import { IsString, IsOptional, IsBoolean, IsArray, IsUrl, Length, IsEnum, IsInt,
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { CategoryVisibility } from '../enums/category-visibility.enum';
-import { CategoryMetadata } from '../entities/category.entity';
+import type { CategoryMetadata } from '../entities/category.entity';
 
 export class CreateCategoryDto {
   @ApiProperty({

@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { CartService, AddToCartDto } from './cart.service';
+import { CartService } from './cart.service';
+import type { AddToCartDto } from './cart.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser, Public } from '../../common/decorators';
 

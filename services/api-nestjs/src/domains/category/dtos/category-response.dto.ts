@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CategoryStatus } from '../enums/category-status.enum';
 import { CategoryVisibility } from '../enums/category-visibility.enum';
-import { CategoryMetadata } from '../entities/category.entity';
+import type { CategoryMetadata } from '../entities/category.entity';
 import { CategoryAttributeResponseDto } from './category-attribute.dto';
 
 export class CategoryResponseDto {

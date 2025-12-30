@@ -128,7 +128,7 @@ export class Inventory {
   }
   
   getExpiredReservations(): InventoryReservation[] {
-    return this.reservations?.filter(r => r.isExpired()) || [];
+    return this.reservations?.filter(r => r.hasExpired()) || [];
   }
   
   getTotalReservedQuantity(): number {

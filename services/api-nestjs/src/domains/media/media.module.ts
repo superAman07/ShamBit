@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
-import { LoggerModule } from '../../infrastructure/observability/logger.module';
+import { ObservabilityModule } from '../../infrastructure/observability/observability.module';
 
 @Module({
-  imports: [PrismaModule, LoggerModule],
+  imports: [PrismaModule, ObservabilityModule],
   controllers: [MediaController],
   providers: [MediaService],
   exports: [MediaService],

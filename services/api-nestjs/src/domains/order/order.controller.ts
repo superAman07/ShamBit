@@ -101,7 +101,7 @@ export class OrderController {
     @CurrentUser('id') userId: string,
     @CurrentUser('roles') userRoles: UserRole[],
   ) {
-    const userRole = userRoles.includes(UserRole.ADMIN) ? UserRole.ADMIN : undefined;
+    const userRole = userRoles.includes(UserRole.ADMIN) ? UserRole.ADMIN : UserRole.BUYER;
     return this.orderService.cancelOrder(orderId, userId, body.reason, userRole);
   }
 }

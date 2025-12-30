@@ -104,12 +104,16 @@ export class AuthorizationService {
     for (const userRole of userRoles) {
       for (const rolePermission of userRole.role.rolePermissions) {
         const permission = rolePermission.permission;
+        const conditions = Array.isArray(permission.conditions) 
+          ? permission.conditions as unknown as PolicyCondition[]
+          : [];
+        
         permissions.push({
           id: permission.id,
           name: permission.name,
           resource: permission.resource,
           action: permission.action,
-          conditions: permission.conditions as PolicyCondition[],
+          conditions,
         });
       }
     }

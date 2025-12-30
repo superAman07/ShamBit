@@ -299,7 +299,7 @@ export class CategoryTreeQueries {
   // 12. Bulk tree operations
   async bulkUpdatePaths(updates: Array<{ id: string; newPath: string; newDepth: number }>) {
     return this.prisma.$transaction(async (tx) => {
-      const results = [];
+      const results: any[] = [];
       
       for (const update of updates) {
         const result = await tx.category.update({
