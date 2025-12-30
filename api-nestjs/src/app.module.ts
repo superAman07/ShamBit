@@ -28,6 +28,7 @@ import { NotificationModule } from './domains-backup/notification/notification.m
 import { ReviewModule } from './domains-backup/review/review.module';
 import { SearchModule } from './domains-backup/search/search.module';
 import { CareerModule } from './domains-backup/career/career.module';
+import { SettlementModule } from './domains/settlement/settlement.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { CareerModule } from './domains-backup/career/career.module';
     ReviewModule,
     SearchModule,
     CareerModule,
+    SettlementModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -60,8 +60,34 @@ async function bootstrap() {
     if (nodeEnv !== 'production') {
       const config = new DocumentBuilder()
         .setTitle('ShamBit API')
-        .setDescription('ShamBit Quick Commerce Platform API')
+        .setDescription(`
+          ShamBit Quick Commerce Platform API
+          
+          ## Settlement System
+          
+          The Settlement System manages seller payouts, wallet operations, and financial reconciliation.
+          
+          ### Key Features:
+          - **Seller Account Management**: KYC verification, bank account setup
+          - **Wallet Operations**: Balance management, transactions, reserves
+          - **Settlement Processing**: Automated and manual settlement creation
+          - **Razorpay Integration**: Payout processing and webhook handling
+          - **Audit Trail**: Complete transaction history and status tracking
+          
+          ### Authentication:
+          - Use Bearer token for API access
+          - Sellers can only access their own data
+          - Admin/Finance roles have full access
+          
+          ### Rate Limiting:
+          - 100 requests per minute per IP
+          - Higher limits for authenticated users
+        `)
         .setVersion('1.0')
+        .addTag('Settlements', 'Settlement creation, processing, and management')
+        .addTag('Seller Accounts', 'Seller account setup, KYC, and bank details')
+        .addTag('Seller Wallets', 'Wallet balance operations and transactions')
+        .addTag('Settlement Webhooks', 'Webhook endpoints for payment gateway integration')
         .addBearerAuth(
           {
             type: 'http',
@@ -82,13 +108,32 @@ async function bootstrap() {
           },
           'API-Key',
         )
+        .addServer('http://localhost:3001', 'Development server')
+        .addServer('https://api.shambit.com', 'Production server')
         .build();
       
-      const document = SwaggerModule.createDocument(app, config);
+      const document = SwaggerModule.createDocument(app, config, {
+        operationIdFactory: (controllerKey: string, methodKey: string) => methodKey,
+      });
+      
       SwaggerModule.setup('api/docs', app, document, {
         swaggerOptions: {
           persistAuthorization: true,
+          displayRequestDuration: true,
+          docExpansion: 'none',
+          filter: true,
+          showRequestHeaders: true,
+          tryItOutEnabled: true,
         },
+        customSiteTitle: 'ShamBit API Documentation',
+        customfavIcon: '/favicon.ico',
+        customJs: [
+          'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-bundle.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui-standalone-preset.min.js',
+        ],
+        customCssUrl: [
+          'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.15.5/swagger-ui.min.css',
+        ],
       });
     }
 

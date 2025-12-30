@@ -6,6 +6,14 @@ declare module '@prisma/client' {
   interface PrismaClient {
     tenant?: any;
     userTenant?: any;
+    sellerAccount?: any;
+    sellerWallet?: any;
+    settlement?: any;
+    sellerWalletTransaction?: any;
+    settlementTransaction?: any;
+    settlementSchedule?: any;
+    settlementJob?: any;
+    settlementAuditLog?: any;
   }
 }
 

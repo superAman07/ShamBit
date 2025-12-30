@@ -99,6 +99,12 @@ model User {
   sellerProfile             SellerProfile?
   userRoles                 UserRole[]
   userTenants               UserTenant[]
+  
+  // Settlement Relations
+  sellerAccount             SellerAccount?           @relation("SellerAccount")
+  sellerWallet              SellerWallet?            @relation("SellerWallet")
+  settlements               Settlement[]             @relation("SellerSettlement")
+  settlementSchedules       SettlementSchedule[]     @relation("SellerSchedule")
   webhooksCreated           Webhook[]
   
   // Brand domain relations
@@ -528,16 +534,36 @@ model InventoryMovement {
 model CommissionRule {
   id          String    @id @default(cuid())
   name        String
-  type        String
-  entityId    String
-  rate        Decimal   @db.Decimal(5, 2)
-  fixedAmount Decimal?  @db.Decimal(10, 2)
-  minAmount   Decimal?  @db.Decimal(10, 2)
-  maxAmount   Decimal?  @db.Decimal(10, 2)
-  priority    Int       @default(0)
-  isActive    Boolean   @default(true)
+  
+  // Rule Configuration
+  type        String    // PERCENTAGE, FIXED, TIERED
+  entityType  String    // GLOBAL, CATEGORY, SELLER, PRODUCT
+  entityId    String?   // Category/Seller/Product ID
+  
+  // Commission Rates
+  rate        Decimal?  @db.Decimal(5, 4) // Percentage (0.0000 to 1.0000)
+  fixedAmount Decimal?  @db.Decimal(15, 2)
+  
+  // Tiered Configuration (JSON)
+  tiers       Json?     // For tiered commission structure
+  
+  // Limits
+  minAmount   Decimal?  @db.Decimal(15, 2)
+  maxAmount   Decimal?  @db.Decimal(15, 2)
+  
+  // Validity
   validFrom   DateTime  @default(now())
   validTo     DateTime?
+  
+  // Priority & Status
+  priority    Int       @default(0)
+  isActive    Boolean   @default(true)
+  
+  // Metadata
+  description String?
+  metadata    Json      @default("{}")
+  
+  // Timestamps
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -570,6 +596,8 @@ model Order {
   reviews           Review[]
   shipments         Shipment[]
   paymentIntents    PaymentIntent[]        @relation("PaymentIntentOrder")
+  settlementTransactions SettlementTransaction[]
+  walletTransactions SellerWalletTransaction[]
 
   @@map("orders")
 }
@@ -611,6 +639,342 @@ model Payment {
   order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+// ============================================================================
+// SETTLEMENT & PAYOUT MODELS
+// ============================================================================
+
+model SellerAccount {
+  id                    String                @id @default(cuid())
+  sellerId              String                @unique
+  accountHolderName     String
+  accountNumber         String
+  ifscCode              String
+  bankName              String
+  branchName            String?
+  accountType           String                @default("SAVINGS") // SAVINGS, CURRENT
+  upiId                 String?
+  
+  // KYC & Verification
+  kycStatus             String                @default("PENDING") // PENDING, SUBMITTED, VERIFIED, REJECTED
+  kycDocuments          Json?
+  verificationDetails   Json?
+  verifiedAt            DateTime?
+  
+  // Account Status
+  status                String                @default("ACTIVE") // ACTIVE, SUSPENDED, CLOSED
+  isVerified            Boolean               @default(false)
+  
+  // Razorpay Integration
+  razorpayAccountId     String?               @unique
+  razorpayContactId     String?
+  razorpayFundAccountId String?
+  
+  // Business Details
+  businessName          String?
+  businessType          String?               // INDIVIDUAL, PARTNERSHIP, PRIVATE_LIMITED, etc.
+  gstNumber             String?
+  panNumber             String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  seller                User                  @relation("SellerAccount", fields: [sellerId], references: [id])
+  settlements           Settlement[]
+  walletTransactions    SellerWalletTransaction[]
+  schedules             SettlementSchedule[]
+  
+  @@map("seller_accounts")
+}
+
+model SellerWallet {
+  id                    String                @id @default(cuid())
+  sellerId              String                @unique
+  
+  // Balance Information
+  availableBalance      Decimal               @default(0) @db.Decimal(15, 2)
+  pendingBalance        Decimal               @default(0) @db.Decimal(15, 2)
+  reservedBalance       Decimal               @default(0) @db.Decimal(15, 2)
+  totalBalance          Decimal               @default(0) @db.Decimal(15, 2)
+  
+  // Currency
+  currency              String                @default("INR")
+  
+  // Last Settlement
+  lastSettlementAt      DateTime?
+  lastSettlementAmount  Decimal?              @db.Decimal(15, 2)
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  seller                User                  @relation("SellerWallet", fields: [sellerId], references: [id])
+  transactions          SellerWalletTransaction[]
+  
+  @@map("seller_wallets")
+}
+
+model SellerWalletTransaction {
+  id                    String                @id @default(cuid())
+  walletId              String
+  sellerAccountId       String?
+  
+  // Transaction Details
+  transactionId         String                @unique
+  type                  String                // CREDIT, DEBIT
+  category              String                // SALE, COMMISSION, FEE, TAX, REFUND, SETTLEMENT, ADJUSTMENT
+  amount                Decimal               @db.Decimal(15, 2)
+  currency              String                @default("INR")
+  
+  // Balance Snapshots
+  balanceBefore         Decimal               @db.Decimal(15, 2)
+  balanceAfter          Decimal               @db.Decimal(15, 2)
+  
+  // Reference Information
+  referenceType         String?               // ORDER, PAYMENT, SETTLEMENT, REFUND
+  referenceId           String?
+  orderId               String?
+  paymentId             String?
+  settlementId          String?
+  
+  // Description & Metadata
+  description           String
+  metadata              Json                  @default("{}")
+  
+  // Timestamps
+  processedAt           DateTime              @default(now())
+  createdAt             DateTime              @default(now())
+  
+  // Relations
+  wallet                SellerWallet          @relation(fields: [walletId], references: [id])
+  sellerAccount         SellerAccount?        @relation(fields: [sellerAccountId], references: [id])
+  order                 Order?                @relation(fields: [orderId], references: [id])
+  
+  @@map("seller_wallet_transactions")
+}
+
+model Settlement {
+  id                    String                @id @default(cuid())
+  settlementId          String                @unique
+  sellerId              String
+  sellerAccountId       String
+  
+  // Settlement Period
+  periodStart           DateTime
+  periodEnd             DateTime
+  
+  // Amount Breakdown
+  grossAmount           Decimal               @db.Decimal(15, 2)
+  commissionAmount      Decimal               @db.Decimal(15, 2)
+  platformFeeAmount     Decimal               @default(0) @db.Decimal(15, 2)
+  taxAmount             Decimal               @default(0) @db.Decimal(15, 2)
+  adjustmentAmount      Decimal               @default(0) @db.Decimal(15, 2)
+  netAmount             Decimal               @db.Decimal(15, 2)
+  
+  // Currency
+  currency              String                @default("INR")
+  
+  // Status & Lifecycle
+  status                String                @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+  
+  // Settlement Details
+  settlementDate        DateTime?
+  scheduledDate         DateTime?
+  processedAt           DateTime?
+  completedAt           DateTime?
+  failedAt              DateTime?
+  
+  // Razorpay Integration
+  razorpayPayoutId      String?               @unique
+  razorpayTransferId    String?
+  gatewayResponse       Json?
+  
+  // Failure Information
+  failureReason         String?
+  failureCode           String?
+  retryCount            Int                   @default(0)
+  maxRetries            Int                   @default(3)
+  nextRetryAt           DateTime?
+  
+  // Reconciliation
+  isReconciled          Boolean               @default(false)
+  reconciledAt          DateTime?
+  reconciledBy          String?
+  
+  // Locking & Concurrency
+  version               Int                   @default(1)
+  lockedAt              DateTime?
+  lockedBy              String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  notes                 String?
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  seller                User                  @relation("SellerSettlement", fields: [sellerId], references: [id])
+  sellerAccount         SellerAccount         @relation(fields: [sellerAccountId], references: [id])
+  transactions          SettlementTransaction[]
+  auditLogs             SettlementAuditLog[]
+  
+  @@map("settlements")
+}
+
+model SettlementTransaction {
+  id                    String                @id @default(cuid())
+  settlementId          String
+  
+  // Transaction Reference
+  referenceType         String                // ORDER, REFUND, ADJUSTMENT, FEE
+  referenceId           String
+  orderId               String?
+  orderItemId           String?
+  paymentId             String?
+  
+  // Amount Details
+  grossAmount           Decimal               @db.Decimal(15, 2)
+  commissionRate        Decimal               @db.Decimal(5, 4)
+  commissionAmount      Decimal               @db.Decimal(15, 2)
+  platformFeeAmount     Decimal               @default(0) @db.Decimal(15, 2)
+  taxAmount             Decimal               @default(0) @db.Decimal(15, 2)
+  netAmount             Decimal               @db.Decimal(15, 2)
+  
+  // Currency
+  currency              String                @default("INR")
+  
+  // Transaction Details
+  description           String
+  transactionDate       DateTime
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  
+  // Relations
+  settlement            Settlement            @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  order                 Order?                @relation(fields: [orderId], references: [id])
+  
+  @@map("settlement_transactions")
+}
+
+model SettlementSchedule {
+  id                    String                @id @default(cuid())
+  sellerId              String
+  sellerAccountId       String
+  
+  // Schedule Configuration
+  frequency             String                @default("WEEKLY") // DAILY, WEEKLY, MONTHLY, MANUAL
+  dayOfWeek             Int?                  // 1-7 for weekly (1=Monday)
+  dayOfMonth            Int?                  // 1-31 for monthly
+  timeOfDay             String?               // HH:MM format
+  timezone              String                @default("Asia/Kolkata")
+  
+  // Settlement Rules
+  minimumAmount         Decimal               @default(100) @db.Decimal(15, 2)
+  holdPeriodDays        Int                   @default(7)
+  
+  // Status
+  isActive              Boolean               @default(true)
+  
+  // Next Settlement
+  nextSettlementDate    DateTime?
+  lastSettlementDate    DateTime?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  seller                User                  @relation("SellerSchedule", fields: [sellerId], references: [id])
+  sellerAccount         SellerAccount         @relation(fields: [sellerAccountId], references: [id])
+  
+  @@unique([sellerId, sellerAccountId])
+  @@map("settlement_schedules")
+}
+
+model SettlementJob {
+  id                    String                @id @default(cuid())
+  jobId                 String                @unique
+  
+  // Job Details
+  type                  String                // BATCH_SETTLEMENT, INDIVIDUAL_SETTLEMENT, RECONCILIATION
+  status                String                @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  
+  // Job Configuration
+  sellerId              String?               // For individual settlements
+  batchSize             Int?                  // For batch processing
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  
+  // Progress Tracking
+  totalItems            Int                   @default(0)
+  processedItems        Int                   @default(0)
+  successfulItems       Int                   @default(0)
+  failedItems           Int                   @default(0)
+  
+  // Execution Details
+  startedAt             DateTime?
+  completedAt           DateTime?
+  failedAt              DateTime?
+  
+  // Error Information
+  errorMessage          String?
+  errorDetails          Json?
+  
+  // Results
+  results               Json?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Timestamps
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  @@map("settlement_jobs")
+}
+
+model SettlementAuditLog {
+  id                    String                @id @default(cuid())
+  settlementId          String
+  
+  // Audit Details
+  action                String                // CREATED, UPDATED, PROCESSED, COMPLETED, FAILED, CANCELLED
+  oldValues             Json?
+  newValues             Json?
+  changes               Json?
+  
+  // Context
+  userId                String?
+  userRole              String?
+  ipAddress             String?
+  userAgent             String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Timestamp
+  createdAt             DateTime              @default(now())
+  
+  // Relations
+  settlement            Settlement            @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  
+  @@map("settlement_audit_logs")
 }
 
 model Shipment {
