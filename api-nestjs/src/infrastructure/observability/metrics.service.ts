@@ -40,7 +40,11 @@ export class MetricsService {
   /**
    * Increment a counter metric
    */
-  incrementCounter(name: string, value = 1, tags?: Record<string, string>): void {
+  incrementCounter(
+    name: string,
+    value = 1,
+    tags?: Record<string, string>,
+  ): void {
     const metric: CounterMetric = {
       type: 'counter',
       name,
@@ -305,10 +309,15 @@ export class MetricsService {
     this.metrics.clear();
   }
 
-  private recordMetric(metric: CounterMetric | GaugeMetric | HistogramMetric): void {
+  private recordMetric(
+    metric: CounterMetric | GaugeMetric | HistogramMetric,
+  ): void {
     // In development, log metrics to console
     if (this.environment === 'development') {
-      console.log(`[METRIC] ${metric.type.toUpperCase()}: ${metric.name} = ${metric.value}`, metric.tags);
+      console.log(
+        `[METRIC] ${metric.type.toUpperCase()}: ${metric.name} = ${metric.value}`,
+        metric.tags,
+      );
     }
 
     // Store metric for potential export
@@ -323,7 +332,9 @@ export class MetricsService {
     // - Custom metrics endpoint
   }
 
-  private addDefaultTags(tags?: Record<string, string>): Record<string, string> {
+  private addDefaultTags(
+    tags?: Record<string, string>,
+  ): Record<string, string> {
     return {
       service: this.serviceName,
       environment: this.environment,

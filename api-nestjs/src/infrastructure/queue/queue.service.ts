@@ -37,7 +37,7 @@ export class QueueService {
   async add(
     queueName: string,
     data: any,
-    options: QueueJobOptions = {}
+    options: QueueJobOptions = {},
   ): Promise<QueueJob> {
     this.logger.log('QueueService.add', {
       queueName,
@@ -86,7 +86,7 @@ export class QueueService {
    */
   async process(
     queueName: string,
-    processor: (job: QueueJob) => Promise<any>
+    processor: (job: QueueJob) => Promise<any>,
   ): Promise<void> {
     this.logger.log('QueueService.process', { queueName });
 
@@ -108,10 +108,12 @@ export class QueueService {
     const queue = this.queues.get(queueName) || [];
 
     return {
-      waiting: queue.filter(job => !job.processedOn && !job.failedReason).length,
-      active: queue.filter(job => job.processedOn && !job.finishedOn).length,
-      completed: queue.filter(job => job.finishedOn && !job.failedReason).length,
-      failed: queue.filter(job => job.failedReason).length,
+      waiting: queue.filter((job) => !job.processedOn && !job.failedReason)
+        .length,
+      active: queue.filter((job) => job.processedOn && !job.finishedOn).length,
+      completed: queue.filter((job) => job.finishedOn && !job.failedReason)
+        .length,
+      failed: queue.filter((job) => job.failedReason).length,
       delayed: 0, // Would track delayed jobs in real implementation
     };
   }
@@ -123,7 +125,7 @@ export class QueueService {
     queueName: string,
     types: string[] = ['waiting', 'active', 'completed', 'failed'],
     start = 0,
-    end = -1
+    end = -1,
   ): Promise<QueueJob[]> {
     const queue = this.queues.get(queueName) || [];
     return queue.slice(start, end === -1 ? undefined : end + 1);
@@ -136,7 +138,7 @@ export class QueueService {
     const queue = this.queues.get(queueName);
     if (!queue) return false;
 
-    const jobIndex = queue.findIndex(job => job.id === jobId);
+    const jobIndex = queue.findIndex((job) => job.id === jobId);
     if (jobIndex === -1) return false;
 
     queue.splice(jobIndex, 1);
@@ -149,7 +151,7 @@ export class QueueService {
   async clean(
     queueName: string,
     grace: number,
-    type: 'completed' | 'failed' = 'completed'
+    type: 'completed' | 'failed' = 'completed',
   ): Promise<number> {
     const queue = this.queues.get(queueName);
     if (!queue) return 0;
@@ -159,9 +161,10 @@ export class QueueService {
 
     for (let i = queue.length - 1; i >= 0; i--) {
       const job = queue[i];
-      const shouldRemove = type === 'completed' 
-        ? job.finishedOn && job.finishedOn < cutoff && !job.failedReason
-        : job.failedReason && job.finishedOn && job.finishedOn < cutoff;
+      const shouldRemove =
+        type === 'completed'
+          ? job.finishedOn && job.finishedOn < cutoff && !job.failedReason
+          : job.failedReason && job.finishedOn && job.finishedOn < cutoff;
 
       if (shouldRemove) {
         queue.splice(i, 1);
@@ -240,7 +243,6 @@ export class QueueService {
         queueName: job.name,
         duration: job.finishedOn - job.processedOn,
       });
-
     } catch (error) {
       job.failedReason = error.message;
       job.finishedOn = Date.now();
@@ -260,17 +262,18 @@ export class QueueService {
   private async simulateJobProcessing(job: QueueJob): Promise<void> {
     // Simulate processing time
     const processingTime = Math.random() * 1000 + 500; // 500-1500ms
-    await new Promise(resolve => setTimeout(resolve, processingTime));
+    await new Promise((resolve) => setTimeout(resolve, processingTime));
 
     // Simulate occasional failures for testing
-    if (Math.random() < 0.1) { // 10% failure rate
+    if (Math.random() < 0.1) {
+      // 10% failure rate
       throw new Error('Simulated job failure');
     }
   }
 
   private async retryJob(job: QueueJob): Promise<void> {
     const retryDelay = this.calculateRetryDelay(job);
-    
+
     setTimeout(() => {
       job.processedOn = undefined;
       job.finishedOn = undefined;
@@ -288,9 +291,9 @@ export class QueueService {
     }
 
     const baseDelay = job.opts.backoff.delay;
-    
+
     if (job.opts.backoff.type === 'exponential') {
-      const attempt = (job.opts.attempts || 1);
+      const attempt = job.opts.attempts || 1;
       return baseDelay * Math.pow(2, attempt - 1);
     }
 

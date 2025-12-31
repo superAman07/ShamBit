@@ -10,7 +10,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 import { AuditService } from './audit.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
@@ -29,14 +34,17 @@ export class AuditController {
   @Get('logs')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get audit logs' })
-  async getAuditLogs(@Query() query: PaginationQuery & {
-    entityType?: string;
-    entityId?: string;
-    action?: string;
-    actorId?: string;
-    fromDate?: string;
-    toDate?: string;
-  }) {
+  async getAuditLogs(
+    @Query()
+    query: PaginationQuery & {
+      entityType?: string;
+      entityId?: string;
+      action?: string;
+      actorId?: string;
+      fromDate?: string;
+      toDate?: string;
+    },
+  ) {
     return this.auditService.getAuditLogs(query);
   }
 
@@ -62,12 +70,15 @@ export class AuditController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Export audit data' })
-  async exportAuditData(@Body() body: {
-    entityType?: string;
-    fromDate?: string;
-    toDate?: string;
-    format?: 'csv' | 'json';
-  }) {
+  async exportAuditData(
+    @Body()
+    body: {
+      entityType?: string;
+      fromDate?: string;
+      toDate?: string;
+      format?: 'csv' | 'json';
+    },
+  ) {
     return this.auditService.exportAuditData(body);
   }
 

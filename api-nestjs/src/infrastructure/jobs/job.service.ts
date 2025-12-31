@@ -46,7 +46,9 @@ export class JobService {
     job: ImageProcessingJob,
     options?: { delay?: number; priority?: number },
   ): Promise<void> {
-    this.logger.log('JobService.addImageProcessingJob', { mediaId: job.mediaId });
+    this.logger.log('JobService.addImageProcessingJob', {
+      mediaId: job.mediaId,
+    });
 
     await this.imageQueue.add('process-image', job, {
       priority: options?.priority || 0,
@@ -124,9 +126,11 @@ export class JobService {
 
   // Bulk job operations
   async addBulkImageProcessingJobs(jobs: ImageProcessingJob[]): Promise<void> {
-    this.logger.log('JobService.addBulkImageProcessingJobs', { count: jobs.length });
+    this.logger.log('JobService.addBulkImageProcessingJobs', {
+      count: jobs.length,
+    });
 
-    const bulkJobs = jobs.map(job => ({
+    const bulkJobs = jobs.map((job) => ({
       name: 'process-image',
       data: job,
       opts: {
@@ -142,9 +146,11 @@ export class JobService {
   }
 
   async addBulkNotificationJobs(jobs: NotificationJob[]): Promise<void> {
-    this.logger.log('JobService.addBulkNotificationJobs', { count: jobs.length });
+    this.logger.log('JobService.addBulkNotificationJobs', {
+      count: jobs.length,
+    });
 
-    const bulkJobs = jobs.map(job => ({
+    const bulkJobs = jobs.map((job) => ({
       name: 'send-notification',
       data: job,
       opts: {
@@ -161,12 +167,13 @@ export class JobService {
 
   // Job monitoring
   async getQueueStats() {
-    const [imageStats, notificationStats, searchStats, inventoryStats] = await Promise.all([
-      this.getQueueInfo(this.imageQueue),
-      this.getQueueInfo(this.notificationQueue),
-      this.getQueueInfo(this.searchQueue),
-      this.getQueueInfo(this.inventoryQueue),
-    ]);
+    const [imageStats, notificationStats, searchStats, inventoryStats] =
+      await Promise.all([
+        this.getQueueInfo(this.imageQueue),
+        this.getQueueInfo(this.notificationQueue),
+        this.getQueueInfo(this.searchQueue),
+        this.getQueueInfo(this.inventoryQueue),
+      ]);
 
     return {
       imageProcessing: imageStats,

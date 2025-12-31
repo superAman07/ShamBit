@@ -28,7 +28,7 @@ export class DynamicConfigService implements OnModuleInit {
   async onModuleInit() {
     // Load initial configuration
     await this.loadConfiguration();
-    
+
     // Set up configuration refresh interval
     setInterval(() => {
       this.refreshConfiguration();
@@ -42,7 +42,7 @@ export class DynamicConfigService implements OnModuleInit {
     environment?: string,
   ): Promise<T> {
     const cacheKey = this.buildCacheKey(key, tenantId, environment);
-    
+
     // Check memory cache first
     if (this.configCache.has(cacheKey)) {
       return this.configCache.get(cacheKey);
@@ -58,10 +58,10 @@ export class DynamicConfigService implements OnModuleInit {
 
     // Fetch from database with priority order
     const config = await this.fetchConfigFromDB(key, tenantId, environment);
-    
+
     if (config) {
       const value = this.parseConfigValue(config.value, config.type);
-      
+
       // Cache the result
       this.configCache.set(cacheKey, value);
       await this.redis.set(
@@ -69,7 +69,7 @@ export class DynamicConfigService implements OnModuleInit {
         JSON.stringify(value),
         this.CONFIG_CACHE_TTL,
       );
-      
+
       return value;
     }
 
@@ -86,7 +86,7 @@ export class DynamicConfigService implements OnModuleInit {
     isSecret: boolean = false,
   ): Promise<void> {
     const serializedValue = this.serializeConfigValue(value, type);
-    
+
     await this.prisma.configuration.upsert({
       where: {
         key_tenantId_environment: {
@@ -129,7 +129,11 @@ export class DynamicConfigService implements OnModuleInit {
     this.logger.log(`Configuration updated: ${key}`);
   }
 
-  async delete(key: string, tenantId?: string, environment?: string): Promise<void> {
+  async delete(
+    key: string,
+    tenantId?: string,
+    environment?: string,
+  ): Promise<void> {
     await this.prisma.configuration.delete({
       where: {
         key_tenantId_environment: {
@@ -148,7 +152,10 @@ export class DynamicConfigService implements OnModuleInit {
     this.logger.log(`Configuration deleted: ${key}`);
   }
 
-  async getAll(tenantId?: string, environment?: string): Promise<ConfigValue[]> {
+  async getAll(
+    tenantId?: string,
+    environment?: string,
+  ): Promise<ConfigValue[]> {
     const configs = await this.prisma.configuration.findMany({
       where: {
         tenantId: tenantId || '',
@@ -157,7 +164,7 @@ export class DynamicConfigService implements OnModuleInit {
       orderBy: { key: 'asc' },
     });
 
-    return configs.map(config => ({
+    return configs.map((config) => ({
       key: config.key,
       value: this.parseConfigValue(config.value, config.type),
       type: config.type as ConfigValue['type'],
@@ -170,14 +177,14 @@ export class DynamicConfigService implements OnModuleInit {
 
   async reload(): Promise<void> {
     this.logger.log('Reloading configuration...');
-    
+
     // Clear caches
     this.configCache.clear();
     await this.redis.del('config:*');
-    
+
     // Reload from database
     await this.loadConfiguration();
-    
+
     this.eventEmitter.emit('config.reloaded');
     this.logger.log('Configuration reloaded');
   }
@@ -185,18 +192,18 @@ export class DynamicConfigService implements OnModuleInit {
   private async loadConfiguration(): Promise<void> {
     try {
       const configs = await this.prisma.configuration.findMany();
-      
+
       for (const config of configs) {
         const cacheKey = this.buildCacheKey(
           config.key,
           config.tenantId || undefined,
           config.environment,
         );
-        
+
         const value = this.parseConfigValue(config.value, config.type);
         this.configCache.set(cacheKey, value);
       }
-      
+
       this.logger.log(`Loaded ${configs.length} configuration entries`);
     } catch (error) {
       this.logger.error('Failed to load configuration', error);
@@ -208,11 +215,11 @@ export class DynamicConfigService implements OnModuleInit {
       // Check for configuration changes
       const lastUpdate = await this.redis.get('config:last_update');
       const currentTime = new Date();
-      
+
       if (lastUpdate) {
         const lastUpdateTime = new Date(lastUpdate);
         const timeDiff = currentTime.getTime() - lastUpdateTime.getTime();
-        
+
         // Only refresh if it's been more than 5 minutes
         if (timeDiff < 300000) {
           return;
@@ -232,7 +239,7 @@ export class DynamicConfigService implements OnModuleInit {
     environment?: string,
   ): Promise<any> {
     const currentEnv = environment || process.env.NODE_ENV || 'development';
-    
+
     // Priority order: tenant+environment > tenant+default > global+environment > global+default
     const queries = [
       { key, tenantId: tenantId || '', environment: currentEnv },
@@ -256,7 +263,11 @@ export class DynamicConfigService implements OnModuleInit {
     return null;
   }
 
-  private buildCacheKey(key: string, tenantId?: string, environment?: string): string {
+  private buildCacheKey(
+    key: string,
+    tenantId?: string,
+    environment?: string,
+  ): string {
     const env = environment || process.env.NODE_ENV || 'development';
     const tenant = tenantId || 'global';
     return `${key}:${tenant}:${env}`;

@@ -29,7 +29,7 @@ export class WebhookController {
   constructor(
     private readonly webhookService: WebhookService,
     private readonly webhookDeliveryService: WebhookDeliveryService,
-  ) { }
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -58,10 +58,7 @@ export class WebhookController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update webhook' })
-  async updateWebhook(
-    @Param('id') id: string,
-    @Body() updateWebhookDto: any,
-  ) {
+  async updateWebhook(@Param('id') id: string, @Body() updateWebhookDto: any) {
     return this.webhookService.updateWebhook(id, updateWebhookDto);
   }
 

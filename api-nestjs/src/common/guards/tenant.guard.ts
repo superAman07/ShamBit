@@ -21,13 +21,16 @@ export class TenantGuard implements CanActivate {
 
     // Extract tenant ID from header, subdomain, or path
     const tenantId = this.extractTenantId(request);
-    
+
     if (!tenantId) {
       throw new BadRequestException('Tenant ID is required');
     }
 
     // Validate tenant access
-    const hasAccess = await this.tenantService.validateTenantAccess(tenantId, user.sub);
+    const hasAccess = await this.tenantService.validateTenantAccess(
+      tenantId,
+      user.sub,
+    );
     if (!hasAccess) {
       throw new ForbiddenException('Access denied to this tenant');
     }
@@ -41,7 +44,7 @@ export class TenantGuard implements CanActivate {
 
   private extractTenantId(request: any): string | null {
     // Priority: Header > Subdomain > Path parameter
-    
+
     // 1. Check X-Tenant-ID header
     const headerTenantId = request.headers['x-tenant-id'];
     if (headerTenantId) {

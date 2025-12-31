@@ -29,9 +29,10 @@ export class AuthorizationService {
     );
 
     // Find matching permission
-    const permission = permissions.find(p => 
-      p.name === requiredPermission ||
-      this.matchesResourceAction(p, requiredPermission)
+    const permission = permissions.find(
+      (p) =>
+        p.name === requiredPermission ||
+        this.matchesResourceAction(p, requiredPermission),
     );
 
     if (!permission) {
@@ -70,15 +71,17 @@ export class AuthorizationService {
     permission: string,
   ): Promise<boolean> {
     const permissions = await this.getUserPermissions(userId, tenantId);
-    return permissions.some(p => 
-      p.name === permission ||
-      this.matchesResourceAction(p, permission)
+    return permissions.some(
+      (p) => p.name === permission || this.matchesResourceAction(p, permission),
     );
   }
 
-  async getUserPermissions(userId: string, tenantId: string): Promise<Permission[]> {
+  async getUserPermissions(
+    userId: string,
+    tenantId: string,
+  ): Promise<Permission[]> {
     const cacheKey = `permissions:${userId}:${tenantId}`;
-    
+
     // Try cache first
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -92,22 +95,22 @@ export class AuthorizationService {
         role: {
           include: {
             rolePermissions: {
-              include: { permission: true }
-            }
-          }
-        }
-      }
+              include: { permission: true },
+            },
+          },
+        },
+      },
     });
 
     const permissions: Permission[] = [];
-    
+
     for (const userRole of userRoles) {
       for (const rolePermission of userRole.role.rolePermissions) {
         const permission = rolePermission.permission;
-        const conditions = Array.isArray(permission.conditions) 
-          ? permission.conditions as unknown as PolicyCondition[]
+        const conditions = Array.isArray(permission.conditions)
+          ? (permission.conditions as unknown as PolicyCondition[])
           : [];
-        
+
         permissions.push({
           id: permission.id,
           name: permission.name,
@@ -128,7 +131,10 @@ export class AuthorizationService {
     return permissions;
   }
 
-  private matchesResourceAction(permission: Permission, required: string): boolean {
+  private matchesResourceAction(
+    permission: Permission,
+    required: string,
+  ): boolean {
     // Format: resource:action (e.g., "product:read", "order:write")
     const [resource, action] = required.split(':');
     return permission.resource === resource && permission.action === action;
@@ -156,16 +162,20 @@ export class AuthorizationService {
     context: AuthorizationContext,
   ): boolean {
     const value = this.getAttributeValue(condition.attribute, context);
-    
+
     switch (condition.operator) {
       case PolicyOperator.EQUALS:
         return value === condition.value;
       case PolicyOperator.NOT_EQUALS:
         return value !== condition.value;
       case PolicyOperator.IN:
-        return Array.isArray(condition.value) && condition.value.includes(value);
+        return (
+          Array.isArray(condition.value) && condition.value.includes(value)
+        );
       case PolicyOperator.NOT_IN:
-        return Array.isArray(condition.value) && !condition.value.includes(value);
+        return (
+          Array.isArray(condition.value) && !condition.value.includes(value)
+        );
       case PolicyOperator.GREATER_THAN:
         return value > condition.value;
       case PolicyOperator.LESS_THAN:
@@ -181,9 +191,12 @@ export class AuthorizationService {
     }
   }
 
-  private getAttributeValue(attribute: string, context: AuthorizationContext): any {
+  private getAttributeValue(
+    attribute: string,
+    context: AuthorizationContext,
+  ): any {
     const [category, key] = attribute.split('.');
-    
+
     switch (category) {
       case 'user':
         return context.user.attributes[key] || context.user[key];
@@ -198,14 +211,20 @@ export class AuthorizationService {
     }
   }
 
-  private requiresOwnership(permission: Permission, context: AuthorizationContext): boolean {
-    return permission.conditions?.some(c => 
-      c.attribute === 'resource.ownerId' || 
-      c.attribute === 'user.id'
-    ) || false;
+  private requiresOwnership(
+    permission: Permission,
+    context: AuthorizationContext,
+  ): boolean {
+    return (
+      permission.conditions?.some(
+        (c) => c.attribute === 'resource.ownerId' || c.attribute === 'user.id',
+      ) || false
+    );
   }
 
-  private async checkOwnership(context: AuthorizationContext): Promise<AuthorizationResult> {
+  private async checkOwnership(
+    context: AuthorizationContext,
+  ): Promise<AuthorizationResult> {
     if (!context.resource.id) {
       return { allowed: true }; // No specific resource to check ownership
     }
@@ -241,7 +260,10 @@ export class AuthorizationService {
     return { allowed: true };
   }
 
-  async invalidateUserPermissions(userId: string, tenantId: string): Promise<void> {
+  async invalidateUserPermissions(
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
     const cacheKey = `permissions:${userId}:${tenantId}`;
     await this.redis.del(cacheKey);
   }

@@ -8,7 +8,8 @@ export enum ApiLayer {
 }
 
 export const API_LAYER_KEY = 'apiLayer';
-export const ApiLayerAccess = (layer: ApiLayer) => SetMetadata(API_LAYER_KEY, layer);
+export const ApiLayerAccess = (layer: ApiLayer) =>
+  SetMetadata(API_LAYER_KEY, layer);
 
 export const RATE_LIMIT_KEY = 'rateLimit';
 export const RateLimit = (limit: number, windowMs: number = 60000) =>

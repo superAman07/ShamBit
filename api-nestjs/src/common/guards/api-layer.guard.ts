@@ -7,7 +7,11 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { ApiLayer, API_LAYER_KEY, API_KEY_REQUIRED_KEY } from '../decorators/api-layer.decorator';
+import {
+  ApiLayer,
+  API_LAYER_KEY,
+  API_KEY_REQUIRED_KEY,
+} from '../decorators/api-layer.decorator';
 
 @Injectable()
 export class ApiLayerGuard implements CanActivate {
@@ -17,22 +21,22 @@ export class ApiLayerGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredLayer = this.reflector.getAllAndOverride<ApiLayer>(API_LAYER_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredLayer = this.reflector.getAllAndOverride<ApiLayer>(
+      API_LAYER_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    const requiresApiKey = this.reflector.getAllAndOverride<boolean>(API_KEY_REQUIRED_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiresApiKey = this.reflector.getAllAndOverride<boolean>(
+      API_KEY_REQUIRED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredLayer) {
       return true; // No layer restriction
     }
 
     const request = context.switchToHttp().getRequest();
-    
+
     // Check API key if required
     if (requiresApiKey) {
       const apiKey = this.extractApiKey(request);
@@ -109,12 +113,17 @@ export class ApiLayerGuard implements CanActivate {
       case ApiLayer.INTERNAL:
         // Internal APIs require authentication and internal service access
         if (!user) {
-          throw new UnauthorizedException('Authentication required for internal API');
+          throw new UnauthorizedException(
+            'Authentication required for internal API',
+          );
         }
-        
+
         // Check if request is from internal service
         const internalToken = request.headers['x-internal-token'];
-        if (!internalToken || internalToken !== process.env.INTERNAL_API_TOKEN) {
+        if (
+          !internalToken ||
+          internalToken !== process.env.INTERNAL_API_TOKEN
+        ) {
           throw new ForbiddenException('Internal API access denied');
         }
         return true;
@@ -122,9 +131,11 @@ export class ApiLayerGuard implements CanActivate {
       case ApiLayer.ADMIN:
         // Admin APIs require admin role
         if (!user) {
-          throw new UnauthorizedException('Authentication required for admin API');
+          throw new UnauthorizedException(
+            'Authentication required for admin API',
+          );
         }
-        
+
         if (!user.roles?.includes('ADMIN')) {
           throw new ForbiddenException('Admin access required');
         }
@@ -135,11 +146,11 @@ export class ApiLayerGuard implements CanActivate {
         if (request.apiKey) {
           return request.apiKey.type === 'PARTNER';
         }
-        
+
         if (user && user.roles?.includes('PARTNER')) {
           return true;
         }
-        
+
         throw new ForbiddenException('Partner access required');
 
       default:

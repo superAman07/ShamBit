@@ -2,7 +2,13 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AuditService {
-  async logAction(entityType: string, entityId: string, action: string, actorId: string, changes?: any) {
+  async logAction(
+    entityType: string,
+    entityId: string,
+    action: string,
+    actorId: string,
+    changes?: any,
+  ) {
     // TODO: Implement audit logging
   }
 
@@ -21,7 +27,12 @@ export class AuditService {
     return { trail: [] };
   }
 
-  async exportAuditData(options: { entityType?: string; fromDate?: string; toDate?: string; format?: 'csv' | 'json' }) {
+  async exportAuditData(options: {
+    entityType?: string;
+    fromDate?: string;
+    toDate?: string;
+    format?: 'csv' | 'json';
+  }) {
     // TODO: Implement export; return stream or file reference
     return { exported: true };
   }

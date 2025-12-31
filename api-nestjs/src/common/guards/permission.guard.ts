@@ -83,12 +83,12 @@ export class PermissionGuard implements CanActivate {
     // Extract resource type from URL path
     const path = request.route?.path || request.url;
     const segments = path.split('/').filter(Boolean);
-    
+
     // Assuming format: /api/v1/{resource}/...
     if (segments.length >= 3) {
       return segments[2]; // Skip 'api' and 'v1'
     }
-    
+
     return 'unknown';
   }
 }

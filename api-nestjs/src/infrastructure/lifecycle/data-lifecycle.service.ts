@@ -34,7 +34,7 @@ export class DataLifecycleService {
       await this.softDeleteExpiredData();
       await this.archiveOldData();
       await this.hardDeleteArchivedData();
-      
+
       this.logger.log('Data lifecycle cleanup job completed');
     } catch (error) {
       this.logger.error('Data lifecycle cleanup job failed', error);
@@ -49,13 +49,22 @@ export class DataLifecycleService {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - policy.retentionDays);
 
-        const count = await this.applySoftDelete(policy.entityType, cutoffDate, policy.conditions);
-        
+        const count = await this.applySoftDelete(
+          policy.entityType,
+          cutoffDate,
+          policy.conditions,
+        );
+
         if (count > 0) {
-          this.logger.log(`Soft deleted ${count} ${policy.entityType} records older than ${policy.retentionDays} days`);
+          this.logger.log(
+            `Soft deleted ${count} ${policy.entityType} records older than ${policy.retentionDays} days`,
+          );
         }
       } catch (error) {
-        this.logger.error(`Failed to apply soft delete for ${policy.entityType}`, error);
+        this.logger.error(
+          `Failed to apply soft delete for ${policy.entityType}`,
+          error,
+        );
       }
     }
   }
@@ -68,10 +77,16 @@ export class DataLifecycleService {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - rule.archiveAfterDays);
 
-        const count = await this.archiveData(rule.entityType, cutoffDate, rule.conditions);
-        
+        const count = await this.archiveData(
+          rule.entityType,
+          cutoffDate,
+          rule.conditions,
+        );
+
         if (count > 0) {
-          this.logger.log(`Archived ${count} ${rule.entityType} records older than ${rule.archiveAfterDays} days`);
+          this.logger.log(
+            `Archived ${count} ${rule.entityType} records older than ${rule.archiveAfterDays} days`,
+          );
         }
       } catch (error) {
         this.logger.error(`Failed to archive ${rule.entityType}`, error);
@@ -80,7 +95,10 @@ export class DataLifecycleService {
   }
 
   async hardDeleteArchivedData(): Promise<void> {
-    const hardDeleteAfterDays = await this.configService.get<number>('data.hardDeleteAfterDays', 365);
+    const hardDeleteAfterDays = await this.configService.get<number>(
+      'data.hardDeleteAfterDays',
+      365,
+    );
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - hardDeleteAfterDays);
 
@@ -95,7 +113,9 @@ export class DataLifecycleService {
       });
 
       if (deletedCount.count > 0) {
-        this.logger.log(`Hard deleted ${deletedCount.count} archived records older than ${hardDeleteAfterDays} days`);
+        this.logger.log(
+          `Hard deleted ${deletedCount.count} archived records older than ${hardDeleteAfterDays} days`,
+        );
       }
     } catch (error) {
       this.logger.error('Failed to hard delete archived data', error);
@@ -160,7 +180,9 @@ export class DataLifecycleService {
         return auditResult.count;
 
       default:
-        this.logger.warn(`Soft delete not implemented for entity type: ${entityType}`);
+        this.logger.warn(
+          `Soft delete not implemented for entity type: ${entityType}`,
+        );
         return 0;
     }
   }
@@ -213,7 +235,9 @@ export class DataLifecycleService {
         break;
 
       default:
-        this.logger.warn(`Archival not implemented for entity type: ${entityType}`);
+        this.logger.warn(
+          `Archival not implemented for entity type: ${entityType}`,
+        );
         return 0;
     }
 
@@ -236,8 +260,8 @@ export class DataLifecycleService {
     }
 
     // Delete original records
-    const recordIds = records.map(r => r.id);
-    
+    const recordIds = records.map((r) => r.id);
+
     switch (entityType) {
       case 'Order':
         await this.prisma.order.deleteMany({
@@ -260,55 +284,64 @@ export class DataLifecycleService {
   }
 
   private async getRetentionPolicies(): Promise<RetentionPolicy[]> {
-    const policies = await this.configService.get<RetentionPolicy[]>('data.retentionPolicies', [
-      {
-        entityType: 'AuditLog',
-        retentionDays: 2555, // 7 years
-        archiveBeforeDelete: true,
-      },
-      {
-        entityType: 'DomainEvent',
-        retentionDays: 365, // 1 year
-        archiveBeforeDelete: true,
-      },
-      {
-        entityType: 'Order',
-        retentionDays: 2555, // 7 years for completed orders
-        archiveBeforeDelete: true,
-        conditions: { status: { in: ['COMPLETED', 'CANCELLED'] } },
-      },
-      {
-        entityType: 'User',
-        retentionDays: 1095, // 3 years for inactive users
-        archiveBeforeDelete: false,
-        conditions: { status: 'INACTIVE' },
-      },
-    ]);
+    const policies = await this.configService.get<RetentionPolicy[]>(
+      'data.retentionPolicies',
+      [
+        {
+          entityType: 'AuditLog',
+          retentionDays: 2555, // 7 years
+          archiveBeforeDelete: true,
+        },
+        {
+          entityType: 'DomainEvent',
+          retentionDays: 365, // 1 year
+          archiveBeforeDelete: true,
+        },
+        {
+          entityType: 'Order',
+          retentionDays: 2555, // 7 years for completed orders
+          archiveBeforeDelete: true,
+          conditions: { status: { in: ['COMPLETED', 'CANCELLED'] } },
+        },
+        {
+          entityType: 'User',
+          retentionDays: 1095, // 3 years for inactive users
+          archiveBeforeDelete: false,
+          conditions: { status: 'INACTIVE' },
+        },
+      ],
+    );
 
     return policies;
   }
 
   private async getArchivalRules(): Promise<ArchivalRule[]> {
-    const rules = await this.configService.get<ArchivalRule[]>('data.archivalRules', [
-      {
-        entityType: 'Order',
-        archiveAfterDays: 365, // Archive orders after 1 year
-        conditions: { status: { in: ['COMPLETED', 'CANCELLED'] } },
-      },
-      {
-        entityType: 'AuditLog',
-        archiveAfterDays: 90, // Archive audit logs after 3 months
-      },
-      {
-        entityType: 'DomainEvent',
-        archiveAfterDays: 30, // Archive domain events after 1 month
-      },
-    ]);
+    const rules = await this.configService.get<ArchivalRule[]>(
+      'data.archivalRules',
+      [
+        {
+          entityType: 'Order',
+          archiveAfterDays: 365, // Archive orders after 1 year
+          conditions: { status: { in: ['COMPLETED', 'CANCELLED'] } },
+        },
+        {
+          entityType: 'AuditLog',
+          archiveAfterDays: 90, // Archive audit logs after 3 months
+        },
+        {
+          entityType: 'DomainEvent',
+          archiveAfterDays: 30, // Archive domain events after 1 month
+        },
+      ],
+    );
 
     return rules;
   }
 
-  async restoreFromArchive(entityType: string, entityId: string): Promise<boolean> {
+  async restoreFromArchive(
+    entityType: string,
+    entityId: string,
+  ): Promise<boolean> {
     try {
       const archivedData = await (this.prisma as any).archivedData.findFirst({
         where: {
@@ -326,17 +359,17 @@ export class DataLifecycleService {
         case 'Order':
           await this.prisma.order.create({
             data: archivedData.data as any,
-              });
+          });
           break;
         case 'AuditLog':
           await this.prisma.auditLog.create({
             data: archivedData.data as any,
-              });
+          });
           break;
         case 'DomainEvent':
           await (this.prisma as any).domainEvent.create({
             data: archivedData.data as any,
-              });
+          });
           break;
         default:
           return false;
@@ -350,7 +383,10 @@ export class DataLifecycleService {
       this.logger.log(`Restored ${entityType} ${entityId} from archive`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to restore ${entityType} ${entityId} from archive`, error);
+      this.logger.error(
+        `Failed to restore ${entityType} ${entityId} from archive`,
+        error,
+      );
       return false;
     }
   }

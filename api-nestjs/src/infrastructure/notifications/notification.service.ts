@@ -51,7 +51,9 @@ export class NotificationService {
   // EMAIL NOTIFICATIONS
   // ============================================================================
 
-  async sendEmail(notification: EmailNotification): Promise<NotificationResult> {
+  async sendEmail(
+    notification: EmailNotification,
+  ): Promise<NotificationResult> {
     this.logger.log('NotificationService.sendEmail', {
       to: notification.to,
       template: notification.template,
@@ -82,7 +84,6 @@ export class NotificationService {
         messageId,
         provider: 'mock-email-provider',
       };
-
     } catch (error) {
       this.logger.error('Failed to send email', error, {
         to: notification.to,
@@ -96,7 +97,9 @@ export class NotificationService {
     }
   }
 
-  async sendBulkEmail(notifications: EmailNotification[]): Promise<NotificationResult[]> {
+  async sendBulkEmail(
+    notifications: EmailNotification[],
+  ): Promise<NotificationResult[]> {
     this.logger.log('NotificationService.sendBulkEmail', {
       count: notifications.length,
     });
@@ -144,7 +147,6 @@ export class NotificationService {
         messageId,
         provider: 'mock-sms-provider',
       };
-
     } catch (error) {
       this.logger.error('Failed to send SMS', error, {
         to: notification.to,
@@ -157,7 +159,9 @@ export class NotificationService {
     }
   }
 
-  async sendBulkSMS(notifications: SMSNotification[]): Promise<NotificationResult[]> {
+  async sendBulkSMS(
+    notifications: SMSNotification[],
+  ): Promise<NotificationResult[]> {
     this.logger.log('NotificationService.sendBulkSMS', {
       count: notifications.length,
     });
@@ -206,7 +210,6 @@ export class NotificationService {
         messageId,
         provider: 'mock-push-provider',
       };
-
     } catch (error) {
       this.logger.error('Failed to send push notification', error, {
         userId: notification.userId,
@@ -220,7 +223,9 @@ export class NotificationService {
     }
   }
 
-  async sendBulkPush(notifications: PushNotification[]): Promise<NotificationResult[]> {
+  async sendBulkPush(
+    notifications: PushNotification[],
+  ): Promise<NotificationResult[]> {
     this.logger.log('NotificationService.sendBulkPush', {
       count: notifications.length,
     });
@@ -241,7 +246,7 @@ export class NotificationService {
 
   async renderTemplate(
     templateName: string,
-    data: Record<string, any>
+    data: Record<string, any>,
   ): Promise<{ subject: string; html: string; text: string }> {
     this.logger.log('NotificationService.renderTemplate', {
       templateName,
@@ -302,7 +307,7 @@ export class NotificationService {
         transactional: boolean;
         security: boolean;
       };
-    }>
+    }>,
   ): Promise<void> {
     this.logger.log('NotificationService.updateUserNotificationPreferences', {
       userId,
@@ -324,7 +329,7 @@ export class NotificationService {
       dateTo?: Date;
       limit?: number;
       offset?: number;
-    } = {}
+    } = {},
   ): Promise<{
     notifications: Array<{
       id: string;
@@ -359,21 +364,28 @@ export class NotificationService {
   private async simulateDelay(): Promise<void> {
     // Simulate network delay
     const delay = Math.random() * 500 + 100; // 100-600ms
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
 
     // Simulate occasional failures
-    if (Math.random() < 0.05) { // 5% failure rate
+    if (Math.random() < 0.05) {
+      // 5% failure rate
       throw new Error('Simulated notification failure');
     }
   }
 
-  private interpolateString(template: string, data: Record<string, any>): string {
+  private interpolateString(
+    template: string,
+    data: Record<string, any>,
+  ): string {
     return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
       return data[key] !== undefined ? String(data[key]) : match;
     });
   }
 
-  private getTemplateDefaults(): Record<string, { subject: string; html: string; text: string }> {
+  private getTemplateDefaults(): Record<
+    string,
+    { subject: string; html: string; text: string }
+  > {
     return {
       default: {
         subject: 'Notification from ShambIt',

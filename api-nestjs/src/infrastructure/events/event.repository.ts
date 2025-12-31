@@ -34,7 +34,7 @@ export class EventRepository {
 
   async saveMany(events: DomainEvent[]): Promise<DomainEvent[]> {
     const savedEvents = await this.prisma.domainEvent.createMany({
-      data: events.map(event => ({
+      data: events.map((event) => ({
         id: event.eventId,
         eventType: event.eventType,
         aggregateId: event.aggregateId,
@@ -64,7 +64,7 @@ export class EventRepository {
       orderBy: { version: 'asc' },
     });
 
-    return events.map(event => ({
+    return events.map((event) => ({
       eventId: event.id,
       eventType: event.eventType,
       aggregateId: event.aggregateId,
@@ -82,16 +82,18 @@ export class EventRepository {
     if (filter.aggregateType) where.aggregateType = filter.aggregateType;
     if (filter.eventType) where.eventType = filter.eventType;
     if (filter.fromVersion) where.version = { gte: filter.fromVersion };
-    if (filter.toVersion) where.version = { ...where.version, lte: filter.toVersion };
+    if (filter.toVersion)
+      where.version = { ...where.version, lte: filter.toVersion };
     if (filter.fromDate) where.occurredAt = { gte: filter.fromDate };
-    if (filter.toDate) where.occurredAt = { ...where.occurredAt, lte: filter.toDate };
+    if (filter.toDate)
+      where.occurredAt = { ...where.occurredAt, lte: filter.toDate };
 
     const events = await this.prisma.domainEvent.findMany({
       where,
       orderBy: { occurredAt: 'asc' },
     });
 
-    return events.map(event => ({
+    return events.map((event) => ({
       eventId: event.id,
       eventType: event.eventType,
       aggregateId: event.aggregateId,
@@ -109,7 +111,7 @@ export class EventRepository {
       take: limit,
     });
 
-    return events.map(event => ({
+    return events.map((event) => ({
       eventId: event.id,
       eventType: event.eventType,
       aggregateId: event.aggregateId,

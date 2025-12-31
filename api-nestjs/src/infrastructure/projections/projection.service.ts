@@ -23,19 +23,26 @@ export class ProjectionService {
     const handlers = this.projectionHandlers.get(handler.eventType) || [];
     handlers.push(handler);
     this.projectionHandlers.set(handler.eventType, handlers);
-    this.logger.log(`Registered projection handler for event: ${handler.eventType}`);
+    this.logger.log(
+      `Registered projection handler for event: ${handler.eventType}`,
+    );
   }
 
   @OnEvent('**')
   async handleEvent(event: DomainEvent): Promise<void> {
     const handlers = this.projectionHandlers.get(event.eventType) || [];
-    
+
     for (const handler of handlers) {
       try {
         await handler.handle(event);
-        this.logger.debug(`Projection handled: ${handler.constructor.name} for ${event.eventType}`);
+        this.logger.debug(
+          `Projection handled: ${handler.constructor.name} for ${event.eventType}`,
+        );
       } catch (error) {
-        this.logger.error(`Projection handler failed: ${handler.constructor.name}`, error);
+        this.logger.error(
+          `Projection handler failed: ${handler.constructor.name}`,
+          error,
+        );
         // Store failed projection for retry
         await this.storeFailedProjection(event, handler, error);
       }
@@ -47,7 +54,9 @@ export class ProjectionService {
     tenantId: string,
     fromTimestamp?: Date,
   ): Promise<void> {
-    this.logger.log(`Rebuilding projection: ${projectionName} for tenant: ${tenantId}`);
+    this.logger.log(
+      `Rebuilding projection: ${projectionName} for tenant: ${tenantId}`,
+    );
 
     // Get events (filter by timestamp at the DB level, filter by tenant in-app)
     const where: any = {};
@@ -91,14 +100,14 @@ export class ProjectionService {
     // Try cache first
     const cacheKey = `readmodel:${modelType}:${tenantId}:${id}`;
     const cached = await this.redis.get(cacheKey);
-    
+
     if (cached) {
       return JSON.parse(cached);
     }
 
     // Fetch from database based on model type
     let model: any = null;
-    
+
     switch (modelType) {
       case 'ProductReadModel':
         model = await this.prisma.productReadModel.findFirst({
@@ -153,7 +162,10 @@ export class ProjectionService {
     });
   }
 
-  private async clearProjection(projectionName: string, tenantId: string): Promise<void> {
+  private async clearProjection(
+    projectionName: string,
+    tenantId: string,
+  ): Promise<void> {
     // Clear projection data based on projection name
     switch (projectionName) {
       case 'ProductReadModel':

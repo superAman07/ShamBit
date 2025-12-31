@@ -10,7 +10,12 @@ export class WebhookService {
 
   async findAll(query: PaginationQuery) {
     // TODO: Implement webhook retrieval with pagination
-    return { webhooks: [], total: 0, page: query.page || 1, limit: query.limit || 10 };
+    return {
+      webhooks: [],
+      total: 0,
+      page: query.page || 1,
+      limit: query.limit || 10,
+    };
   }
 
   async findById(id: string) {
@@ -50,8 +55,8 @@ export class WebhookService {
         'payment.failed',
         'inventory.low',
         'user.created',
-        'user.updated'
-      ]
+        'user.updated',
+      ],
     };
   }
 }

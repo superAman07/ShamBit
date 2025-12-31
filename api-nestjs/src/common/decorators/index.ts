@@ -24,4 +24,5 @@ export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
 // API version decorator
 export const API_VERSION_KEY = 'apiVersion';
-export const ApiVersion = (version: string) => SetMetadata(API_VERSION_KEY, version);
+export const ApiVersion = (version: string) =>
+  SetMetadata(API_VERSION_KEY, version);

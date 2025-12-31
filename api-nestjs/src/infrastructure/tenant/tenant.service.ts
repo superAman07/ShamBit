@@ -1,7 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import { TenantContext, TenantType, TenantLimits } from '../../common/types/tenant.types';
+import {
+  TenantContext,
+  TenantType,
+  TenantLimits,
+} from '../../common/types/tenant.types';
 
 @Injectable()
 export class TenantService {
@@ -14,7 +22,7 @@ export class TenantService {
 
   async getTenantContext(tenantId: string): Promise<TenantContext> {
     const cacheKey = `tenant:${tenantId}`;
-    
+
     // Try cache first
     const cached = await this.redis.get(cacheKey);
     if (cached) {
@@ -26,9 +34,9 @@ export class TenantService {
       where: { id: tenantId },
       include: {
         tenantFeatures: {
-          include: { feature: true }
-        }
-      }
+          include: { feature: true },
+        },
+      },
     });
 
     if (!tenant) {
@@ -39,46 +47,63 @@ export class TenantService {
       tenantId: tenant.id,
       tenantName: tenant.name,
       tenantType: tenant.type as TenantType,
-      features: tenant.tenantFeatures.map(tf => tf.feature.name),
+      features: tenant.tenantFeatures.map((tf) => tf.feature.name),
       limits: this.getTenantLimits(tenant.type as TenantType),
     };
 
     // Cache the result
-    await this.redis.set(cacheKey, JSON.stringify(context), this.TENANT_CACHE_TTL);
+    await this.redis.set(
+      cacheKey,
+      JSON.stringify(context),
+      this.TENANT_CACHE_TTL,
+    );
 
     return context;
   }
 
-  async validateTenantAccess(tenantId: string, userId: string): Promise<boolean> {
+  async validateTenantAccess(
+    tenantId: string,
+    userId: string,
+  ): Promise<boolean> {
     const userTenant = await this.prisma.userTenant.findFirst({
       where: {
         userId,
         tenantId,
-        status: 'ACTIVE'
-      }
+        status: 'ACTIVE',
+      },
     });
 
     return !!userTenant;
   }
 
-  async checkTenantLimits(tenantId: string, resource: string, currentCount: number): Promise<void> {
+  async checkTenantLimits(
+    tenantId: string,
+    resource: string,
+    currentCount: number,
+  ): Promise<void> {
     const context = await this.getTenantContext(tenantId);
     const limits = context.limits;
 
     switch (resource) {
       case 'users':
         if (currentCount >= limits.maxUsers) {
-          throw new ForbiddenException(`Tenant has reached maximum users limit: ${limits.maxUsers}`);
+          throw new ForbiddenException(
+            `Tenant has reached maximum users limit: ${limits.maxUsers}`,
+          );
         }
         break;
       case 'products':
         if (currentCount >= limits.maxProducts) {
-          throw new ForbiddenException(`Tenant has reached maximum products limit: ${limits.maxProducts}`);
+          throw new ForbiddenException(
+            `Tenant has reached maximum products limit: ${limits.maxProducts}`,
+          );
         }
         break;
       case 'orders':
         if (currentCount >= limits.maxOrders) {
-          throw new ForbiddenException(`Tenant has reached maximum orders limit: ${limits.maxOrders}`);
+          throw new ForbiddenException(
+            `Tenant has reached maximum orders limit: ${limits.maxOrders}`,
+          );
         }
         break;
     }
@@ -97,7 +122,7 @@ export class TenantService {
         maxOrders: 100,
         maxStorage: 100,
         apiRateLimit: 100,
-        features: ['basic_analytics', 'email_support']
+        features: ['basic_analytics', 'email_support'],
       },
       [TenantType.STARTER]: {
         maxUsers: 25,
@@ -105,7 +130,7 @@ export class TenantService {
         maxOrders: 1000,
         maxStorage: 1000,
         apiRateLimit: 500,
-        features: ['basic_analytics', 'email_support', 'custom_branding']
+        features: ['basic_analytics', 'email_support', 'custom_branding'],
       },
       [TenantType.BUSINESS]: {
         maxUsers: 100,
@@ -113,7 +138,13 @@ export class TenantService {
         maxOrders: 10000,
         maxStorage: 10000,
         apiRateLimit: 2000,
-        features: ['advanced_analytics', 'priority_support', 'custom_branding', 'api_access', 'webhooks']
+        features: [
+          'advanced_analytics',
+          'priority_support',
+          'custom_branding',
+          'api_access',
+          'webhooks',
+        ],
       },
       [TenantType.ENTERPRISE]: {
         maxUsers: -1, // unlimited
@@ -121,8 +152,8 @@ export class TenantService {
         maxOrders: -1,
         maxStorage: -1,
         apiRateLimit: 10000,
-        features: ['all']
-      }
+        features: ['all'],
+      },
     };
 
     return limitsMap[tenantType];

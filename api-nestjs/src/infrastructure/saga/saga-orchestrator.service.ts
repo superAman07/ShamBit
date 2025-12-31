@@ -70,7 +70,7 @@ export class SagaOrchestratorService {
     });
 
     // Start execution
-    this.executeSaga(sagaId).catch(error => {
+    this.executeSaga(sagaId).catch((error) => {
       this.logger.error(`Failed to execute saga ${sagaId}:`, error);
     });
 
@@ -96,7 +96,7 @@ export class SagaOrchestratorService {
       tenantId: sagaInstance.tenantId,
       userId: sagaInstance.userId,
       data: sagaInstance.data as Record<string, any>,
-      stepResults: sagaInstance.stepResults as Record<string, any> || {},
+      stepResults: (sagaInstance.stepResults as Record<string, any>) || {},
       correlationId: sagaInstance.correlationId || undefined,
     };
 
@@ -106,11 +106,11 @@ export class SagaOrchestratorService {
       // Execute steps sequentially
       for (let i = sagaInstance.currentStep; i < definition.steps.length; i++) {
         const step = definition.steps[i];
-        
+
         await this.updateCurrentStep(sagaId, i);
-        
+
         const result = await this.executeStep(step, context);
-        
+
         if (!result.success) {
           // Step failed, start compensation
           await this.compensateSaga(sagaId, i, context);
@@ -124,7 +124,7 @@ export class SagaOrchestratorService {
 
       // All steps completed successfully
       await this.updateSagaStatus(sagaId, SagaStatus.COMPLETED);
-      
+
       await this.domainEventService.publishEvent({
         eventType: 'saga.completed',
         aggregateId: sagaId,
@@ -138,11 +138,10 @@ export class SagaOrchestratorService {
           correlationId: context.correlationId,
         },
       });
-
     } catch (error) {
       this.logger.error(`Saga execution failed: ${sagaId}`, error);
       await this.updateSagaStatus(sagaId, SagaStatus.FAILED);
-      
+
       await this.domainEventService.publishEvent({
         eventType: 'saga.failed',
         aggregateId: sagaId,
@@ -159,12 +158,17 @@ export class SagaOrchestratorService {
     }
   }
 
-  private async executeStep(step: SagaStep, context: SagaContext): Promise<SagaStepResult> {
-    this.logger.log(`Executing step: ${step.stepName} for saga: ${context.sagaId}`);
-    
+  private async executeStep(
+    step: SagaStep,
+    context: SagaContext,
+  ): Promise<SagaStepResult> {
+    this.logger.log(
+      `Executing step: ${step.stepName} for saga: ${context.sagaId}`,
+    );
+
     try {
       const result = await step.execute(context);
-      
+
       await this.domainEventService.publishEvent({
         eventType: 'saga.step.completed',
         aggregateId: context.sagaId,
@@ -195,11 +199,12 @@ export class SagaOrchestratorService {
     context: SagaContext,
   ): Promise<void> {
     this.logger.log(`Starting compensation for saga: ${sagaId}`);
-    
+
     await this.updateSagaStatus(sagaId, SagaStatus.COMPENSATING);
 
     const definition = this.sagaDefinitions.get(
-      (await this.prisma.sagaInstance.findUnique({ where: { id: sagaId } }))!.sagaType
+      (await this.prisma.sagaInstance.findUnique({ where: { id: sagaId } }))!
+        .sagaType,
     );
 
     if (!definition) return;
@@ -207,10 +212,10 @@ export class SagaOrchestratorService {
     // Compensate steps in reverse order
     for (let i = failedStepIndex - 1; i >= 0; i--) {
       const step = definition.steps[i];
-      
+
       try {
         await step.compensate(context);
-        
+
         await this.domainEventService.publishEvent({
           eventType: 'saga.step.compensated',
           aggregateId: sagaId,
@@ -224,15 +229,17 @@ export class SagaOrchestratorService {
             correlationId: context.correlationId,
           },
         });
-
       } catch (error) {
-        this.logger.error(`Compensation failed for step: ${step.stepName}`, error);
+        this.logger.error(
+          `Compensation failed for step: ${step.stepName}`,
+          error,
+        );
         // Continue with other compensations
       }
     }
 
     await this.updateSagaStatus(sagaId, SagaStatus.COMPENSATED);
-    
+
     await this.domainEventService.publishEvent({
       eventType: 'saga.compensated',
       aggregateId: sagaId,
@@ -248,7 +255,10 @@ export class SagaOrchestratorService {
     });
   }
 
-  private async updateSagaStatus(sagaId: string, status: SagaStatus): Promise<void> {
+  private async updateSagaStatus(
+    sagaId: string,
+    status: SagaStatus,
+  ): Promise<void> {
     await this.prisma.sagaInstance.update({
       where: { id: sagaId },
       data: { status, updatedAt: new Date() },
@@ -262,7 +272,10 @@ export class SagaOrchestratorService {
     });
   }
 
-  private async updateStepResults(sagaId: string, stepResults: Record<string, any>): Promise<void> {
+  private async updateStepResults(
+    sagaId: string,
+    stepResults: Record<string, any>,
+  ): Promise<void> {
     await this.prisma.sagaInstance.update({
       where: { id: sagaId },
       data: { stepResults, updatedAt: new Date() },

@@ -40,10 +40,12 @@ export class EventService {
   /**
    * Publish and persist a domain event
    */
-  async publishEvent(event: Omit<DomainEvent, 'eventId'>): Promise<DomainEvent> {
-    this.logger.log('EventService.publishEvent', { 
-      eventType: event.eventType, 
-      aggregateId: event.aggregateId 
+  async publishEvent(
+    event: Omit<DomainEvent, 'eventId'>,
+  ): Promise<DomainEvent> {
+    this.logger.log('EventService.publishEvent', {
+      eventType: event.eventType,
+      aggregateId: event.aggregateId,
     });
 
     // Persist event to event store
@@ -70,10 +72,12 @@ export class EventService {
   /**
    * Publish multiple events atomically
    */
-  async publishEvents(events: Omit<DomainEvent, 'eventId'>[]): Promise<DomainEvent[]> {
+  async publishEvents(
+    events: Omit<DomainEvent, 'eventId'>[],
+  ): Promise<DomainEvent[]> {
     this.logger.log('EventService.publishEvents', { count: events.length });
 
-    const eventsWithIds = events.map(event => ({
+    const eventsWithIds = events.map((event) => ({
       ...event,
       eventId: this.generateEventId(),
     }));
@@ -89,7 +93,7 @@ export class EventService {
 
     this.logger.log('Domain events published', {
       count: persistedEvents.length,
-      eventIds: persistedEvents.map(e => e.eventId),
+      eventIds: persistedEvents.map((e) => e.eventId),
     });
 
     return persistedEvents;
@@ -120,7 +124,10 @@ export class EventService {
   /**
    * Get events by type
    */
-  async getEventsByType(eventType: string, limit = 100): Promise<DomainEvent[]> {
+  async getEventsByType(
+    eventType: string,
+    limit = 100,
+  ): Promise<DomainEvent[]> {
     return this.eventRepository.findByType(eventType, limit);
   }
 
@@ -157,7 +164,10 @@ export class EventService {
   /**
    * Subscribe to events with a handler
    */
-  onEvent(eventType: string, handler: (event: DomainEvent) => void | Promise<void>): void {
+  onEvent(
+    eventType: string,
+    handler: (event: DomainEvent) => void | Promise<void>,
+  ): void {
     this.eventEmitter.on(eventType, handler);
   }
 

@@ -52,10 +52,12 @@ export class DomainEventService {
 
     // If tenantId was provided, filter by metadata.tenantId after fetch
     const filtered = tenantId
-      ? events.filter(e => ((e.eventData as any)?.metadata?.tenantId ?? '') === tenantId)
+      ? events.filter(
+          (e) => ((e.eventData as any)?.metadata?.tenantId ?? '') === tenantId,
+        )
       : events;
 
-    return filtered.map(event => ({
+    return filtered.map((event) => ({
       eventId: event.id,
       eventType: event.eventType,
       aggregateId: event.aggregateId,
@@ -63,7 +65,9 @@ export class DomainEventService {
       version: event.version,
       // `eventData` stores both payload and metadata
       data: (event.eventData as any)?.payload ?? (event.eventData as any),
-      metadata: (event.eventData as any)?.metadata ?? ({ tenantId: '', userId: '', timestamp: event.occurredAt } as any),
+      metadata:
+        (event.eventData as any)?.metadata ??
+        ({ tenantId: '', userId: '', timestamp: event.occurredAt } as any),
     }));
   }
 
@@ -73,7 +77,7 @@ export class DomainEventService {
     tenantId: string,
   ): Promise<void> {
     const events = await this.getEvents(aggregateId, fromVersion, tenantId);
-    
+
     for (const event of events) {
       this.eventEmitter.emit(`replay.${event.eventType}`, event);
     }

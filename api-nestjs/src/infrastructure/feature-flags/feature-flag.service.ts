@@ -49,7 +49,7 @@ export class FeatureFlagService {
   // Helper method to transform Prisma result to FeatureFlag interface
   private transformToFeatureFlag(prismaFlag: any): FeatureFlag | null {
     if (!prismaFlag) return null;
-    
+
     return {
       ...prismaFlag,
       description: prismaFlag.description || undefined, // Convert null to undefined
@@ -58,7 +58,9 @@ export class FeatureFlagService {
 
   // Helper method to transform array of Prisma results
   private transformToFeatureFlags(prismaFlags: any[]): FeatureFlag[] {
-    return prismaFlags.map(flag => this.transformToFeatureFlag(flag)).filter(Boolean) as FeatureFlag[];
+    return prismaFlags
+      .map((flag) => this.transformToFeatureFlag(flag))
+      .filter(Boolean) as FeatureFlag[];
   }
 
   async isEnabled(
@@ -70,7 +72,7 @@ export class FeatureFlagService {
     // Try cache first
     const cacheKey = `${this.CACHE_PREFIX}${flagKey}`;
     const cachedFlag = await this.redisService.get(cacheKey);
-    
+
     let flag: FeatureFlag | null;
     if (cachedFlag) {
       flag = JSON.parse(cachedFlag);
@@ -78,7 +80,11 @@ export class FeatureFlagService {
       const prismaFlag = await this.featureFlagRepository.findByKey(flagKey);
       flag = this.transformToFeatureFlag(prismaFlag);
       if (flag) {
-        await this.redisService.set(cacheKey, JSON.stringify(flag), this.CACHE_TTL);
+        await this.redisService.set(
+          cacheKey,
+          JSON.stringify(flag),
+          this.CACHE_TTL,
+        );
       }
     }
 
@@ -93,7 +99,8 @@ export class FeatureFlagService {
     }
 
     // Check environment
-    const currentEnv = context?.environment || process.env.NODE_ENV || 'production';
+    const currentEnv =
+      context?.environment || process.env.NODE_ENV || 'production';
     if (flag.environment !== currentEnv) {
       return false;
     }
@@ -119,7 +126,10 @@ export class FeatureFlagService {
     createDto: CreateFeatureFlagDto,
     createdBy: string,
   ): Promise<FeatureFlag> {
-    this.logger.log('FeatureFlagService.createFlag', { key: createDto.key, createdBy });
+    this.logger.log('FeatureFlagService.createFlag', {
+      key: createDto.key,
+      createdBy,
+    });
 
     const prismaFlag = await this.featureFlagRepository.create({
       ...createDto,
@@ -145,7 +155,7 @@ export class FeatureFlagService {
 
     const prismaFlag = await this.featureFlagRepository.update(id, updateData);
     const flag = this.transformToFeatureFlag(prismaFlag);
-    
+
     // Invalidate cache
     await this.invalidateCache(flag!.key);
 
@@ -183,7 +193,8 @@ export class FeatureFlagService {
   }
 
   async getFlagsByEnvironment(environment: string): Promise<FeatureFlag[]> {
-    const prismaFlags = await this.featureFlagRepository.findByEnvironment(environment);
+    const prismaFlags =
+      await this.featureFlagRepository.findByEnvironment(environment);
     return this.transformToFeatureFlags(prismaFlags);
   }
 
@@ -206,7 +217,7 @@ export class FeatureFlagService {
     });
 
     const flagResults = await Promise.all(promises);
-    
+
     for (const result of flagResults) {
       results[result.key] = result.isEnabled;
     }
@@ -215,10 +226,7 @@ export class FeatureFlagService {
   }
 
   // Gradual rollout helpers
-  async increaseRollout(
-    id: string,
-    percentage: number,
-  ): Promise<FeatureFlag> {
+  async increaseRollout(id: string, percentage: number): Promise<FeatureFlag> {
     this.logger.log('FeatureFlagService.increaseRollout', { id, percentage });
 
     const flag = await this.featureFlagRepository.findById(id);
@@ -227,7 +235,7 @@ export class FeatureFlagService {
     }
 
     const newPercentage = Math.min(100, Math.max(0, percentage));
-    
+
     return this.updateFlag(id, { rolloutPercentage: newPercentage });
   }
 
@@ -244,13 +252,13 @@ export class FeatureFlagService {
     // Simple hash function for consistent rollout
     const str = `${flagKey}:${context?.userId || 'anonymous'}`;
     let hash = 0;
-    
+
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
-    
+
     return Math.abs(hash);
   }
 
@@ -271,7 +279,9 @@ export class FeatureFlagService {
 
     // Role targeting
     if (rules.roles && Array.isArray(rules.roles) && context.userRoles) {
-      const hasRole = rules.roles.some(role => context.userRoles!.includes(role));
+      const hasRole = rules.roles.some((role) =>
+        context.userRoles!.includes(role),
+      );
       if (hasRole) {
         return true;
       }

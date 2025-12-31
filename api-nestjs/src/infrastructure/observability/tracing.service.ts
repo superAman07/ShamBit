@@ -48,7 +48,7 @@ export class TracingService {
   startTrace(operationName: string, tags?: Record<string, any>): TraceContext {
     const traceId = this.generateTraceId();
     const spanId = this.generateSpanId();
-    
+
     const context: TraceContext = {
       traceId,
       spanId,
@@ -75,7 +75,7 @@ export class TracingService {
     tags?: Record<string, any>,
   ): TraceContext {
     const spanId = this.generateSpanId();
-    
+
     const context: TraceContext = {
       traceId: parentContext.traceId,
       spanId,
@@ -192,7 +192,7 @@ export class TracingService {
     parentContext?: TraceContext,
   ): TraceContext {
     const operationName = `db.${operation}`;
-    
+
     const context = parentContext
       ? this.startSpan(operationName, parentContext)
       : this.startTrace(operationName);
@@ -217,7 +217,7 @@ export class TracingService {
     parentContext?: TraceContext,
   ): TraceContext {
     const operationName = `external.${service}.${operation}`;
-    
+
     const context = parentContext
       ? this.startSpan(operationName, parentContext)
       : this.startTrace(operationName);
@@ -241,7 +241,7 @@ export class TracingService {
     parentContext?: TraceContext,
   ): TraceContext {
     const operationName = `${domain}.${operation}`;
-    
+
     const context = parentContext
       ? this.startSpan(operationName, parentContext)
       : this.startTrace(operationName);

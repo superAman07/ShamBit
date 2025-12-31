@@ -60,9 +60,9 @@ export class HealthService {
 
     // Calculate summary
     const summary = {
-      healthy: checks.filter(c => c.status === 'healthy').length,
-      degraded: checks.filter(c => c.status === 'degraded').length,
-      unhealthy: checks.filter(c => c.status === 'unhealthy').length,
+      healthy: checks.filter((c) => c.status === 'healthy').length,
+      degraded: checks.filter((c) => c.status === 'degraded').length,
+      unhealthy: checks.filter((c) => c.status === 'unhealthy').length,
       total: checks.length,
     };
 
@@ -96,15 +96,20 @@ export class HealthService {
   /**
    * Get readiness status (for Kubernetes readiness probe)
    */
-  async getReadinessStatus(): Promise<{ status: 'ready' | 'not_ready'; checks: HealthCheck[] }> {
+  async getReadinessStatus(): Promise<{
+    status: 'ready' | 'not_ready';
+    checks: HealthCheck[];
+  }> {
     // Critical checks that must pass for the service to be ready
     const criticalChecks = await Promise.all([
       this.checkDatabase(),
       this.checkRedis(),
     ]);
 
-    const hasUnhealthyChecks = criticalChecks.some(check => check.status === 'unhealthy');
-    
+    const hasUnhealthyChecks = criticalChecks.some(
+      (check) => check.status === 'unhealthy',
+    );
+
     return {
       status: hasUnhealthyChecks ? 'not_ready' : 'ready',
       checks: criticalChecks,
@@ -114,9 +119,12 @@ export class HealthService {
   /**
    * Get liveness status (for Kubernetes liveness probe)
    */
-  async getLivenessStatus(): Promise<{ status: 'alive' | 'dead'; uptime: number }> {
+  async getLivenessStatus(): Promise<{
+    status: 'alive' | 'dead';
+    uptime: number;
+  }> {
     const uptime = Date.now() - this.startTime;
-    
+
     // Simple liveness check - if the service is responding, it's alive
     return {
       status: 'alive',
@@ -129,13 +137,13 @@ export class HealthService {
    */
   private async checkDatabase(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // Simple query to check database connectivity
       await this.prisma.$queryRaw`SELECT 1`;
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'database',
         status: responseTime < 1000 ? 'healthy' : 'degraded',
@@ -149,9 +157,11 @@ export class HealthService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
-      this.logger.error('Database health check failed', error.stack, { error: error.message });
-      
+
+      this.logger.error('Database health check failed', error.stack, {
+        error: error.message,
+      });
+
       return {
         name: 'database',
         status: 'unhealthy',
@@ -171,23 +181,23 @@ export class HealthService {
    */
   private async checkRedis(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // Simple ping to check Redis connectivity
       const testKey = 'health_check_test';
       const testValue = Date.now().toString();
-      
+
       await this.redis.set(testKey, testValue, 10); // 10 second TTL
       const retrievedValue = await this.redis.get(testKey);
-      
+
       if (retrievedValue !== testValue) {
         throw new Error('Redis read/write test failed');
       }
-      
+
       await this.redis.del(testKey);
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'redis',
         status: responseTime < 500 ? 'healthy' : 'degraded',
@@ -201,9 +211,11 @@ export class HealthService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
-      this.logger.error('Redis health check failed', error.stack, { error: error.message });
-      
+
+      this.logger.error('Redis health check failed', error.stack, {
+        error: error.message,
+      });
+
       return {
         name: 'redis',
         status: 'unhealthy',
@@ -223,16 +235,16 @@ export class HealthService {
    */
   private async checkMemory(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       const memoryUsage = process.memoryUsage();
       const totalMemory = memoryUsage.heapTotal;
       const usedMemory = memoryUsage.heapUsed;
       const memoryUsagePercent = (usedMemory / totalMemory) * 100;
-      
+
       let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
       let message = 'Memory usage is normal';
-      
+
       if (memoryUsagePercent > 90) {
         status = 'unhealthy';
         message = 'Memory usage is critically high';
@@ -240,9 +252,9 @@ export class HealthService {
         status = 'degraded';
         message = 'Memory usage is high';
       }
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'memory',
         status,
@@ -259,7 +271,7 @@ export class HealthService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'memory',
         status: 'unhealthy',
@@ -278,12 +290,12 @@ export class HealthService {
    */
   private async checkDisk(): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // This is a simplified disk check
       // In production, you might want to use a library like 'node-disk-info'
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'disk',
         status: 'healthy',
@@ -296,7 +308,7 @@ export class HealthService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: 'disk',
         status: 'unhealthy',
@@ -319,12 +331,12 @@ export class HealthService {
     timeout = 5000,
   ): Promise<HealthCheck> {
     const startTime = Date.now();
-    
+
     try {
       // This would typically use an HTTP client to check external services
       // For now, we'll simulate a check
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: `external_${name}`,
         status: 'healthy',
@@ -338,7 +350,7 @@ export class HealthService {
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       return {
         name: `external_${name}`,
         status: 'unhealthy',

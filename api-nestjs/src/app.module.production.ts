@@ -14,18 +14,21 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module';
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.NODE_ENV === 'production' ? '.env.production' : '.env',
+      envFilePath:
+        process.env.NODE_ENV === 'production' ? '.env.production' : '.env',
     }),
-    
+
     // Rate limiting
-    ThrottlerModule.forRoot([{
-      ttl: parseInt(process.env.THROTTLE_TTL || '60000'),
-      limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
-    }]),
-    
+    ThrottlerModule.forRoot([
+      {
+        ttl: parseInt(process.env.THROTTLE_TTL || '60000'),
+        limit: parseInt(process.env.THROTTLE_LIMIT || '100'),
+      },
+    ]),
+
     // Infrastructure
     PrismaModule,
-    
+
     // Core modules
     HealthModule,
   ],

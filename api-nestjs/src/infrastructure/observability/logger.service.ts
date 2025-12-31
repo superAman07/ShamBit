@@ -22,7 +22,12 @@ export class LoggerService extends Logger {
     super.verbose(JSON.stringify({ message, context }));
   }
 
-  logBusinessEvent(eventName: string, entityId?: string, entityType?: string, metadata?: any) {
+  logBusinessEvent(
+    eventName: string,
+    entityId?: string,
+    entityType?: string,
+    metadata?: any,
+  ) {
     const payload = {
       event: eventName,
       entityId: entityId ?? null,

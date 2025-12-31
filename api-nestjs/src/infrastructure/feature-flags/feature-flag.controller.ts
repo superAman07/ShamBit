@@ -10,7 +10,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 
 import { FeatureFlagService } from './feature-flag.service';
 import type { CreateFeatureFlagDto } from './feature-flag.service';
@@ -91,9 +96,7 @@ export class FeatureFlagController {
   @Post('bulk-check')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Check multiple feature flags' })
-  async checkMultipleFlags(
-    @Body() body: { keys: string[]; context?: any },
-  ) {
+  async checkMultipleFlags(@Body() body: { keys: string[]; context?: any }) {
     return this.featureFlagService.checkMultipleFlags(body.keys, body.context);
   }
 
