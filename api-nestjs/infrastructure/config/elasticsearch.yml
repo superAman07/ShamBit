@@ -1,0 +1,64 @@
+# Elasticsearch configuration for marketplace search
+
+# Cluster settings
+cluster.name: marketplace-search
+node.name: ${NODE_NAME}
+
+# Network settings
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+
+# Discovery settings
+discovery.seed_hosts: ["es-master", "es-data1", "es-data2"]
+cluster.initial_master_nodes: ["es-master"]
+
+# Memory settings
+bootstrap.memory_lock: true
+
+# Index settings
+action.auto_create_index: true
+action.destructive_requires_name: true
+
+# Search settings
+search.max_buckets: 65536
+indices.query.bool.max_clause_count: 10000
+
+# Performance settings
+thread_pool.search.size: 8
+thread_pool.search.queue_size: 1000
+thread_pool.write.size: 8
+thread_pool.write.queue_size: 1000
+
+# Monitoring
+xpack.monitoring.collection.enabled: true
+xpack.monitoring.collection.interval: 30s
+
+# Security (disabled for development)
+xpack.security.enabled: false
+
+# Index lifecycle management
+xpack.ilm.enabled: true
+
+# Logging
+logger.level: INFO
+logger.org.elasticsearch.discovery: DEBUG
+
+# Circuit breaker settings
+indices.breaker.total.limit: 70%
+indices.breaker.fielddata.limit: 40%
+indices.breaker.request.limit: 40%
+
+# Cache settings
+indices.cache.cleanup_interval: 1m
+indices.fielddata.cache.size: 30%
+indices.queries.cache.size: 10%
+
+# Indexing settings
+index.refresh_interval: 1s
+index.number_of_shards: 5
+index.number_of_replicas: 1
+index.max_result_window: 50000
+
+# Bulk settings
+bulk.udp.enabled: false

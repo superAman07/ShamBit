@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Tenant {
@@ -19,6 +18,20 @@ model Tenant {
   apiKeys        ApiKey[]
   tenantFeatures TenantFeature[]
   userTenants    UserTenant[]
+  
+  // Notification Relations
+  notifications         Notification[]        @relation("NotificationTenant")
+  templates             NotificationTemplate[] @relation("TemplateTenant")
+  layouts               NotificationLayout[]  @relation("LayoutTenant")
+  preferences           NotificationPreference[] @relation("PreferenceTenant")
+  subscriptions         NotificationSubscription[] @relation("SubscriptionTenant")
+  webhookSubscriptions  WebhookSubscription[] @relation("WebhookTenant")
+  batches               NotificationBatch[]   @relation("BatchTenant")
+  rateLimits            NotificationRateLimit[] @relation("RateLimitTenant")
+  rules                 NotificationRule[]    @relation("RuleTenant")
+  providers             NotificationProvider[] @relation("ProviderTenant")
+  auditLogs             NotificationAuditLog[] @relation("AuditTenant")
+  metrics               NotificationMetrics[] @relation("MetricsTenant")
 
   @@map("tenants")
 }
@@ -89,8 +102,6 @@ model User {
   featureFlagsCreated       FeatureFlag[]
   jobsPosted                Job[]
   mediaFiles                MediaFile[]
-  notificationPreferences   NotificationPreference[]
-  notifications             Notification[]
   orders                    Order[]
   reviewHelpful             ReviewHelpful[]
   reviewsModerated          Review[]                 @relation("ReviewModerator")
@@ -104,7 +115,6 @@ model User {
   sellerWallet              SellerWallet?            @relation("SellerWallet")
   settlements               Settlement[]             @relation("SellerSettlement")
   settlementSchedules       SettlementSchedule[]     @relation("SellerSchedule")
-  webhooksCreated           Webhook[]
   
   // Brand domain relations
   brandRequestsAsRequester  BrandRequest[]           @relation("BrandRequestRequester")
@@ -114,6 +124,21 @@ model User {
   brandAccessAsRevoker      BrandAccess[]            @relation("BrandAccessRevoker")
   brandAuditLogs            BrandAuditLog[]          @relation("BrandAuditUser")
   categoryAuditLogs         CategoryAuditLog[]       @relation("CategoryAuditUser")
+  
+  // Notification Relations
+  notifications             Notification[]           @relation("NotificationUser")
+  notificationPreferences   NotificationPreference[]
+  subscriptions             NotificationSubscription[] @relation("SubscriptionUser")
+  webhookSubscriptions      WebhookSubscription[]    @relation("WebhookUser")
+  webhooksCreated           WebhookSubscription[]    @relation("WebhookCreator")
+  templatesCreated          NotificationTemplate[]   @relation("TemplateCreator")
+  templatesUpdated          NotificationTemplate[]   @relation("TemplateUpdater")
+  layoutsCreated            NotificationLayout[]     @relation("LayoutCreator")
+  batchesCreated            NotificationBatch[]      @relation("BatchCreator")
+  rulesCreated              NotificationRule[]       @relation("RuleCreator")
+  providersCreated          NotificationProvider[]   @relation("ProviderCreator")
+  auditLogs                 NotificationAuditLog[]   @relation("AuditUser")
+  metrics                   NotificationMetrics[]    @relation("MetricsUser")
 
   @@map("users")
 }
@@ -1168,51 +1193,955 @@ model AggregatedRating {
   @@map("aggregated_ratings")
 }
 
-model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  type      String
-  channel   String
-  priority  String    @default("MEDIUM")
-  title     String
-  message   String
-  data      Json?     @default("{}")
-  isRead    Boolean   @default(false)
-  sentAt    DateTime?
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ============================================================================
+// NOTIFICATION SYSTEM ENUMS
+// ============================================================================
 
+enum NotificationType {
+  // Order Events
+  ORDER_CONFIRMATION
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  ORDER_RETURNED
+  ORDER_REFUNDED
+  ORDER_DELAYED
+  ORDER_READY_FOR_PICKUP
+
+  // Payment Events
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PAYMENT_PENDING
+  PAYMENT_REFUNDED
+  PAYMENT_DISPUTED
+  PAYMENT_CHARGEBACK
+
+  // Product Events
+  PRODUCT_APPROVED
+  PRODUCT_REJECTED
+  PRODUCT_OUT_OF_STOCK
+  PRODUCT_BACK_IN_STOCK
+  LOW_STOCK_ALERT
+  PRICE_DROP_ALERT
+  WISHLIST_ITEM_AVAILABLE
+
+  // Seller Events
+  SELLER_APPLICATION_APPROVED
+  SELLER_APPLICATION_REJECTED
+  SELLER_PAYOUT_PROCESSED
+  SELLER_PAYOUT_FAILED
+  SELLER_ACCOUNT_SUSPENDED
+  SELLER_PERFORMANCE_ALERT
+
+  // Promotion Events
+  PROMOTION_ACTIVATED
+  PROMOTION_EXPIRED
+  PROMOTION_APPLIED
+  FLASH_SALE_STARTED
+  COUPON_EXPIRING_SOON
+
+  // Review Events
+  REVIEW_RECEIVED
+  REVIEW_APPROVED
+  REVIEW_REJECTED
+  REVIEW_RESPONSE_RECEIVED
+
+  // System Events
+  SYSTEM_MAINTENANCE
+  SECURITY_ALERT
+  ACCOUNT_LOCKED
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+  TWO_FACTOR_ENABLED
+  LOGIN_FROM_NEW_DEVICE
+
+  // Marketing Events
+  MARKETING_CAMPAIGN
+  NEWSLETTER
+  PROMOTIONAL_OFFER
+  ABANDONED_CART_REMINDER
+  WELCOME_SERIES
+
+  // Settlement Events
+  SETTLEMENT_PROCESSED
+  SETTLEMENT_FAILED
+  SETTLEMENT_SCHEDULED
+  SETTLEMENT_DELAYED
+
+  // Inventory Events
+  INVENTORY_ADJUSTMENT
+  BULK_IMPORT_COMPLETED
+  BULK_IMPORT_FAILED
+
+  // Customer Service Events
+  SUPPORT_TICKET_CREATED
+  SUPPORT_TICKET_UPDATED
+  SUPPORT_TICKET_RESOLVED
+
+  // Compliance Events
+  KYC_VERIFICATION_REQUIRED
+  KYC_VERIFICATION_APPROVED
+  KYC_VERIFICATION_REJECTED
+  TAX_DOCUMENT_READY
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+  WEBHOOK
+  WHATSAPP
+  SLACK
+  TEAMS
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  FAILED
+  BOUNCED
+  CANCELLED
+  EXPIRED
+}
+
+enum NotificationCategory {
+  TRANSACTIONAL
+  MARKETING
+  SYSTEM
+  SECURITY
+  OPERATIONAL
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+  OPENED
+  CLICKED
+  UNSUBSCRIBED
+}
+
+enum TemplateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  TESTING
+}
+
+enum PreferenceFrequency {
+  IMMEDIATE
+  HOURLY
+  DAILY
+  WEEKLY
+  NEVER
+}
+
+enum WebhookStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+  FAILED
+}
+
+enum BatchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ============================================================================
+// CORE NOTIFICATION MODELS
+// ============================================================================
+
+model Notification {
+  id                    String                @id @default(cuid())
+  
+  // Basic Information
+  type                  NotificationType
+  category              NotificationCategory  @default(TRANSACTIONAL)
+  priority              NotificationPriority  @default(MEDIUM)
+  status                NotificationStatus    @default(PENDING)
+  
+  // Recipients & Channels
+  recipients            Json                  // Array of NotificationRecipient objects
+  channels              NotificationChannel[]
+  
+  // Content & Context
+  templateId            String?
+  templateVariables     Json                  @default("{}")
+  renderedContent       Json?                 // Cached rendered content per channel
+  
+  // Scheduling & Lifecycle
+  scheduledAt           DateTime?
+  expiresAt             DateTime?
+  processedAt           DateTime?
+  completedAt           DateTime?
+  
+  // Tracking & Metadata
+  correlationId         String?               // For tracing related notifications
+  causationId           String?               // Event that caused this notification
+  idempotencyKey        String?               @unique
+  batchId               String?               // For bulk notifications
+  
+  // Context Information
+  tenantId              String?
+  userId                String?               // Primary recipient user ID
+  source                String                // Service that created the notification
+  metadata              Json                  @default("{}")
+  
+  // Audit Fields
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  version               Int                   @default(1)
+  
+  // Relations
+  user                  User?                 @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  tenant                Tenant?               @relation("NotificationTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  template              NotificationTemplate? @relation(fields: [templateId], references: [id])
+  deliveries            NotificationDelivery[]
+  events                NotificationEvent[]
+  batch                 NotificationBatch?    @relation(fields: [batchId], references: [id])
+  
+  // Indexes for performance
+  @@index([type, status])
+  @@index([userId, status])
+  @@index([tenantId, status])
+  @@index([scheduledAt])
+  @@index([expiresAt])
+  @@index([correlationId])
+  @@index([batchId])
+  @@index([createdAt])
+  
   @@map("notifications")
 }
 
-model NotificationPreference {
-  id     String  @id @default(cuid())
-  userId String
-  type   String
-  email  Boolean @default(true)
-  push   Boolean @default(true)
-  inApp  Boolean @default(true)
-  sms    Boolean @default(false)
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, type])
-  @@map("notification_preferences")
+model NotificationDelivery {
+  id                    String                @id @default(cuid())
+  notificationId        String
+  
+  // Delivery Details
+  channel               NotificationChannel
+  recipient             Json                  // NotificationRecipient object
+  status                DeliveryStatus        @default(PENDING)
+  
+  // Message Information
+  messageId             String?               // External provider message ID
+  subject               String?
+  content               String?
+  htmlContent           String?
+  
+  // Delivery Tracking
+  sentAt                DateTime?
+  deliveredAt           DateTime?
+  openedAt              DateTime?
+  clickedAt             DateTime?
+  bouncedAt             DateTime?
+  unsubscribedAt        DateTime?
+  
+  // Error Handling
+  attempts              Int                   @default(0)
+  maxAttempts           Int                   @default(3)
+  nextRetryAt           DateTime?
+  errorCode             String?
+  errorMessage          String?
+  errorDetails          Json?
+  
+  // Provider Information
+  providerId            String?               // Which provider was used
+  providerMessageId     String?               // Provider's message ID
+  providerResponse      Json?                 // Full provider response
+  
+  // Costs & Analytics
+  cost                  Decimal?              @db.Decimal(10, 4) // Cost in cents
+  currency              String?               @default("USD")
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  notification          Notification          @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  // Indexes
+  @@index([notificationId])
+  @@index([channel, status])
+  @@index([status, nextRetryAt])
+  @@index([sentAt])
+  @@index([deliveredAt])
+  
+  @@map("notification_deliveries")
 }
 
 model NotificationTemplate {
-  id        String   @id @default(cuid())
-  type      String   @unique
-  channel   String
-  subject   String?
-  title     String
-  message   String
-  variables String[] @default([])
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id                    String                @id @default(cuid())
+  
+  // Template Identity
+  name                  String
+  type                  NotificationType
+  channel               NotificationChannel
+  category              NotificationCategory
+  
+  // Localization
+  locale                String                @default("en")
+  
+  // Content
+  subject               String?               // For email/push
+  title                 String?               // For push/in-app
+  content               String                // Main content (supports templating)
+  htmlContent           String?               // HTML version for email
+  
+  // Template Configuration
+  variables             String[]              @default([]) // Required variables
+  defaultVariables      Json                  @default("{}")
+  
+  // Layout & Styling
+  layoutId              String?
+  styles                Json?                 // CSS/styling information
+  
+  // Status & Versioning
+  status                TemplateStatus        @default(DRAFT)
+  version               Int                   @default(1)
+  isDefault             Boolean               @default(false)
+  
+  // Tenant & Permissions
+  tenantId              String?
+  isGlobal              Boolean               @default(false)
+  
+  // A/B Testing
+  testGroup             String?               // For A/B testing
+  testPercentage        Int?                  // Percentage of users to receive this variant
+  
+  // Metadata
+  description           String?
+  tags                  String[]              @default([])
+  metadata              Json                  @default("{}")
+  
+  // Audit
+  createdBy             String
+  updatedBy             String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("TemplateTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("TemplateCreator", fields: [createdBy], references: [id])
+  updater               User?                 @relation("TemplateUpdater", fields: [updatedBy], references: [id])
+  layout                NotificationLayout?   @relation(fields: [layoutId], references: [id])
+  notifications         Notification[]
+  localizations         NotificationTemplateLocalization[]
+  batches               NotificationBatch[]
+  
+  // Constraints
+  @@unique([type, channel, locale, tenantId])
+  @@index([type, channel])
+  @@index([tenantId, status])
+  @@index([status, isDefault])
+  
   @@map("notification_templates")
+}
+
+model NotificationTemplateLocalization {
+  id                    String                @id @default(cuid())
+  templateId            String
+  locale                String
+  
+  // Localized Content
+  subject               String?
+  title                 String?
+  content               String
+  htmlContent           String?
+  
+  // Metadata
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  template              NotificationTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  @@unique([templateId, locale])
+  @@map("notification_template_localizations")
+}
+
+model NotificationLayout {
+  id                    String                @id @default(cuid())
+  
+  // Layout Information
+  name                  String
+  description           String?
+  channel               NotificationChannel
+  
+  // Layout Content
+  headerContent         String?
+  footerContent         String?
+  styles                Json?                 // CSS/styling
+  
+  // Configuration
+  isDefault             Boolean               @default(false)
+  tenantId              String?
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("LayoutTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("LayoutCreator", fields: [createdBy], references: [id])
+  templates             NotificationTemplate[]
+  
+  @@unique([name, channel, tenantId])
+  @@map("notification_layouts")
+}
+
+// ============================================================================
+// USER PREFERENCES & SETTINGS
+// ============================================================================
+
+model NotificationPreference {
+  id                    String                @id @default(cuid())
+  
+  // User & Context
+  userId                String
+  tenantId              String?
+  type                  String                // NotificationType or 'ALL'
+  category              NotificationCategory?
+  
+  // Channel Preferences
+  channels              NotificationChannel[] @default([]) // Enabled channels
+  isEnabled             Boolean               @default(true)
+  
+  // Frequency Control
+  frequency             PreferenceFrequency   @default(IMMEDIATE)
+  batchingEnabled       Boolean               @default(false)
+  maxBatchSize          Int                   @default(10)
+  
+  // Quiet Hours
+  quietHoursEnabled     Boolean               @default(false)
+  quietHoursStart       String?               // HH:mm format
+  quietHoursEnd         String?               // HH:mm format
+  timezone              String                @default("UTC")
+  
+  // Advanced Settings
+  priority              NotificationPriority? // Minimum priority to receive
+  keywords              String[]              @default([]) // Keyword filters
+  excludeKeywords       String[]              @default([]) // Keywords to exclude
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant                Tenant?               @relation("PreferenceTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, type, tenantId])
+  @@index([userId, tenantId])
+  @@index([type, category])
+  
+  @@map("notification_preferences")
+}
+
+model NotificationSubscription {
+  id                    String                @id @default(cuid())
+  
+  // Subscription Details
+  userId                String?
+  email                 String?
+  phone                 String?
+  deviceToken           String?
+  
+  // Subscription Type
+  type                  String                // EMAIL_LIST, SMS_LIST, PUSH_DEVICE
+  status                String                @default("ACTIVE") // ACTIVE, UNSUBSCRIBED, BOUNCED
+  
+  // Subscription Metadata
+  source                String?               // How they subscribed
+  ipAddress             String?
+  userAgent             String?
+  
+  // Consent & Compliance
+  consentGiven          Boolean               @default(false)
+  consentTimestamp      DateTime?
+  consentMethod         String?               // EXPLICIT, IMPLIED, LEGITIMATE_INTEREST
+  
+  // Unsubscribe Information
+  unsubscribedAt        DateTime?
+  unsubscribeReason     String?
+  unsubscribeMethod     String?               // LINK, REPLY, ADMIN
+  
+  // Tenant Context
+  tenantId              String?
+  
+  // Audit
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  user                  User?                 @relation("SubscriptionUser", fields: [userId], references: [id], onDelete: Cascade)
+  tenant                Tenant?               @relation("SubscriptionTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@index([email, type])
+  @@index([phone, type])
+  @@index([deviceToken, type])
+  @@index([userId, type])
+  @@index([status])
+  
+  @@map("notification_subscriptions")
+}
+
+// ============================================================================
+// WEBHOOK SYSTEM
+// ============================================================================
+
+model WebhookSubscription {
+  id                    String                @id @default(cuid())
+  
+  // Subscription Details
+  name                  String
+  url                   String
+  events                NotificationType[]    // Array of NotificationType values
+  
+  // Authentication
+  secret                String?               // HMAC secret
+  headers               Json?                 // Custom headers
+  
+  // Configuration
+  isActive              Boolean               @default(true)
+  timeout               Int                   @default(30) // Seconds
+  
+  // Retry Policy
+  maxRetries            Int                   @default(3)
+  retryBackoff          String                @default("EXPONENTIAL") // LINEAR, EXPONENTIAL
+  retryMultiplier       Float                 @default(2.0)
+  maxRetryDelay         Int                   @default(300) // Seconds
+  
+  // Filtering
+  filters               Json?                 // Event filtering rules
+  
+  // Tenant & User Context
+  tenantId              String?
+  userId                String?
+  
+  // Status & Health
+  status                WebhookStatus         @default(ACTIVE)
+  lastSuccessAt         DateTime?
+  lastFailureAt         DateTime?
+  consecutiveFailures   Int                   @default(0)
+  
+  // Metadata
+  description           String?
+  tags                  String[]              @default([])
+  metadata              Json                  @default("{}")
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("WebhookTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  user                  User?                 @relation("WebhookUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("WebhookCreator", fields: [createdBy], references: [id])
+  deliveries            WebhookDelivery[]
+  
+  @@index([tenantId, status])
+  @@index([userId, status])
+  @@index([status])
+  
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id                    String                @id @default(cuid())
+  subscriptionId        String
+  
+  // Event Information
+  eventType             NotificationType
+  eventId               String?               // Original event ID
+  payload               Json
+  
+  // Delivery Details
+  status                String                @default("PENDING") // PENDING, SUCCESS, FAILED, CANCELLED
+  httpMethod            String                @default("POST")
+  url                   String
+  headers               Json?
+  
+  // Response Information
+  responseStatus        Int?
+  responseHeaders       Json?
+  responseBody          String?
+  responseTime          Int?                  // Milliseconds
+  
+  // Retry Information
+  attempts              Int                   @default(0)
+  nextRetryAt           DateTime?
+  
+  // Error Information
+  errorCode             String?
+  errorMessage          String?
+  errorDetails          Json?
+  
+  // Timestamps
+  scheduledAt           DateTime              @default(now())
+  sentAt                DateTime?
+  completedAt           DateTime?
+  
+  // Relations
+  subscription          WebhookSubscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  
+  @@index([subscriptionId, status])
+  @@index([status, nextRetryAt])
+  @@index([eventType])
+  @@index([scheduledAt])
+  
+  @@map("webhook_deliveries")
+}
+
+// ============================================================================
+// BATCH PROCESSING & CAMPAIGNS
+// ============================================================================
+
+model NotificationBatch {
+  id                    String                @id @default(cuid())
+  
+  // Batch Information
+  name                  String?
+  type                  String                // BULK_NOTIFICATION, CAMPAIGN, SCHEDULED
+  status                BatchStatus           @default(PENDING)
+  
+  // Processing Details
+  totalRecipients       Int                   @default(0)
+  processedRecipients   Int                   @default(0)
+  successfulDeliveries  Int                   @default(0)
+  failedDeliveries      Int                   @default(0)
+  
+  // Template Configuration
+  templateId            String?
+  templateVariables     Json                  @default("{}")
+  channels              NotificationChannel[] @default([])
+  
+  // Configuration
+  batchSize             Int                   @default(1000)
+  delayBetweenBatches   Int                   @default(1000) // Milliseconds
+  
+  // Scheduling
+  scheduledAt           DateTime?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  
+  // Tenant Context
+  tenantId              String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("BatchTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("BatchCreator", fields: [createdBy], references: [id])
+  template              NotificationTemplate? @relation(fields: [templateId], references: [id])
+  notifications         Notification[]
+  
+  @@index([status])
+  @@index([tenantId, status])
+  @@index([scheduledAt])
+  
+  @@map("notification_batches")
+}
+
+// ============================================================================
+// RATE LIMITING & THROTTLING
+// ============================================================================
+
+model NotificationRateLimit {
+  id                    String                @id @default(cuid())
+  
+  // Rate Limit Configuration
+  name                  String
+  channel               NotificationChannel
+  scope                 String                // GLOBAL, TENANT, USER
+  scopeId               String?               // Tenant ID or User ID
+  
+  // Limits
+  maxPerMinute          Int?
+  maxPerHour            Int?
+  maxPerDay             Int?
+  maxPerMonth           Int?
+  burstLimit            Int?                  // Maximum burst size
+  
+  // Current Usage (reset periodically)
+  currentMinute         Int                   @default(0)
+  currentHour           Int                   @default(0)
+  currentDay            Int                   @default(0)
+  currentMonth          Int                   @default(0)
+  
+  // Reset Timestamps
+  lastResetMinute       DateTime              @default(now())
+  lastResetHour         DateTime              @default(now())
+  lastResetDay          DateTime              @default(now())
+  lastResetMonth        DateTime              @default(now())
+  
+  // Status
+  isActive              Boolean               @default(true)
+  
+  // Tenant Context
+  tenantId              String?
+  
+  // Audit
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("RateLimitTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  @@unique([channel, scope, scopeId, tenantId])
+  @@index([channel, scope])
+  @@index([tenantId])
+  
+  @@map("notification_rate_limits")
+}
+
+// ============================================================================
+// ANALYTICS & REPORTING
+// ============================================================================
+
+model NotificationMetrics {
+  id                    String                @id @default(cuid())
+  
+  // Metric Dimensions
+  date                  DateTime              // Date for the metrics
+  hour                  Int?                  // Hour (0-23) for hourly metrics
+  
+  // Grouping Dimensions
+  tenantId              String?
+  userId                String?
+  type                  NotificationType?
+  channel               NotificationChannel?
+  category              NotificationCategory?
+  
+  // Delivery Metrics
+  sent                  Int                   @default(0)
+  delivered             Int                   @default(0)
+  failed                Int                   @default(0)
+  bounced               Int                   @default(0)
+  
+  // Engagement Metrics
+  opened                Int                   @default(0)
+  clicked               Int                   @default(0)
+  unsubscribed          Int                   @default(0)
+  
+  // Performance Metrics
+  avgProcessingTime     Float?                // Average processing time in ms
+  avgDeliveryTime       Float?                // Average delivery time in ms
+  
+  // Cost Metrics
+  totalCost             Decimal?              @db.Decimal(10, 4)
+  currency              String?               @default("USD")
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  createdAt             DateTime              @default(now())
+  
+  // Relations
+  tenant                Tenant?               @relation("MetricsTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  user                  User?                 @relation("MetricsUser", fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([date, hour, tenantId, userId, type, channel, category])
+  @@index([date, tenantId])
+  @@index([date, type])
+  @@index([date, channel])
+  
+  @@map("notification_metrics")
+}
+
+// ============================================================================
+// EVENT TRACKING & AUDIT
+// ============================================================================
+
+model NotificationEvent {
+  id                    String                @id @default(cuid())
+  notificationId        String
+  
+  // Event Details
+  type                  String                // READ, CLICKED, BOUNCED, etc.
+  eventType             String?               // CREATED, QUEUED, SENT, DELIVERED, OPENED, CLICKED, BOUNCED, FAILED (deprecated, use type)
+  channel               NotificationChannel?
+  
+  // Event Data
+  data                  Json?
+  
+  // Context
+  userId                String?
+  ipAddress             String?
+  userAgent             String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  
+  // Timestamp
+  timestamp             DateTime              @default(now())
+  
+  // Relations
+  notification          Notification          @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  @@index([notificationId])
+  @@index([type])
+  @@index([eventType])
+  @@index([userId])
+  @@index([timestamp])
+  
+  @@map("notification_events")
+}
+
+model NotificationAuditLog {
+  id                    String                @id @default(cuid())
+  
+  // Audit Information
+  entityType            String                // NOTIFICATION, TEMPLATE, PREFERENCE, etc.
+  entityId              String
+  action                String                // CREATE, UPDATE, DELETE, SEND, etc.
+  
+  // Changes
+  oldValues             Json?
+  newValues             Json?
+  changes               Json?
+  
+  // Context
+  userId                String?
+  tenantId              String?
+  ipAddress             String?
+  userAgent             String?
+  
+  // Metadata
+  metadata              Json                  @default("{}")
+  timestamp             DateTime              @default(now())
+  
+  // Relations
+  user                  User?                 @relation("AuditUser", fields: [userId], references: [id])
+  tenant                Tenant?               @relation("AuditTenant", fields: [tenantId], references: [id])
+  
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([tenantId])
+  @@index([timestamp])
+  
+  @@map("notification_audit_logs")
+}
+
+// ============================================================================
+// NOTIFICATION RULES & AUTOMATION
+// ============================================================================
+
+model NotificationRule {
+  id                    String                @id @default(cuid())
+  
+  // Rule Information
+  name                  String
+  description           String?
+  isActive              Boolean               @default(true)
+  
+  // Trigger Configuration
+  eventType             String                // Domain event type
+  conditions            Json                  @default("{}") // Conditions to match
+  
+  // Action Configuration
+  notificationType      NotificationType
+  channels              NotificationChannel[]
+  priority              NotificationPriority  @default(MEDIUM)
+  
+  // Template & Content
+  templateOverrides     Json?                 // Template variable overrides
+  
+  // Tenant Context
+  tenantId              String?
+  
+  // Execution Stats
+  executionCount        Int                   @default(0)
+  lastExecutedAt        DateTime?
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("RuleTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("RuleCreator", fields: [createdBy], references: [id])
+  
+  @@index([eventType, isActive])
+  @@index([tenantId, isActive])
+  
+  @@map("notification_rules")
+}
+
+// ============================================================================
+// PROVIDER CONFIGURATION
+// ============================================================================
+
+model NotificationProvider {
+  id                    String                @id @default(cuid())
+  
+  // Provider Information
+  name                  String
+  type                  NotificationChannel
+  provider              String                // SES, SENDGRID, TWILIO, FCM, etc.
+  
+  // Configuration
+  config                Json                  @default("{}")
+  credentials           Json                  @default("{}") // Encrypted
+  
+  // Status & Health
+  isActive              Boolean               @default(true)
+  isDefault             Boolean               @default(false)
+  priority              Int                   @default(0)
+  
+  // Rate Limits
+  rateLimit             Json?                 // Provider-specific rate limits
+  
+  // Health Monitoring
+  lastHealthCheck       DateTime?
+  healthStatus          String?               // HEALTHY, DEGRADED, UNHEALTHY
+  
+  // Tenant Context
+  tenantId              String?
+  
+  // Audit
+  createdBy             String
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  
+  // Relations
+  tenant                Tenant?               @relation("ProviderTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  creator               User                  @relation("ProviderCreator", fields: [createdBy], references: [id])
+  
+  @@unique([name, type, tenantId])
+  @@index([type, isActive])
+  @@index([tenantId, type])
+  
+  @@map("notification_providers")
 }
 
 model Banner {
@@ -1314,42 +2243,6 @@ model FeatureFlag {
   creator           User     @relation(fields: [createdBy], references: [id])
 
   @@map("feature_flags")
-}
-
-model Webhook {
-  id         String            @id @default(cuid())
-  name       String
-  url        String
-  events     String[]
-  secret     String?
-  isActive   Boolean           @default(true)
-  retryCount Int               @default(3)
-  timeout    Int               @default(30000)
-  headers    Json?             @default("{}")
-  createdBy  String
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  deliveries WebhookDelivery[]
-  creator    User              @relation(fields: [createdBy], references: [id])
-
-  @@map("webhooks")
-}
-
-model WebhookDelivery {
-  id           String    @id @default(cuid())
-  webhookId    String
-  eventType    String
-  payload      Json
-  status       String    @default("PENDING")
-  responseCode Int?
-  responseBody String?
-  attempts     Int       @default(0)
-  nextRetryAt  DateTime?
-  deliveredAt  DateTime?
-  createdAt    DateTime  @default(now())
-  webhook      Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
-
-  @@map("webhook_deliveries")
 }
 
 model SearchIndex {

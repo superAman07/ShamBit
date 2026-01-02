@@ -1,0 +1,299 @@
+{
+  "index_templates": [
+    {
+      "name": "marketplace_products_template",
+      "index_patterns": ["marketplace_*_products"],
+      "template": {
+        "settings": {
+          "number_of_shards": 5,
+          "number_of_replicas": 1,
+          "refresh_interval": "1s",
+          "max_result_window": 50000,
+          "max_rescore_window": 10000,
+          "max_inner_result_window": 100,
+          "max_terms_count": 65536,
+          "max_regex_length": 1000,
+          "routing": {
+            "allocation": {
+              "total_shards_per_node": 3
+            }
+          },
+          "analysis": {
+            "analyzer": {
+              "product_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": [
+                  "lowercase",
+                  "stop",
+                  "synonym_filter",
+                  "stemmer",
+                  "edge_ngram_filter"
+                ]
+              },
+              "autocomplete_analyzer": {
+                "type": "custom",
+                "tokenizer": "keyword",
+                "filter": ["lowercase", "edge_ngram_filter"]
+              },
+              "search_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": [
+                  "lowercase",
+                  "stop",
+                  "synonym_filter",
+                  "stemmer"
+                ]
+              }
+            },
+            "filter": {
+              "edge_ngram_filter": {
+                "type": "edge_ngram",
+                "min_gram": 2,
+                "max_gram": 20
+              },
+              "synonym_filter": {
+                "type": "synonym",
+                "synonyms_path": "synonyms.txt"
+              }
+            }
+          },
+          "index": {
+            "codec": "best_compression",
+            "compound_format": true,
+            "max_refresh_listeners": 1000,
+            "max_slices_per_scroll": 1024,
+            "query": {
+              "default_field": ["name", "description", "searchText"]
+            },
+            "search": {
+              "idle": {
+                "after": "30s"
+              }
+            },
+            "translog": {
+              "flush_threshold_size": "512mb",
+              "sync_interval": "5s"
+            },
+            "merge": {
+              "policy": {
+                "max_merge_at_once": 10,
+                "max_merged_segment": "5gb",
+                "segments_per_tier": 10.0,
+                "max_merge_at_once_explicit": 30
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cluster_settings": {
+    "persistent": {
+      "cluster.routing.allocation.disk.threshold_enabled": true,
+      "cluster.routing.allocation.disk.watermark.low": "85%",
+      "cluster.routing.allocation.disk.watermark.high": "90%",
+      "cluster.routing.allocation.disk.watermark.flood_stage": "95%",
+      "cluster.routing.allocation.node_concurrent_recoveries": 2,
+      "cluster.routing.allocation.cluster_concurrent_rebalance": 2,
+      "indices.recovery.max_bytes_per_sec": "100mb",
+      "indices.memory.index_buffer_size": "20%",
+      "indices.memory.min_index_buffer_size": "96mb",
+      "indices.fielddata.cache.size": "30%",
+      "indices.queries.cache.size": "10%",
+      "indices.requests.cache.size": "2%",
+      "search.max_buckets": 65536,
+      "search.allow_expensive_queries": true,
+      "search.max_async_search_response_size": "10mb"
+    }
+  },
+  "index_lifecycle_policies": [
+    {
+      "name": "marketplace_search_policy",
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_size": "10gb",
+                "max_age": "7d",
+                "max_docs": 10000000
+              },
+              "set_priority": {
+                "priority": 100
+              }
+            }
+          },
+          "warm": {
+            "min_age": "7d",
+            "actions": {
+              "set_priority": {
+                "priority": 50
+              },
+              "allocate": {
+                "number_of_replicas": 0
+              },
+              "forcemerge": {
+                "max_num_segments": 1
+              }
+            }
+          },
+          "cold": {
+            "min_age": "30d",
+            "actions": {
+              "set_priority": {
+                "priority": 0
+              },
+              "allocate": {
+                "number_of_replicas": 0
+              }
+            }
+          },
+          "delete": {
+            "min_age": "90d"
+          }
+        }
+      }
+    }
+  ],
+  "component_templates": [
+    {
+      "name": "marketplace_mappings",
+      "template": {
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "id": { "type": "keyword" },
+            "type": { "type": "keyword" },
+            "name": {
+              "type": "text",
+              "analyzer": "product_analyzer",
+              "search_analyzer": "search_analyzer",
+              "fields": {
+                "keyword": { "type": "keyword" },
+                "autocomplete": {
+                  "type": "text",
+                  "analyzer": "autocomplete_analyzer",
+                  "search_analyzer": "search_analyzer"
+                },
+                "raw": { "type": "keyword", "normalizer": "lowercase" }
+              }
+            },
+            "description": {
+              "type": "text",
+              "analyzer": "product_analyzer",
+              "search_analyzer": "search_analyzer"
+            },
+            "slug": { "type": "keyword" },
+            "category": {
+              "properties": {
+                "id": { "type": "keyword" },
+                "name": {
+                  "type": "text",
+                  "analyzer": "product_analyzer",
+                  "fields": { "keyword": { "type": "keyword" } }
+                },
+                "path": { "type": "keyword" },
+                "pathIds": { "type": "keyword" },
+                "level": { "type": "integer" }
+              }
+            },
+            "brand": {
+              "properties": {
+                "id": { "type": "keyword" },
+                "name": {
+                  "type": "text",
+                  "analyzer": "product_analyzer",
+                  "fields": { "keyword": { "type": "keyword" } }
+                },
+                "slug": { "type": "keyword" }
+              }
+            },
+            "seller": {
+              "properties": {
+                "id": { "type": "keyword" },
+                "businessName": {
+                  "type": "text",
+                  "analyzer": "product_analyzer",
+                  "fields": { "keyword": { "type": "keyword" } }
+                },
+                "rating": { "type": "float" },
+                "isVerified": { "type": "boolean" }
+              }
+            },
+            "pricing": {
+              "properties": {
+                "minPrice": { "type": "double" },
+                "maxPrice": { "type": "double" },
+                "currency": { "type": "keyword" },
+                "hasDiscount": { "type": "boolean" },
+                "discountPercentage": { "type": "float" }
+              }
+            },
+            "inventory": {
+              "properties": {
+                "totalQuantity": { "type": "integer" },
+                "isInStock": { "type": "boolean" },
+                "lowStock": { "type": "boolean" }
+              }
+            },
+            "attributes": {
+              "type": "nested",
+              "properties": {
+                "name": { "type": "keyword" },
+                "value": { "type": "keyword" },
+                "type": { "type": "keyword" },
+                "displayValue": { "type": "text" }
+              }
+            },
+            "variants": {
+              "type": "nested",
+              "properties": {
+                "id": { "type": "keyword" },
+                "sku": { "type": "keyword" },
+                "price": { "type": "double" },
+                "inventory": { "type": "integer" },
+                "attributes": {
+                  "type": "nested",
+                  "properties": {
+                    "name": { "type": "keyword" },
+                    "value": { "type": "keyword" }
+                  }
+                }
+              }
+            },
+            "images": { "type": "keyword" },
+            "primaryImage": { "type": "keyword" },
+            "searchText": {
+              "type": "text",
+              "analyzer": "product_analyzer",
+              "search_analyzer": "search_analyzer"
+            },
+            "keywords": { "type": "keyword" },
+            "tags": { "type": "keyword" },
+            "popularity": {
+              "properties": {
+                "viewCount": { "type": "long" },
+                "orderCount": { "type": "long" },
+                "rating": { "type": "float" },
+                "reviewCount": { "type": "integer" },
+                "wishlistCount": { "type": "integer" },
+                "score": { "type": "float" }
+              }
+            },
+            "status": { "type": "keyword" },
+            "isActive": { "type": "boolean" },
+            "isFeatured": { "type": "boolean" },
+            "isPromoted": { "type": "boolean" },
+            "locale": { "type": "keyword" },
+            "createdAt": { "type": "date" },
+            "updatedAt": { "type": "date" },
+            "indexedAt": { "type": "date" },
+            "location": { "type": "geo_point" }
+          }
+        }
+      }
+    }
+  ]
+}

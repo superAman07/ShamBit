@@ -1,0 +1,94 @@
+# Synonyms for search enhancement
+
+# Electronics
+mobile,phone,smartphone,cellphone
+laptop,notebook,computer,pc
+tv,television,smart tv
+tablet,ipad
+headphones,earphones,earbuds
+speaker,bluetooth speaker
+camera,dslr,mirrorless
+smartwatch,fitness tracker,wearable
+
+# Home & Kitchen
+fridge,refrigerator,icebox
+ac,air conditioner,cooling,cooler
+washing machine,washer
+microwave,oven
+mixer,blender,grinder
+vacuum cleaner,hoover
+
+# Fashion
+shirt,t-shirt,tee,top
+jeans,pants,trousers
+shoes,footwear,sneakers
+dress,gown,frock
+jacket,coat,blazer
+bag,handbag,purse,backpack
+
+# Beauty & Personal Care
+shampoo,hair wash
+conditioner,hair conditioner
+moisturizer,lotion,cream
+perfume,fragrance,cologne
+lipstick,lip color
+foundation,base makeup
+
+# Sports & Fitness
+gym,fitness,workout
+yoga,meditation
+cricket,bat,ball
+football,soccer
+basketball,hoops
+tennis,racket
+
+# Books & Media
+book,novel,story
+magazine,journal
+cd,music,album
+dvd,movie,film
+game,video game,gaming
+
+# Automotive
+car,vehicle,automobile
+bike,motorcycle,motorbike
+tire,tyre,wheel
+battery,car battery
+oil,engine oil,motor oil
+
+# Baby & Kids
+baby,infant,newborn
+kids,children,child
+toy,plaything
+diaper,nappy
+stroller,pram,pushchair
+
+# Health & Wellness
+medicine,medication,drug
+vitamin,supplement
+thermometer,fever checker
+bandage,band-aid,plaster
+mask,face mask,surgical mask
+
+# Office & Stationery
+pen,ballpoint,writing
+pencil,lead pencil
+notebook,diary,journal
+printer,printing machine
+calculator,calc
+
+# Grocery & Food
+rice,basmati,grain
+oil,cooking oil,edible oil
+sugar,sweetener
+salt,table salt
+flour,wheat flour,maida
+milk,dairy,liquid milk
+
+# Regional variations (Indian context)
+biscuit,cookie
+petrol,gasoline,fuel
+lift,elevator
+flat,apartment
+torch,flashlight
+rubber,eraser

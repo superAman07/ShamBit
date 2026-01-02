@@ -307,11 +307,11 @@ export class CartPolicies {
     const sellerValue = sellerItems.reduce(
       (sum, item) => sum.add(item.totalPrice),
       itemData.totalPrice ||
-        new (require('@prisma/client/runtime/library').Decimal)(0),
+      new (require('@prisma/client').Decimal)(0),
     );
 
     const SELLER_MAX_VALUE =
-      new (require('@prisma/client/runtime/library').Decimal)(500000); // 5 lakh per seller
+      new (require('@prisma/client').Decimal)(500000); // 5 lakh per seller
     if (sellerValue.gt(SELLER_MAX_VALUE)) {
       throw new BadRequestException(
         `Exceeded maximum order value limit for seller ${sellerId}`,
@@ -377,7 +377,7 @@ export class CartPolicies {
     // 1. Too many high-value items
     const highValueItems = cart.items.filter((item) =>
       item.totalPrice.gt(
-        new (require('@prisma/client/runtime/library').Decimal)(50000),
+        new (require('@prisma/client').Decimal)(50000),
       ),
     );
 

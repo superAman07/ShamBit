@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+
 import { Cart, CartItem } from './entities/cart.entity';
 import {
   PromotionEngineService,
@@ -8,11 +9,11 @@ import {
 } from '../promotions/promotion-engine.service';
 
 export interface CartPricing {
-  subtotal: Decimal;
-  discountAmount: Decimal;
-  taxAmount: Decimal;
-  shippingAmount: Decimal;
-  totalAmount: Decimal;
+  subtotal: Prisma.Decimal;
+  discountAmount: Prisma.Decimal;
+  taxAmount: Prisma.Decimal;
+  shippingAmount: Prisma.Decimal;
+  totalAmount: Prisma.Decimal;
   itemPricings: ItemPricing[];
   promotionDiscounts: DiscountResult;
   currency: string;
@@ -21,37 +22,37 @@ export interface CartPricing {
 
 export interface ItemPricing {
   itemId: string;
-  unitPrice: Decimal;
+  unitPrice: Prisma.Decimal;
   quantity: number;
-  totalPrice: Decimal;
-  discountAmount: Decimal;
-  finalPrice: Decimal;
+  totalPrice: Prisma.Decimal;
+  discountAmount: Prisma.Decimal;
+  finalPrice: Prisma.Decimal;
   priceChanged: boolean;
-  previousUnitPrice?: Decimal;
+  previousUnitPrice?: Prisma.Decimal;
   itemDiscounts: ItemDiscount[];
-  taxAmount: Decimal;
+  taxAmount: Prisma.Decimal;
 }
 
 export interface ItemDiscount {
   promotionId: string;
   promotionName: string;
-  amount: Decimal;
+  amount: Prisma.Decimal;
   type: string;
 }
 
 export interface PricingBreakdown {
-  itemsSubtotal: Decimal;
-  promotionDiscounts: Decimal;
+  itemsSubtotal: Prisma.Decimal;
+  promotionDiscounts: Prisma.Decimal;
   taxBreakdown: TaxBreakdown[];
   shippingBreakdown: ShippingBreakdown[];
-  finalTotal: Decimal;
+  finalTotal: Prisma.Decimal;
 }
 
 export interface TaxBreakdown {
   taxType: string;
-  taxRate: Decimal;
-  taxableAmount: Decimal;
-  taxAmount: Decimal;
+  taxRate: Prisma.Decimal;
+  taxableAmount: Prisma.Decimal;
+  taxAmount: Prisma.Decimal;
   description: string;
 }
 
@@ -59,25 +60,25 @@ export interface ShippingBreakdown {
   sellerId: string;
   sellerName: string;
   shippingMethod: string;
-  shippingCost: Decimal;
+  shippingCost: Prisma.Decimal;
   estimatedDelivery: string;
 }
 
 export interface PriceChangeResult {
   hasChanges: boolean;
   changes: PriceChange[];
-  totalImpact: Decimal;
+  totalImpact: Prisma.Decimal;
   affectedItemsCount: number;
 }
 
 export interface PriceChange {
   itemId: string;
   variantId: string;
-  oldPrice: Decimal;
-  newPrice: Decimal;
+  oldPrice: Prisma.Decimal;
+  newPrice: Prisma.Decimal;
   priceIncrease: boolean;
   percentageChange: number;
-  impact: Decimal; // Total impact on cart (considering quantity)
+  impact: Prisma.Decimal; // Total impact on cart (considering quantity)
 }
 
 @Injectable()
@@ -87,7 +88,15 @@ export class CartPricingService {
   constructor(
     private readonly promotionEngine: PromotionEngineService,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+  ) { }
+
+  // Helper method to convert decimal.js Decimal to Prisma.Decimal
+  private toPrismaDecimal(value: any): Prisma.Decimal {
+    if (value === null || value === undefined) {
+      return new Prisma.Decimal(0);
+    }
+    return new Prisma.Decimal(value.toString());
+  }
 
   /**
    * Calculate complete cart pricing with all components
@@ -115,7 +124,7 @@ export class CartPricingService {
     // 2. Calculate subtotal
     const subtotal = itemPricings.reduce(
       (sum, pricing) => sum.add(pricing.totalPrice),
-      new Decimal(0),
+      new Prisma.Decimal(0),
     );
 
     // 3. Apply promotions
@@ -123,15 +132,15 @@ export class CartPricingService {
       totalDiscount: 0,
       appliedPromotions: [],
     };
-    let totalDiscountAmount = new Decimal(0);
+    let totalDiscountAmount = new Prisma.Decimal(0);
 
     if (opts.includePromotions) {
       promotionDiscounts = await this.promotionEngine.applyPromotions(cart);
-      totalDiscountAmount = new Decimal(promotionDiscounts.totalDiscount);
+      totalDiscountAmount = new Prisma.Decimal(promotionDiscounts.totalDiscount);
     }
 
     // 4. Calculate taxes
-    let taxAmount = new Decimal(0);
+    let taxAmount = new Prisma.Decimal(0);
     let taxBreakdown: TaxBreakdown[] = [];
 
     if (opts.includeTaxes) {
@@ -144,7 +153,7 @@ export class CartPricingService {
     }
 
     // 5. Calculate shipping
-    let shippingAmount = new Decimal(0);
+    let shippingAmount = new Prisma.Decimal(0);
     let shippingBreakdown: ShippingBreakdown[] = [];
 
     if (opts.includeShipping) {
@@ -186,7 +195,7 @@ export class CartPricingService {
     const currentPricing = await this.getCurrentVariantPricing(item.variantId);
 
     // 2. Check for price changes
-    const priceChanged = !currentPricing.sellingPrice.equals(item.unitPrice);
+    const priceChanged = !currentPricing.sellingPrice.equals(this.toPrismaDecimal(item.unitPrice));
 
     // 3. Calculate totals
     const unitPrice = currentPricing.sellingPrice;
@@ -196,7 +205,7 @@ export class CartPricingService {
     const itemDiscounts = await this.getItemDiscounts(item);
     const discountAmount = itemDiscounts.reduce(
       (sum, discount) => sum.add(discount.amount),
-      new Decimal(0),
+      new Prisma.Decimal(0),
     );
 
     // 5. Calculate taxes for this item
@@ -213,7 +222,7 @@ export class CartPricingService {
       discountAmount,
       finalPrice: totalPrice.sub(discountAmount),
       priceChanged,
-      previousUnitPrice: priceChanged ? item.unitPrice : undefined,
+      previousUnitPrice: priceChanged ? this.toPrismaDecimal(item.unitPrice) : undefined,
       itemDiscounts,
       taxAmount,
     };
@@ -224,26 +233,26 @@ export class CartPricingService {
    */
   async handlePriceChanges(cart: Cart): Promise<PriceChangeResult> {
     const changes: PriceChange[] = [];
-    let totalImpact = new Decimal(0);
+    let totalImpact = new Prisma.Decimal(0);
 
     for (const item of cart.items) {
       const currentPricing = await this.getCurrentVariantPricing(
         item.variantId,
       );
 
-      if (!currentPricing.sellingPrice.equals(item.unitPrice)) {
-        const oldTotal = item.unitPrice.mul(item.quantity);
+      if (!currentPricing.sellingPrice.equals(this.toPrismaDecimal(item.unitPrice))) {
+        const oldTotal = this.toPrismaDecimal(item.unitPrice).mul(item.quantity);
         const newTotal = currentPricing.sellingPrice.mul(item.quantity);
         const impact = newTotal.sub(oldTotal);
 
         const change: PriceChange = {
           itemId: item.id,
           variantId: item.variantId,
-          oldPrice: item.unitPrice,
+          oldPrice: this.toPrismaDecimal(item.unitPrice),
           newPrice: currentPricing.sellingPrice,
-          priceIncrease: currentPricing.sellingPrice.gt(item.unitPrice),
+          priceIncrease: currentPricing.sellingPrice.gt(this.toPrismaDecimal(item.unitPrice)),
           percentageChange: this.calculatePercentageChange(
-            item.unitPrice,
+            this.toPrismaDecimal(item.unitPrice),
             currentPricing.sellingPrice,
           ),
           impact,
@@ -319,15 +328,15 @@ export class CartPricingService {
    */
   private async calculateTaxes(
     cart: Cart,
-    taxableAmount: Decimal,
+    taxableAmount: Prisma.Decimal,
   ): Promise<{
-    totalTax: Decimal;
+    totalTax: Prisma.Decimal;
     breakdown: TaxBreakdown[];
   }> {
     // Get user's tax location (shipping address or default)
     const taxLocation = await this.getTaxLocation(cart.userId);
 
-    let totalTax = new Decimal(0);
+    let totalTax = new Prisma.Decimal(0);
     const breakdown: TaxBreakdown[] = [];
 
     // Group items by tax category
@@ -335,8 +344,8 @@ export class CartPricingService {
 
     for (const [taxCategory, items] of taxGroups) {
       const categoryAmount = items.reduce(
-        (sum, item) => sum.add(item.totalPrice),
-        new Decimal(0),
+        (sum, item) => sum.add(new Prisma.Decimal(item.totalPrice.toString())),
+        new Prisma.Decimal(0),
       );
 
       const taxRates = await this.getTaxRates(taxCategory, taxLocation);
@@ -362,13 +371,13 @@ export class CartPricingService {
    * Calculate shipping costs by seller
    */
   private async calculateShipping(cart: Cart): Promise<{
-    totalShipping: Decimal;
+    totalShipping: Prisma.Decimal;
     breakdown: ShippingBreakdown[];
   }> {
     // Group items by seller for shipping calculation
     const sellerGroups = this.groupItemsBySeller(cart.items);
 
-    let totalShipping = new Decimal(0);
+    let totalShipping = new Prisma.Decimal(0);
     const breakdown: ShippingBreakdown[] = [];
 
     const destination = await this.getShippingDestination(cart.userId);
@@ -403,7 +412,7 @@ export class CartPricingService {
       item.appliedPromotions?.map((promo) => ({
         promotionId: promo.promotionId,
         promotionName: promo.promotionName,
-        amount: promo.discountAmount,
+        amount: new Prisma.Decimal(promo.discountAmount.toString()),
         type: promo.discountType,
       })) || []
     );
@@ -414,23 +423,23 @@ export class CartPricingService {
    */
   private async calculateItemTax(
     item: CartItem,
-    taxableAmount: Decimal,
-  ): Promise<Decimal> {
+    taxableAmount: Prisma.Decimal,
+  ): Promise<Prisma.Decimal> {
     const taxCategory = await this.getItemTaxCategory(item.variantId);
     const taxLocation = await this.getTaxLocationFromItem(item);
     const taxRates = await this.getTaxRates(taxCategory, taxLocation);
 
     return taxRates.reduce(
       (total, rate) => total.add(taxableAmount.mul(rate.rate).div(100)),
-      new Decimal(0),
+      new Prisma.Decimal(0),
     );
   }
 
   // Helper methods
 
   private calculatePercentageChange(
-    oldPrice: Decimal,
-    newPrice: Decimal,
+    oldPrice: Prisma.Decimal,
+    newPrice: Prisma.Decimal,
   ): number {
     if (oldPrice.equals(0)) return 0;
 
@@ -471,9 +480,9 @@ export class CartPricingService {
   private async getCurrentVariantPricing(variantId: string): Promise<any> {
     // This would call the pricing service
     return {
-      sellingPrice: new Decimal(100),
-      mrp: new Decimal(120),
-      discount: new Decimal(20),
+      sellingPrice: new Prisma.Decimal(100),
+      mrp: new Prisma.Decimal(120),
+      discount: new Prisma.Decimal(20),
     };
   }
 
@@ -494,7 +503,7 @@ export class CartPricingService {
     return [
       {
         type: 'GST',
-        rate: new Decimal(18),
+        rate: new Prisma.Decimal(18),
         description: 'Goods and Services Tax',
       },
     ];
@@ -512,7 +521,7 @@ export class CartPricingService {
   private async calculateSellerShipping(params: any): Promise<any> {
     // This would call shipping service
     return {
-      cost: new Decimal(50),
+      cost: new Prisma.Decimal(50),
       method: 'Standard Delivery',
       estimatedDelivery: '3-5 days',
       sellerName: 'Seller Name',
@@ -534,7 +543,7 @@ export class CartPricingService {
 
   private async updateItemPrice(
     itemId: string,
-    newPrice: Decimal,
+    newPrice: Prisma.Decimal,
   ): Promise<void> {
     // This would update the cart item price
   }

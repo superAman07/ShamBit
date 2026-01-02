@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { Decimal } from '@prisma/client/runtime/library';
+import Decimal from 'decimal.js';
 import { Cart, CartItem, CartStatus } from './entities/cart.entity';
 import { AddItemRequest } from './cart.service';
 
@@ -112,7 +112,7 @@ export class CartValidators {
   /**
    * Validate monetary values
    */
-  static validateMonetaryValues(value: Decimal, fieldName: string): void {
+  static validateMonetaryValues(value: InstanceType<typeof Decimal>, fieldName: string): void {
     if (value.lt(0)) {
       throw new BadRequestException(`${fieldName} cannot be negative`);
     }
@@ -178,7 +178,7 @@ export class CartValidators {
       );
     }
 
-    const combinedValue = sourceCart.totalAmount.add(targetCart.totalAmount);
+    const combinedValue = (sourceCart.totalAmount as any).add(targetCart.totalAmount);
     if (combinedValue.gt(new Decimal(1000000))) {
       throw new BadRequestException(
         'Merged cart would exceed maximum value limit',
@@ -221,7 +221,7 @@ export class CartValidators {
    * Validate cart item price consistency
    */
   static validatePriceConsistency(item: CartItem): void {
-    const calculatedTotal = item.currentUnitPrice.mul(item.quantity);
+    const calculatedTotal = (item.currentUnitPrice as any).mul(item.quantity);
 
     if (!calculatedTotal.equals(item.totalPrice)) {
       throw new BadRequestException(

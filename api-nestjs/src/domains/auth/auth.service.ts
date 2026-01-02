@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 import { AuthRepository } from './auth.repository';

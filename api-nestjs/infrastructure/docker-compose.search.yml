@@ -1,0 +1,231 @@
+version: '3.8'
+
+services:
+  # Elasticsearch cluster
+  elasticsearch-master:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: es-master
+    environment:
+      - node.name=es-master
+      - cluster.name=marketplace-search
+      - discovery.seed_hosts=es-data1,es-data2
+      - cluster.initial_master_nodes=es-master
+      - node.roles=master,ingest
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - xpack.security.enabled=false
+      - xpack.monitoring.collection.enabled=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_master_data:/usr/share/elasticsearch/data
+      - ./config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - ./config/synonyms.txt:/usr/share/elasticsearch/config/synonyms.txt:ro
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  elasticsearch-data1:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: es-data1
+    environment:
+      - node.name=es-data1
+      - cluster.name=marketplace-search
+      - discovery.seed_hosts=es-master,es-data2
+      - cluster.initial_master_nodes=es-master
+      - node.roles=data,ingest
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data1:/usr/share/elasticsearch/data
+      - ./config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - ./config/synonyms.txt:/usr/share/elasticsearch/config/synonyms.txt:ro
+    networks:
+      - search-network
+    depends_on:
+      - elasticsearch-master
+
+  elasticsearch-data2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: es-data2
+    environment:
+      - node.name=es-data2
+      - cluster.name=marketplace-search
+      - discovery.seed_hosts=es-master,es-data1
+      - cluster.initial_master_nodes=es-master
+      - node.roles=data,ingest
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - xpack.security.enabled=false
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data2:/usr/share/elasticsearch/data
+      - ./config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - ./config/synonyms.txt:/usr/share/elasticsearch/config/synonyms.txt:ro
+    networks:
+      - search-network
+    depends_on:
+      - elasticsearch-master
+
+  # Redis cluster
+  redis-master:
+    image: redis:7-alpine
+    container_name: redis-master
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_master_data:/data
+      - ./config/redis-master.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis-replica1:
+    image: redis:7-alpine
+    container_name: redis-replica1
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_replica1_data:/data
+      - ./config/redis-replica.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+
+  redis-replica2:
+    image: redis:7-alpine
+    container_name: redis-replica2
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_replica2_data:/data
+      - ./config/redis-replica.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+
+  # Redis Sentinel for high availability
+  redis-sentinel1:
+    image: redis:7-alpine
+    container_name: redis-sentinel1
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./config/sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+      - redis-replica1
+      - redis-replica2
+
+  redis-sentinel2:
+    image: redis:7-alpine
+    container_name: redis-sentinel2
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./config/sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+      - redis-replica1
+      - redis-replica2
+
+  redis-sentinel3:
+    image: redis:7-alpine
+    container_name: redis-sentinel3
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./config/sentinel.conf:/usr/local/etc/redis/sentinel.conf:ro
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+      - redis-replica1
+      - redis-replica2
+
+  # Kibana for Elasticsearch management
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch-master:9200
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "5601:5601"
+    networks:
+      - search-network
+    depends_on:
+      - elasticsearch-master
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    environment:
+      - REDIS_HOSTS=master:redis-master:6379,replica1:redis-replica1:6379,replica2:redis-replica2:6379
+    ports:
+      - "8081:8081"
+    networks:
+      - search-network
+    depends_on:
+      - redis-master
+
+volumes:
+  es_master_data:
+    driver: local
+  es_data1:
+    driver: local
+  es_data2:
+    driver: local
+  redis_master_data:
+    driver: local
+  redis_replica1_data:
+    driver: local
+  redis_replica2_data:
+    driver: local
+
+networks:
+  search-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # Redis for queues and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: notification-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Notification API
+  notification-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Email Configuration
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-Marketplace}
+      - EMAIL_FROM_EMAIL=${EMAIL_FROM_EMAIL:-noreply@marketplace.com}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      # SMS Configuration
+      - SMS_PROVIDER=${SMS_PROVIDER:-twilio}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      # Push Configuration
+      - PUSH_PROVIDER=${PUSH_PROVIDER:-fcm}
+      - FCM_PROJECT_ID=${FCM_PROJECT_ID}
+      - FCM_PRIVATE_KEY=${FCM_PRIVATE_KEY}
+      - FCM_CLIENT_EMAIL=${FCM_CLIENT_EMAIL}
+      # Rate Limiting
+      - RATE_LIMIT_ENABLED=true
+      - QUEUE_CONCURRENCY=10
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Queue Worker (separate process for processing notifications)
+  notification-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification-worker
+    command: ["npm", "run", "start:worker"]
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Same environment variables as API
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMS_PROVIDER=${SMS_PROVIDER:-twilio}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER}
+      - PUSH_PROVIDER=${PUSH_PROVIDER:-fcm}
+      - FCM_PROJECT_ID=${FCM_PROJECT_ID}
+      - FCM_PRIVATE_KEY=${FCM_PRIVATE_KEY}
+      - FCM_CLIENT_EMAIL=${FCM_CLIENT_EMAIL}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: notification-network

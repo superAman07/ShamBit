@@ -1,321 +1,596 @@
-import { Injectable } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-
-import { NotificationRepository } from './notification.repository.js';
-import { EmailService } from './email.service.js';
-import { PushNotificationService } from './push-notification.service.js';
-import { NotificationTemplateService } from './notification-template.service.js';
-import { NotificationPreferenceService } from './notification-preference.service.js';
-import { LoggerService } from '../../infrastructure/observability/logger.service.js';
-
-export enum NotificationType {
-  ORDER_CONFIRMATION = 'ORDER_CONFIRMATION',
-  ORDER_SHIPPED = 'ORDER_SHIPPED',
-  ORDER_DELIVERED = 'ORDER_DELIVERED',
-  ORDER_CANCELLED = 'ORDER_CANCELLED',
-  PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
-  PAYMENT_FAILED = 'PAYMENT_FAILED',
-  PRODUCT_APPROVED = 'PRODUCT_APPROVED',
-  PRODUCT_REJECTED = 'PRODUCT_REJECTED',
-  LOW_STOCK_ALERT = 'LOW_STOCK_ALERT',
-  SELLER_APPLICATION_APPROVED = 'SELLER_APPLICATION_APPROVED',
-  PROMOTION_ACTIVATED = 'PROMOTION_ACTIVATED',
-  REVIEW_RECEIVED = 'REVIEW_RECEIVED',
-  SYSTEM_MAINTENANCE = 'SYSTEM_MAINTENANCE',
-}
-
-export enum NotificationChannel {
-  IN_APP = 'IN_APP',
-  EMAIL = 'EMAIL',
-  PUSH = 'PUSH',
-  SMS = 'SMS',
-}
-
-export enum NotificationPriority {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  URGENT = 'URGENT',
-}
-
-export interface Notification {
-  id: string;
-  userId: string;
-  type: NotificationType;
-  channel: NotificationChannel;
-  priority: NotificationPriority;
-  title: string;
-  message: string;
-  data?: Record<string, any>;
-  isRead: boolean;
-  sentAt?: Date;
-  readAt?: Date;
-  createdAt: Date;
-}
-
-export interface SendNotificationDto {
-  userId: string;
-  type: NotificationType;
-  channels: NotificationChannel[];
-  priority?: NotificationPriority;
-  data?: Record<string, any>;
-  templateVariables?: Record<string, any>;
-}
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { 
+  NotificationType, 
+  NotificationChannel, 
+  NotificationPriority,
+  NotificationStatus,
+  NotificationCategory,
+  NotificationPayload,
+  NotificationDeliveryResult,
+  NotificationContext,
+  NotificationRecipient
+} from './types/notification.types';
+import { NotificationRepository } from './repositories/notification.repository';
+import { NotificationTemplateService } from './services/notification-template.service';
+import { NotificationPreferenceService } from './services/notification-preference.service';
+import { NotificationChannelService } from './services/notification-channel.service';
+import { NotificationQueueService } from './services/notification-queue.service';
+import { NotificationRateLimitService } from './services/notification-rate-limit.service';
+import { NotificationDeduplicationService } from './services/notification-deduplication.service';
+import { NotificationMetricsService } from './services/notification-metrics.service';
+import { WebhookService } from './services/webhook.service';
+import { LoggerService } from '../../infrastructure/observability/logger.service';
+import type { DomainEvent } from '../../infrastructure/events/event.service';
 
 @Injectable()
-export class NotificationService {
+export class NotificationService implements OnModuleInit {
   constructor(
     private readonly notificationRepository: NotificationRepository,
-    private readonly emailService: EmailService,
-    private readonly pushNotificationService: PushNotificationService,
     private readonly templateService: NotificationTemplateService,
     private readonly preferenceService: NotificationPreferenceService,
+    private readonly channelService: NotificationChannelService,
+    private readonly queueService: NotificationQueueService,
+    private readonly rateLimitService: NotificationRateLimitService,
+    private readonly deduplicationService: NotificationDeduplicationService,
+    private readonly metricsService: NotificationMetricsService,
+    private readonly webhookService: WebhookService,
+    private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
   ) {}
 
-  async sendNotification(sendDto: SendNotificationDto): Promise<void> {
-    this.logger.log('NotificationService.sendNotification', {
-      userId: sendDto.userId,
-      type: sendDto.type,
-      channels: sendDto.channels,
+  async onModuleInit() {
+    this.logger.log('NotificationService initialized');
+    await this.initializeEventListeners();
+  }
+
+  // ============================================================================
+  // MAIN NOTIFICATION PROCESSING
+  // ============================================================================
+
+  async sendNotification(payload: NotificationPayload): Promise<string> {
+    const notificationId = await this.generateNotificationId();
+    
+    this.logger.log('Processing notification request', {
+      notificationId,
+      type: payload.type,
+      recipientCount: payload.recipients.length,
+      channels: payload.channels,
     });
 
-    // Check user preferences
-    const preferences = await this.preferenceService.getUserPreferences(
-      sendDto.userId,
-    );
-    const allowedChannels = this.filterChannelsByPreferences(
-      sendDto.channels,
-      preferences,
-      sendDto.type,
-    );
-
-    if (allowedChannels.length === 0) {
-      this.logger.log('No allowed channels for notification', {
-        userId: sendDto.userId,
-        type: sendDto.type,
-      });
-      return;
-    }
-
-    // Get notification template
-    const template = await this.templateService.getTemplate(sendDto.type);
-    if (!template) {
-      this.logger.error('Notification template not found', undefined, {
-        type: sendDto.type,
-      });
-      return;
-    }
-
-    // Render template with variables
-    const { title, message } = this.templateService.renderTemplate(
-      template,
-      sendDto.templateVariables || {},
-    );
-
-    // Send through each allowed channel
-    for (const channel of allowedChannels) {
-      try {
-        await this.sendThroughChannel(
-          channel,
-          sendDto.userId,
-          sendDto.type,
-          title,
-          message,
-          sendDto.data,
-          sendDto.priority || NotificationPriority.MEDIUM,
+    try {
+      // Check for idempotency
+      if (payload.idempotencyKey) {
+        const existing = await this.deduplicationService.checkIdempotency(
+          payload.idempotencyKey
         );
-      } catch (error) {
-        this.logger.error(
-          'Failed to send notification through channel',
-          undefined,
-          {
-            userId: sendDto.userId,
-            channel,
-            error: error.message,
-          },
+        if (existing) {
+          this.logger.log('Duplicate notification request ignored', {
+            notificationId,
+            idempotencyKey: payload.idempotencyKey,
+          });
+          return existing.notificationId;
+        }
+      }
+
+      // Create notification record
+      const notification = await this.notificationRepository.create({
+        id: notificationId,
+        type: payload.type,
+        category: payload.category,
+        priority: payload.priority,
+        status: NotificationStatus.PENDING,
+        recipients: payload.recipients,
+        channels: payload.channels,
+        templateVariables: payload.templateVariables,
+        context: payload.context,
+        scheduledAt: payload.scheduledAt,
+        expiresAt: payload.expiresAt,
+        idempotencyKey: payload.idempotencyKey,
+        createdAt: new Date(),
+      });
+
+      // Store idempotency key if provided
+      if (payload.idempotencyKey) {
+        await this.deduplicationService.storeIdempotency(
+          payload.idempotencyKey,
+          notificationId
         );
       }
+
+      // Schedule or queue for immediate processing
+      if (payload.scheduledAt && payload.scheduledAt > new Date()) {
+        await this.scheduleNotification(notificationId, payload.scheduledAt);
+      } else {
+        await this.queueNotificationForProcessing(notificationId);
+      }
+
+      this.logger.log('Notification queued successfully', {
+        notificationId,
+        type: payload.type,
+      });
+
+      return notificationId;
+    } catch (error) {
+      this.logger.error('Failed to process notification', error.stack, {
+        notificationId,
+        type: payload.type,
+      });
+      throw error;
     }
   }
 
-  private filterChannelsByPreferences(
-    channels: NotificationChannel[],
-    preferences: any[],
-    type: NotificationType,
-  ): NotificationChannel[] {
-    // If no preferences found, use default channels
-    if (!preferences || preferences.length === 0) {
-      return channels;
-    }
+  async processNotification(notificationId: string): Promise<void> {
+    this.logger.log('Processing notification', { notificationId });
 
-    const typePreference = preferences.find((pref) => pref.type === type);
-    if (!typePreference || !typePreference.isEnabled) {
-      return [];
-    }
+    try {
+      const notification = await this.notificationRepository.findById(notificationId);
+      if (!notification) {
+        throw new Error(`Notification not found: ${notificationId}`);
+      }
 
-    // Return intersection of requested channels and user's preferred channels
-    return channels.filter((channel) =>
-      typePreference.channels.includes(channel),
+      // Check if notification has expired
+      if (notification.expiresAt && notification.expiresAt < new Date()) {
+        await this.notificationRepository.updateStatus(
+          notificationId,
+          NotificationStatus.CANCELLED
+        );
+        return;
+      }
+
+      // Update status to processing
+      await this.notificationRepository.updateStatus(
+        notificationId,
+        NotificationStatus.PROCESSING
+      );
+
+      // Process each recipient and channel combination
+      const deliveryResults: NotificationDeliveryResult[] = [];
+
+      for (const recipient of notification.recipients) {
+        // Get user preferences if userId is available
+        let allowedChannels = notification.channels;
+        if (recipient.userId) {
+          const preferences = await this.preferenceService.getUserPreferences(
+            recipient.userId,
+            notification.type as NotificationType | undefined
+          );
+          allowedChannels = this.filterChannelsByPreferences(
+            notification.channels as NotificationChannel[],
+            preferences
+          );
+        }
+
+        // Process each allowed channel
+        for (const channel of allowedChannels) {
+          try {
+            const result = await this.deliverNotification(
+              notification,
+              recipient,
+              channel as NotificationChannel
+            );
+            deliveryResults.push(result);
+          } catch (error) {
+            this.logger.error('Channel delivery failed', error.stack, {
+              notificationId,
+              channel,
+              recipient: recipient.userId || recipient.email,
+            });
+
+            deliveryResults.push({
+              notificationId,
+              channel: channel as NotificationChannel,
+              recipient,
+              status: NotificationStatus.FAILED,
+              success: false,
+              error: error.message,
+              attempts: 1,
+            });
+          }
+        }
+      }
+
+      // Store delivery results
+      await this.notificationRepository.storeDeliveryResults(
+        notificationId,
+        deliveryResults
+      );
+
+      // Update overall notification status
+      const overallStatus = this.calculateOverallStatus(deliveryResults);
+      await this.notificationRepository.updateStatus(notificationId, overallStatus);
+
+      // Update metrics
+      await this.metricsService.recordDeliveryResults(deliveryResults);
+
+      this.logger.log('Notification processing completed', {
+        notificationId,
+        deliveryResults: deliveryResults.length,
+        status: overallStatus,
+      });
+
+    } catch (error) {
+      this.logger.error('Notification processing failed', error.stack, {
+        notificationId,
+      });
+
+      await this.notificationRepository.updateStatus(
+        notificationId,
+        NotificationStatus.FAILED
+      );
+      throw error;
+    }
+  }
+
+  private async deliverNotification(
+    notification: any,
+    recipient: NotificationRecipient,
+    channel: NotificationChannel
+  ): Promise<NotificationDeliveryResult> {
+    // Check rate limits
+    const rateLimitKey = this.buildRateLimitKey(recipient, channel);
+    const isAllowed = await this.rateLimitService.checkRateLimit(
+      rateLimitKey,
+      channel
     );
-  }
 
-  private async sendThroughChannel(
-    channel: NotificationChannel,
-    userId: string,
-    type: NotificationType,
-    title: string,
-    message: string,
-    data?: Record<string, any>,
-    priority: NotificationPriority = NotificationPriority.MEDIUM,
-  ): Promise<void> {
-    // Create notification record
-    const notification = await this.notificationRepository.create({
-      userId,
-      type,
-      channel,
-      priority,
-      title,
-      message,
-      data,
-    });
-
-    // Send through specific channel
-    switch (channel) {
-      case NotificationChannel.EMAIL:
-        await this.sendEmailNotification(userId, title, message, data);
-        break;
-      case NotificationChannel.PUSH:
-        await this.sendPushNotification(userId, title, message, data);
-        break;
-      case NotificationChannel.IN_APP:
-        // In-app notifications are already stored in database
-        break;
-      case NotificationChannel.SMS:
-        await this.sendSMSNotification(userId, title, message, data);
-        break;
+    if (!isAllowed) {
+      throw new Error(`Rate limit exceeded for ${channel}`);
     }
 
-    // Mark as sent
-    await this.notificationRepository.markAsSent(notification.id);
+    // Get and render template
+    const template = await this.templateService.getTemplate(
+      notification.type,
+      channel,
+      recipient.userId ? await this.getUserLocale(recipient.userId) : 'en'
+    );
+
+    if (!template) {
+      throw new Error(`Template not found for ${notification.type}:${channel}`);
+    }
+
+    const renderedContent = await this.templateService.renderTemplate(
+      template,
+      notification.templateVariables
+    );
+
+    // Deliver through channel
+    const deliveryResult = await this.channelService.deliver(
+      channel,
+      recipient,
+      {
+        subject: renderedContent.subject,
+        title: renderedContent.title,
+        content: renderedContent.content,
+        htmlContent: renderedContent.htmlContent,
+        data: notification.templateVariables,
+        priority: notification.priority,
+      }
+    );
+
+    return {
+      notificationId: notification.id,
+      channel,
+      recipient,
+      status: deliveryResult.success ? NotificationStatus.SENT : NotificationStatus.FAILED,
+      success: deliveryResult.success,
+      messageId: deliveryResult.messageId,
+      error: deliveryResult.error,
+      deliveredAt: deliveryResult.success ? new Date() : undefined,
+      attempts: 1,
+    };
   }
 
-  private async sendEmailNotification(
-    userId: string,
-    title: string,
-    message: string,
-    data?: Record<string, any>,
-  ): Promise<void> {
-    // TODO: Get user email from user service
-    const userEmail = `user-${userId}@example.com`; // Placeholder
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
 
-    await this.emailService.sendEmail({
-      to: userEmail,
-      subject: title,
-      text: message,
-      html: `<p>${message}</p>`,
+  @OnEvent('order.created')
+  async handleOrderCreated(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.ORDER_CONFIRMATION,
+      recipients: [{ userId: event.data.userId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        orderNumber: event.data.orderNumber,
+        customerName: event.data.customerName,
+        totalAmount: event.data.totalAmount,
+        items: event.data.items,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'order-service',
+        metadata: { orderId: event.aggregateId },
+      },
     });
   }
 
-  private async sendPushNotification(
-    userId: string,
-    title: string,
-    message: string,
-    data?: Record<string, any>,
-  ): Promise<void> {
-    await this.pushNotificationService.sendPushNotification({
-      userId,
-      title,
-      body: message,
-      data,
+  @OnEvent('payment.success')
+  async handlePaymentSuccess(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.PAYMENT_SUCCESS,
+      recipients: [{ userId: event.data.userId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.PUSH],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        amount: event.data.amount,
+        orderNumber: event.data.orderNumber,
+        paymentMethod: event.data.paymentMethod,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'payment-service',
+        metadata: { paymentId: event.aggregateId },
+      },
     });
   }
 
-  private async sendSMSNotification(
-    userId: string,
-    title: string,
-    message: string,
-    data?: Record<string, any>,
-  ): Promise<void> {
-    // TODO: Implement SMS service
-    this.logger.log('SMS notification not implemented', { userId, title });
+  @OnEvent('settlement.processed')
+  async handleSettlementProcessed(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.SETTLEMENT_PROCESSED,
+      recipients: [{ userId: event.data.sellerId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        settlementId: event.data.settlementId,
+        amount: event.data.netAmount,
+        period: event.data.period,
+        accountNumber: event.data.accountNumber,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'settlement-service',
+        metadata: { settlementId: event.aggregateId },
+      },
+    });
   }
 
-  async getNotifications(
-    userId: string,
-    limit: number = 50,
-  ): Promise<Notification[]> {
-    return this.notificationRepository.findByUserId(userId, limit);
+  @OnEvent('product.approved')
+  async handleProductApproved(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.PRODUCT_APPROVED,
+      recipients: [{ userId: event.data.sellerId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.MEDIUM,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        productName: event.data.productName,
+        productId: event.data.productId,
+        approvedAt: event.data.approvedAt,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'product-service',
+        metadata: { productId: event.aggregateId },
+      },
+    });
   }
 
-  async markAsRead(notificationId: string, userId?: string): Promise<void> {
-    // TODO: Add user validation if userId is provided
-    await this.notificationRepository.markAsRead(notificationId);
+  @OnEvent('product.rejected')
+  async handleProductRejected(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.PRODUCT_REJECTED,
+      recipients: [{ userId: event.data.sellerId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        productName: event.data.productName,
+        productId: event.data.productId,
+        rejectionReason: event.data.rejectionReason,
+        rejectedAt: event.data.rejectedAt,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'product-service',
+        metadata: { productId: event.aggregateId },
+      },
+    });
   }
 
-  async getUnreadCount(userId: string): Promise<number> {
-    const notifications =
-      await this.notificationRepository.findByUserId(userId);
-    return notifications.filter((n) => !n.isRead).length;
+  @OnEvent('inventory.low_stock')
+  async handleLowStockAlert(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.LOW_STOCK_ALERT,
+      recipients: [{ userId: event.data.sellerId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.MEDIUM,
+      category: NotificationCategory.OPERATIONAL,
+      templateVariables: {
+        productName: event.data.productName,
+        currentStock: event.data.currentStock,
+        threshold: event.data.threshold,
+        variantSku: event.data.variantSku,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'inventory-service',
+        metadata: { variantId: event.aggregateId },
+      },
+    });
   }
+
+  @OnEvent('seller.application.approved')
+  async handleSellerApplicationApproved(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.SELLER_APPLICATION_APPROVED,
+      recipients: [{ userId: event.data.userId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        businessName: event.data.businessName,
+        approvedAt: event.data.approvedAt,
+        nextSteps: event.data.nextSteps,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'seller-service',
+        metadata: { applicationId: event.aggregateId },
+      },
+    });
+  }
+
+  @OnEvent('seller.payout.processed')
+  async handleSellerPayoutProcessed(event: DomainEvent) {
+    await this.sendNotification({
+      type: NotificationType.SELLER_PAYOUT_PROCESSED,
+      recipients: [{ userId: event.data.sellerId }],
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.HIGH,
+      category: NotificationCategory.TRANSACTIONAL,
+      templateVariables: {
+        payoutAmount: event.data.amount,
+        payoutId: event.data.payoutId,
+        accountNumber: event.data.accountNumber,
+        processedAt: event.data.processedAt,
+      },
+      context: {
+        tenantId: event.metadata.tenantId,
+        userId: event.metadata.userId,
+        correlationId: event.metadata.correlationId,
+        source: 'payout-service',
+        metadata: { payoutId: event.aggregateId },
+      },
+    });
+  }
+
+  // ============================================================================
+  // SCHEDULED TASKS
+  // ============================================================================
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async processScheduledNotifications() {
+    const scheduledNotifications = await this.notificationRepository.findScheduledNotifications();
+    
+    for (const notification of scheduledNotifications) {
+      await this.queueNotificationForProcessing(notification.id);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async retryFailedNotifications() {
+    const failedNotifications = await this.notificationRepository.findFailedNotificationsForRetry();
+    
+    for (const notification of failedNotifications) {
+      await this.queueNotificationForProcessing(notification.id);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpiredNotifications() {
+    const count = await this.notificationRepository.deleteExpiredNotifications();
+    this.logger.log('Cleaned up expired notifications', { count });
+  }
+
+  // ============================================================================
+  // USER NOTIFICATION METHODS
+  // ============================================================================
 
   async getUserNotifications(
     userId: string,
-    query: { limit?: number; isRead?: boolean },
-  ): Promise<Notification[]> {
-    // TODO: Add filtering by isRead status
-    return this.notificationRepository.findByUserId(userId, query.limit || 50);
+    options: {
+      limit?: number;
+      skip?: number;
+      isRead?: boolean;
+      type?: NotificationType;
+    } = {}
+  ): Promise<{ notifications: any[]; total: number }> {
+    // Convert skip to offset for repository
+    const repositoryOptions = {
+      ...options,
+      offset: options.skip,
+    };
+    delete repositoryOptions.skip;
+    
+    return this.notificationRepository.findUserNotifications(userId, repositoryOptions);
   }
 
-  async getNotification(
-    id: string,
-    userId: string,
-  ): Promise<Notification | null> {
-    const notifications =
-      await this.notificationRepository.findByUserId(userId);
-    return notifications.find((n) => n.id === id) || null;
+  async markAsRead(notificationId: string, userId: string): Promise<void> {
+    await this.notificationRepository.markAsRead(notificationId, userId);
   }
 
-  async markAllAsRead(userId: string): Promise<void> {
-    const notifications =
-      await this.notificationRepository.findByUserId(userId);
-    const unreadNotifications = notifications.filter((n) => !n.isRead);
+  async markAllAsRead(userId: string): Promise<number> {
+    return this.notificationRepository.markAllAsRead(userId);
+  }
 
-    for (const notification of unreadNotifications) {
-      await this.notificationRepository.markAsRead(notification.id);
+  async getUnreadCount(userId: string): Promise<number> {
+    return this.notificationRepository.getUnreadCount(userId);
+  }
+
+  async deleteNotification(notificationId: string, userId?: string): Promise<void> {
+    await this.notificationRepository.deleteNotification(notificationId, userId);
+  }
+
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
+
+  private async initializeEventListeners() {
+    // Event listeners are registered via decorators
+    this.logger.log('Event listeners initialized');
+  }
+
+  private filterChannelsByPreferences(
+    requestedChannels: NotificationChannel[],
+    preferences: any
+  ): NotificationChannel[] {
+    if (!preferences || !preferences.isEnabled) {
+      return [];
     }
+    return requestedChannels.filter(channel => preferences.channels.includes(channel));
   }
 
-  async deleteNotification(id: string, userId: string): Promise<void> {
-    // TODO: Add delete method to repository
-    this.logger.log('Delete notification not implemented', { id, userId });
+  private calculateOverallStatus(results: NotificationDeliveryResult[]): NotificationStatus {
+    if (results.length === 0) return NotificationStatus.FAILED;
+    
+    const hasSuccess = results.some(r => r.status === NotificationStatus.SENT);
+    const hasFailure = results.some(r => r.status === NotificationStatus.FAILED);
+    
+    if (hasSuccess && !hasFailure) return NotificationStatus.SENT;
+    if (hasSuccess && hasFailure) return NotificationStatus.SENT; // Partial success
+    return NotificationStatus.FAILED;
   }
 
-  async getPreferences(userId: string): Promise<any> {
-    return this.preferenceService.getUserPreferences(userId);
+  private buildRateLimitKey(recipient: NotificationRecipient, channel: NotificationChannel): string {
+    const identifier = recipient.userId || recipient.email || recipient.phone;
+    return `${channel}:${identifier}`;
   }
 
-  async updatePreferences(
-    userId: string,
-    preferences: Record<string, any>,
-  ): Promise<void> {
-    // TODO: Implement preference updates
-    this.logger.log('Update preferences not implemented', {
-      userId,
-      preferences,
-    });
+  private async getUserLocale(userId: string): Promise<string> {
+    // TODO: Implement user locale retrieval from user service
+    return 'en';
   }
 
-  async sendTestNotification(
-    userId: string,
-    type: string,
-    message: string,
-  ): Promise<void> {
-    // TODO: Implement test notification
-    this.logger.log('Send test notification not implemented', {
-      userId,
-      type,
-      message,
-    });
+  private async generateNotificationId(): Promise<string> {
+    return `notif_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+  }
+
+  private async scheduleNotification(notificationId: string, scheduledAt: Date): Promise<void> {
+    await this.queueService.scheduleNotification(notificationId, scheduledAt);
+  }
+
+  private async queueNotificationForProcessing(notificationId: string): Promise<void> {
+    await this.queueService.addNotification(notificationId);
   }
 }

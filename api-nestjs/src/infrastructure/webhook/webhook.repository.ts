@@ -3,21 +3,37 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class WebhookRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
-  async create(data: any) {
-    return this.prisma.webhook.create({ data });
+  async createSubscription(data: any) {
+    return this.prisma.webhookSubscription.create({ data });
   }
 
-  async findMany(query: any) {
-    return this.prisma.webhook.findMany(query);
+  async findManySubscriptions(query: any) {
+    return this.prisma.webhookSubscription.findMany(query);
   }
 
-  async update(id: string, data: any) {
-    return this.prisma.webhook.update({ where: { id }, data });
+  async updateSubscription(id: string, data: any) {
+    return this.prisma.webhookSubscription.update({ where: { id }, data });
   }
 
-  async delete(id: string) {
-    return this.prisma.webhook.delete({ where: { id } });
+  async deleteSubscription(id: string) {
+    return this.prisma.webhookSubscription.delete({ where: { id } });
+  }
+
+  async createDelivery(data: any) {
+    return this.prisma.webhookDelivery.create({ data });
+  }
+
+  async findManyDeliveries(query: any) {
+    return this.prisma.webhookDelivery.findMany(query);
+  }
+
+  async updateDelivery(id: string, data: any) {
+    return this.prisma.webhookDelivery.update({ where: { id }, data });
+  }
+
+  async deleteDelivery(id: string) {
+    return this.prisma.webhookDelivery.delete({ where: { id } });
   }
 }

@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import Decimal from 'decimal.js';
 import {
   ICartRepository,
   CartFilters,
@@ -13,13 +15,27 @@ import {
   AppliedPromotion,
   CartStatus,
 } from '../entities/cart.entity';
-import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class CartRepository implements ICartRepository {
   private readonly logger = new Logger(CartRepository.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  // Helper methods to convert between decimal.js and Prisma.Decimal
+  private toPrismaDecimal(value: any): Prisma.Decimal {
+    if (value === null || value === undefined) {
+      return new Prisma.Decimal(0);
+    }
+    return new Prisma.Decimal(value.toString());
+  }
+
+  private toPrismaDecimalOptional(value: any): Prisma.Decimal | undefined {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+    return new Prisma.Decimal(value.toString());
+  }
 
   async findById(
     id: string,
@@ -199,11 +215,11 @@ export class CartRepository implements ICartRepository {
           userId: cartData.userId,
           sessionId: cartData.sessionId,
           status: cartData.status || CartStatus.ACTIVE,
-          subtotal: cartData.subtotal || new Decimal(0),
-          discountAmount: cartData.discountAmount || new Decimal(0),
-          taxAmount: cartData.taxAmount || new Decimal(0),
-          shippingAmount: cartData.shippingAmount || new Decimal(0),
-          totalAmount: cartData.totalAmount || new Decimal(0),
+          subtotal: this.toPrismaDecimal(cartData.subtotal),
+          discountAmount: this.toPrismaDecimal(cartData.discountAmount),
+          taxAmount: this.toPrismaDecimal(cartData.taxAmount),
+          shippingAmount: this.toPrismaDecimal(cartData.shippingAmount),
+          totalAmount: this.toPrismaDecimal(cartData.totalAmount),
           appliedPromotions: cartData.appliedPromotions || [],
           availablePromotions: cartData.availablePromotions || [],
           currency: cartData.currency || 'INR',
@@ -254,11 +270,11 @@ export class CartRepository implements ICartRepository {
           userId,
           sessionId,
           status,
-          subtotal,
-          discountAmount,
-          taxAmount,
-          shippingAmount,
-          totalAmount,
+          subtotal: this.toPrismaDecimalOptional(subtotal),
+          discountAmount: this.toPrismaDecimalOptional(discountAmount),
+          taxAmount: this.toPrismaDecimalOptional(taxAmount),
+          shippingAmount: this.toPrismaDecimalOptional(shippingAmount),
+          totalAmount: this.toPrismaDecimalOptional(totalAmount),
           currency,
           locale,
           timezone,
@@ -401,10 +417,10 @@ export class CartRepository implements ICartRepository {
           variantId: itemData.variantId!,
           sellerId: itemData.sellerId!,
           quantity: itemData.quantity!,
-          unitPrice: itemData.unitPrice!,
-          currentUnitPrice: itemData.currentUnitPrice!,
-          totalPrice: itemData.totalPrice!,
-          discountAmount: itemData.discountAmount || new Decimal(0),
+          unitPrice: this.toPrismaDecimal(itemData.unitPrice),
+          currentUnitPrice: this.toPrismaDecimal(itemData.currentUnitPrice),
+          totalPrice: this.toPrismaDecimal(itemData.totalPrice),
+          discountAmount: this.toPrismaDecimal(itemData.discountAmount),
           isAvailable: itemData.isAvailable ?? true,
           addedAt: itemData.addedAt || new Date(),
           lastCheckedAt: itemData.lastCheckedAt || new Date(),
@@ -457,10 +473,10 @@ export class CartRepository implements ICartRepository {
         where: { id: itemId },
         data: {
           quantity,
-          unitPrice,
-          currentUnitPrice,
-          totalPrice,
-          discountAmount,
+          unitPrice: this.toPrismaDecimalOptional(unitPrice),
+          currentUnitPrice: this.toPrismaDecimalOptional(currentUnitPrice),
+          totalPrice: this.toPrismaDecimalOptional(totalPrice),
+          discountAmount: this.toPrismaDecimalOptional(discountAmount),
           isAvailable,
           availabilityReason,
           reservationId,
@@ -547,9 +563,9 @@ export class CartRepository implements ICartRepository {
           cartItemId: promotionData.cartItemId,
           orderId: promotionData.orderId,
           discountType: promotionData.discountType! as any, // Cast to enum type
-          discountValue: promotionData.discountValue!,
-          discountAmount: promotionData.discountAmount!,
-          maxDiscountAmount: promotionData.maxDiscountAmount,
+          discountValue: this.toPrismaDecimal(promotionData.discountValue),
+          discountAmount: this.toPrismaDecimal(promotionData.discountAmount),
+          maxDiscountAmount: this.toPrismaDecimalOptional(promotionData.maxDiscountAmount),
           priority: promotionData.priority || 0,
           eligibilitySnapshot: promotionData.eligibilitySnapshot || {},
           appliedAt: promotionData.appliedAt || new Date(),
@@ -610,13 +626,13 @@ export class CartRepository implements ICartRepository {
 
       // Calculate new totals
       const subtotal = cart.items.reduce(
-        (sum, item) => sum.add(new Decimal(item.totalPrice.toString())),
-        new Decimal(0),
+        (sum, item) => (sum as any).add(new Prisma.Decimal(item.totalPrice.toString())),
+        new Prisma.Decimal(0),
       );
 
       const discountAmount = cart.appliedPromotionDetails.reduce(
-        (sum, promo) => sum.add(new Decimal(promo.discountAmount.toString())),
-        new Decimal(0),
+        (sum, promo) => (sum as any).add(new Prisma.Decimal(promo.discountAmount.toString())),
+        new Prisma.Decimal(0),
       );
 
       // Update cart with new totals
@@ -625,7 +641,7 @@ export class CartRepository implements ICartRepository {
         data: {
           subtotal,
           discountAmount,
-          totalAmount: subtotal
+          totalAmount: (subtotal as any)
             .sub(discountAmount)
             .add(cart.taxAmount)
             .add(cart.shippingAmount),
@@ -775,7 +791,7 @@ export class CartRepository implements ICartRepository {
         where: {
           status: CartStatus.ACTIVE,
           totalAmount: {
-            gte: new Decimal(minValue),
+            gte: this.toPrismaDecimal(minValue),
           },
         },
         include: {

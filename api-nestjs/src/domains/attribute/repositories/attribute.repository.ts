@@ -10,13 +10,14 @@ import {
   BulkUpdateData,
   AttributeUpdateData,
 } from '../interfaces/attribute-repository.interface';
+import { Prisma } from '@prisma/client';
 import { Attribute } from '../entities/attribute.entity';
 import { AttributeStatus } from '../enums/attribute-status.enum';
 import { AttributeDataType } from '../enums/attribute-data-type.enum';
 
 @Injectable()
 export class AttributeRepository implements IAttributeRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll(
     filters: AttributeFilters = {},
@@ -110,16 +111,16 @@ export class AttributeRepository implements IAttributeRepository {
         createdBy: data.createdBy!,
         localizations: data.localizations
           ? {
-              createMany: {
-                data: data.localizations.map((loc) => ({
-                  locale: loc.locale,
-                  name: loc.name,
-                  description: loc.description,
-                  helpText: loc.helpText,
-                  placeholder: loc.placeholder,
-                })),
-              },
-            }
+            createMany: {
+              data: data.localizations.map((loc) => ({
+                locale: loc.locale,
+                name: loc.name,
+                description: loc.description,
+                helpText: loc.helpText,
+                placeholder: loc.placeholder,
+              })),
+            },
+          }
           : undefined,
       },
       include: {
@@ -233,9 +234,9 @@ export class AttributeRepository implements IAttributeRepository {
   }
 
   async bulkUpdate(updates: BulkUpdateData[]): Promise<Attribute[]> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const update of updates) {
-        await tx.attribute.update({
+        await (tx as any).attribute.update({
           where: { id: update.id },
           data: {
             ...update.data,

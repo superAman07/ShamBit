@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
+import { Prisma } from '@prisma/client';
 
 import { Category } from '../entities/category.entity';
 import { CategoryStatus } from '../enums/category-status.enum';
@@ -29,7 +30,7 @@ export class CategoryRepository implements ICategoryRepository {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
-  ) {}
+  ) { }
 
   // Basic CRUD operations
   async findById(
@@ -319,7 +320,7 @@ export class CategoryRepository implements ICategoryRepository {
 
     const category = await this.prisma.$transaction(async (tx) => {
       // Create the category
-      const newCategory = await tx.category.create({
+      const newCategory = await (tx as any).category.create({
         data: categoryData,
         include: {
           parent: true,
@@ -369,7 +370,7 @@ export class CategoryRepository implements ICategoryRepository {
 
     const category = await this.prisma.$transaction(async (tx) => {
       // Update the category
-      const updated = await tx.category.update({
+      const updated = await (tx as any).category.update({
         where: { id },
         data: {
           name: data.name,
@@ -444,7 +445,7 @@ export class CategoryRepository implements ICategoryRepository {
 
     const result = await this.prisma.$transaction(async (tx) => {
       // Update the category itself
-      await tx.category.update({
+      await (tx as any).category.update({
         where: { id: categoryId },
         data: {
           parentId: newParentId,
@@ -454,7 +455,7 @@ export class CategoryRepository implements ICategoryRepository {
       });
 
       // Update all descendants
-      const descendants = await tx.category.findMany({
+      const descendants = await (tx as any).category.findMany({
         where: {
           path: { startsWith: oldPath + '/' },
           isActive: true,
@@ -467,7 +468,7 @@ export class CategoryRepository implements ICategoryRepository {
         const descendantNewDepth =
           newDepth + (descendant.level - category.depth);
 
-        await tx.category.update({
+        await (tx as any).category.update({
           where: { id: descendant.id },
           data: {
             path: descendantNewPath,
@@ -479,7 +480,7 @@ export class CategoryRepository implements ICategoryRepository {
       }
 
       // Update products with new category path
-      const updatedProducts = await tx.product.updateMany({
+      const updatedProducts = await (tx as any).product.updateMany({
         where: {
           categoryId: categoryId,
         },
@@ -533,7 +534,7 @@ export class CategoryRepository implements ICategoryRepository {
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const { id, displayOrder } of childrenOrder) {
-        await tx.category.update({
+        await (tx as any).category.update({
           where: { id },
           data: {
             sortOrder: displayOrder,
@@ -558,7 +559,7 @@ export class CategoryRepository implements ICategoryRepository {
 
     await this.prisma.$transaction(async (tx) => {
       // Soft delete the category
-      await tx.category.update({
+      await (tx as any).category.update({
         where: { id },
         data: {
           isActive: false,
@@ -608,7 +609,7 @@ export class CategoryRepository implements ICategoryRepository {
           categoryData.slug!,
         );
 
-        const category = await tx.category.create({
+        const category = await (tx as any).category.create({
           data: {
             name: categoryData.name!,
             description: categoryData.description || '',
@@ -636,7 +637,7 @@ export class CategoryRepository implements ICategoryRepository {
 
     await this.prisma.$transaction(async (tx) => {
       for (const { id, data } of updates) {
-        const category = await tx.category.update({
+        const category = await (tx as any).category.update({
           where: { id },
           data: {
             name: data.name,
@@ -663,7 +664,7 @@ export class CategoryRepository implements ICategoryRepository {
     reason?: string,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      await tx.category.updateMany({
+      await (tx as any).category.updateMany({
         where: { id: { in: ids } },
         data: {
           isActive: false,
@@ -967,13 +968,13 @@ export class CategoryRepository implements ICategoryRepository {
     categoryId: string,
   ): Promise<void> {
     const [childCount, descendantCount, productCount] = await Promise.all([
-      tx.category.count({
+      (tx as any).category.count({
         where: { parentId: categoryId, isActive: true },
       }),
-      tx.category.count({
+      (tx as any).category.count({
         where: { path: { startsWith: `${categoryId}/` }, isActive: true },
       }),
-      tx.product.count({
+      (tx as any).product.count({
         where: { categoryId, isActive: true },
       }),
     ]);

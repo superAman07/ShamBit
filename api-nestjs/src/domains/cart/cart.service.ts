@@ -3,11 +3,10 @@ import {
   Logger,
   BadRequestException,
   NotFoundException,
-  ForbiddenException,
   Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Decimal } from '@prisma/client/runtime/library';
+import Decimal from 'decimal.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { Cart, CartItem, CartStatus } from './entities/cart.entity';
 import type { ICartRepository } from './interfaces/cart.repository.interface';
@@ -19,7 +18,6 @@ import {
   CartItemRemovedEvent,
   CartItemQuantityUpdatedEvent,
   CartMergedEvent,
-  CartExpiredEvent,
 } from './events/cart.events';
 
 export interface AddItemRequest {
@@ -38,7 +36,7 @@ export interface CartSummary {
   sellerCount: number;
   hasUnavailableItems: boolean;
   hasPriceChanges: boolean;
-  estimatedTotal: Decimal;
+  estimatedTotal: InstanceType<typeof Decimal>;
 }
 
 @Injectable()
@@ -49,7 +47,7 @@ export class CartService {
     @Inject('ICartRepository') private readonly cartRepository: ICartRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   /**
    * Get or create cart for user/session
@@ -189,7 +187,7 @@ export class CartService {
     // Update item
     const updatedItem = await this.cartRepository.updateItem(itemId, {
       quantity: newQuantity,
-      totalPrice: item.currentUnitPrice.mul(newQuantity),
+      totalPrice: (item.currentUnitPrice as any).mul(newQuantity),
       lastCheckedAt: new Date(),
     });
 
@@ -392,7 +390,7 @@ export class CartService {
     sellerId: string,
   ): Promise<CartItem> {
     const unitPrice = variant.pricing.sellingPrice;
-    const totalPrice = unitPrice.mul(quantity);
+    const totalPrice = (unitPrice as any).mul(quantity);
 
     const itemData: Partial<CartItem> = {
       cartId: cart.id,
@@ -475,10 +473,10 @@ export class CartService {
       );
 
       // Check if price changed
-      if (!item.currentUnitPrice.equals(currentPricing.sellingPrice)) {
+      if (!(item.currentUnitPrice as any).equals(currentPricing.sellingPrice)) {
         await this.cartRepository.updateItem(item.id, {
           currentUnitPrice: currentPricing.sellingPrice,
-          totalPrice: currentPricing.sellingPrice.mul(item.quantity),
+          totalPrice: (currentPricing.sellingPrice as any).mul(item.quantity),
           lastCheckedAt: new Date(),
         });
       }

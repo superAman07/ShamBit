@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import Decimal from 'decimal.js';
 
 export enum CartStatus {
   ACTIVE = 'ACTIVE',
@@ -15,11 +15,11 @@ export class Cart {
   status: CartStatus;
 
   // Pricing
-  subtotal: Decimal;
-  discountAmount: Decimal;
-  taxAmount: Decimal;
-  shippingAmount: Decimal;
-  totalAmount: Decimal;
+  subtotal: InstanceType<typeof Decimal>;
+  discountAmount: InstanceType<typeof Decimal>;
+  taxAmount: InstanceType<typeof Decimal>;
+  shippingAmount: InstanceType<typeof Decimal>;
+  totalAmount: InstanceType<typeof Decimal>;
 
   // Promotions
   appliedPromotions: string[];
@@ -166,10 +166,10 @@ export class CartItem {
 
   // Quantity and pricing
   quantity: number;
-  unitPrice: Decimal;
-  currentUnitPrice: Decimal;
-  totalPrice: Decimal;
-  discountAmount: Decimal;
+  unitPrice: InstanceType<typeof Decimal>;
+  currentUnitPrice: InstanceType<typeof Decimal>;
+  totalPrice: InstanceType<typeof Decimal>;
+  discountAmount: InstanceType<typeof Decimal>;
 
   // Availability
   isAvailable: boolean;
@@ -206,10 +206,10 @@ export class CartItem {
    * Get price change percentage
    */
   getPriceChangePercentage(): number {
-    if (this.unitPrice.equals(0)) return 0;
+    if ((this.unitPrice as any).equals(0)) return 0;
 
-    const change = this.currentUnitPrice.sub(this.unitPrice);
-    return change.div(this.unitPrice).mul(100).toNumber();
+    const change = (this.currentUnitPrice as any).sub(this.unitPrice);
+    return (change as any).div(this.unitPrice).mul(100).toNumber();
   }
 
   /**
@@ -228,16 +228,16 @@ export class CartItem {
    */
   updateQuantity(newQuantity: number): void {
     this.quantity = newQuantity;
-    this.totalPrice = this.currentUnitPrice.mul(newQuantity);
+    this.totalPrice = (this.currentUnitPrice as any).mul(newQuantity);
     this.lastCheckedAt = new Date();
   }
 
   /**
    * Update current price and recalculate total
    */
-  updatePrice(newPrice: Decimal): void {
+  updatePrice(newPrice: InstanceType<typeof Decimal>): void {
     this.currentUnitPrice = newPrice;
-    this.totalPrice = newPrice.mul(this.quantity);
+    this.totalPrice = (newPrice as any).mul(this.quantity);
     this.lastCheckedAt = new Date();
   }
 
@@ -262,8 +262,8 @@ export class CartItem {
   /**
    * Get final price after discounts
    */
-  getFinalPrice(): Decimal {
-    return this.totalPrice.sub(this.discountAmount);
+  getFinalPrice(): InstanceType<typeof Decimal> {
+    return (this.totalPrice as any).sub(this.discountAmount);
   }
 }
 
@@ -280,9 +280,9 @@ export class AppliedPromotion {
 
   // Discount details
   discountType: string;
-  discountValue: Decimal;
-  discountAmount: Decimal;
-  maxDiscountAmount?: Decimal;
+  discountValue: InstanceType<typeof Decimal>;
+  discountAmount: InstanceType<typeof Decimal>;
+  maxDiscountAmount?: InstanceType<typeof Decimal>;
 
   // Metadata
   priority: number;
