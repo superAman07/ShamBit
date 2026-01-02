@@ -1,0 +1,357 @@
+name: Performance Testing
+
+on:
+  schedule:
+    # Run performance tests weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      duration:
+        description: 'Test duration in minutes'
+        required: true
+        default: '10'
+      users:
+        description: 'Number of virtual users'
+        required: true
+        default: '100'
+
+env:
+  TEST_ENVIRONMENT: ${{ inputs.environment || 'staging' }}
+  TEST_DURATION: ${{ inputs.duration || '10' }}
+  VIRTUAL_USERS: ${{ inputs.users || '100' }}
+
+jobs:
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Create k6 test script
+        run: |
+          cat > load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+
+          const errorRate = new Rate('errors');
+          const BASE_URL = __ENV.BASE_URL || 'https://api-staging.yourdomain.com';
+
+          export let options = {
+            stages: [
+              { duration: '2m', target: __ENV.VIRTUAL_USERS || 100 }, // Ramp up
+              { duration: `${__ENV.TEST_DURATION || 10}m`, target: __ENV.VIRTUAL_USERS || 100 }, // Stay at load
+              { duration: '2m', target: 0 }, // Ramp down
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500'], // 95% of requests must complete below 500ms
+              http_req_failed: ['rate<0.1'], // Error rate must be below 10%
+              errors: ['rate<0.1'],
+            },
+          };
+
+          export default function() {
+            // Health check
+            let healthResponse = http.get(`${BASE_URL}/api/v1/health`);
+            check(healthResponse, {
+              'health check status is 200': (r) => r.status === 200,
+            }) || errorRate.add(1);
+
+            sleep(1);
+
+            // API endpoints test
+            const endpoints = [
+              '/api/v1/products',
+              '/api/v1/categories',
+              '/api/v1/brands',
+            ];
+
+            endpoints.forEach(endpoint => {
+              let response = http.get(`${BASE_URL}${endpoint}`);
+              check(response, {
+                [`${endpoint} status is 200`]: (r) => r.status === 200,
+                [`${endpoint} response time < 1000ms`]: (r) => r.timings.duration < 1000,
+              }) || errorRate.add(1);
+              
+              sleep(0.5);
+            });
+          }
+          EOF
+
+      - name: Run load test
+        env:
+          BASE_URL: ${{ env.TEST_ENVIRONMENT == 'production' && 'https://api.yourdomain.com' || 'https://api-staging.yourdomain.com' }}
+        run: |
+          k6 run \
+            --env BASE_URL=$BASE_URL \
+            --env VIRTUAL_USERS=${{ env.VIRTUAL_USERS }} \
+            --env TEST_DURATION=${{ env.TEST_DURATION }} \
+            --out json=load-test-results.json \
+            load-test.js
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: load-test-results.json
+
+  stress-test:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    needs: [load-test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Create stress test script
+        run: |
+          cat > stress-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          import { Rate } from 'k6/metrics';
+
+          const errorRate = new Rate('errors');
+          const BASE_URL = __ENV.BASE_URL || 'https://api-staging.yourdomain.com';
+
+          export let options = {
+            stages: [
+              { duration: '1m', target: 50 },   // Ramp up to 50 users
+              { duration: '2m', target: 100 },  // Ramp up to 100 users
+              { duration: '2m', target: 200 },  // Ramp up to 200 users
+              { duration: '2m', target: 300 },  // Ramp up to 300 users (stress)
+              { duration: '1m', target: 0 },    // Ramp down
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<2000'], // Allow higher response times under stress
+              http_req_failed: ['rate<0.2'], // Allow higher error rate under stress
+            },
+          };
+
+          export default function() {
+            let response = http.get(`${BASE_URL}/api/v1/health`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+            }) || errorRate.add(1);
+
+            sleep(Math.random() * 2 + 1); // Random sleep between 1-3 seconds
+          }
+          EOF
+
+      - name: Run stress test
+        env:
+          BASE_URL: ${{ env.TEST_ENVIRONMENT == 'production' && 'https://api.yourdomain.com' || 'https://api-staging.yourdomain.com' }}
+        run: |
+          k6 run \
+            --env BASE_URL=$BASE_URL \
+            --out json=stress-test-results.json \
+            stress-test.js
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: stress-test-results
+          path: stress-test-results.json
+
+  spike-test:
+    name: Spike Testing
+    runs-on: ubuntu-latest
+    needs: [stress-test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Create spike test script
+        run: |
+          cat > spike-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+
+          const BASE_URL = __ENV.BASE_URL || 'https://api-staging.yourdomain.com';
+
+          export let options = {
+            stages: [
+              { duration: '30s', target: 50 },   // Normal load
+              { duration: '30s', target: 500 },  // Sudden spike
+              { duration: '1m', target: 500 },   // Maintain spike
+              { duration: '30s', target: 50 },   // Return to normal
+              { duration: '30s', target: 0 },    // Ramp down
+            ],
+          };
+
+          export default function() {
+            let response = http.get(`${BASE_URL}/api/v1/health`);
+            check(response, {
+              'status is 200': (r) => r.status === 200,
+              'response time < 5000ms': (r) => r.timings.duration < 5000,
+            });
+
+            sleep(1);
+          }
+          EOF
+
+      - name: Run spike test
+        env:
+          BASE_URL: ${{ env.TEST_ENVIRONMENT == 'production' && 'https://api.yourdomain.com' || 'https://api-staging.yourdomain.com' }}
+        run: |
+          k6 run \
+            --env BASE_URL=$BASE_URL \
+            --out json=spike-test-results.json \
+            spike-test.js
+
+      - name: Upload spike test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: spike-test-results
+          path: spike-test-results.json
+
+  generate-report:
+    name: Generate Performance Report
+    runs-on: ubuntu-latest
+    needs: [load-test, stress-test, spike-test]
+    if: always()
+    steps:
+      - name: Download all test results
+        uses: actions/download-artifact@v3
+
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: Generate performance report
+        run: |
+          echo "# Performance Test Report" > performance-report.md
+          echo "Generated on: $(date)" >> performance-report.md
+          echo "Environment: ${{ env.TEST_ENVIRONMENT }}" >> performance-report.md
+          echo "Duration: ${{ env.TEST_DURATION }} minutes" >> performance-report.md
+          echo "Virtual Users: ${{ env.VIRTUAL_USERS }}" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          echo "## Test Results Summary" >> performance-report.md
+          echo "- Load Test: ${{ needs.load-test.result }}" >> performance-report.md
+          echo "- Stress Test: ${{ needs.stress-test.result }}" >> performance-report.md
+          echo "- Spike Test: ${{ needs.spike-test.result }}" >> performance-report.md
+          echo "" >> performance-report.md
+          
+          # Process load test results if available
+          if [ -f "load-test-results/load-test-results.json" ]; then
+            echo "## Load Test Metrics" >> performance-report.md
+            echo '```' >> performance-report.md
+            jq -r '.metrics | to_entries[] | select(.key | contains("http_req")) | "\(.key): \(.value.avg // .value.rate)"' load-test-results/load-test-results.json >> performance-report.md
+            echo '```' >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+          
+          echo "## Recommendations" >> performance-report.md
+          echo "Based on the test results:" >> performance-report.md
+          echo "- Monitor response times during peak load" >> performance-report.md
+          echo "- Consider scaling if error rates exceed thresholds" >> performance-report.md
+          echo "- Review database query performance" >> performance-report.md
+          echo "- Implement caching for frequently accessed endpoints" >> performance-report.md
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: performance-report.md
+
+      - name: Comment on commit (if triggered by push)
+        if: github.event_name == 'push'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('performance-report.md')) {
+              const report = fs.readFileSync('performance-report.md', 'utf8');
+              github.rest.repos.createCommitComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+                body: '## 📊 Performance Test Results\n\n' + report
+              });
+            }
+
+  notify-performance-issues:
+    name: Notify Performance Issues
+    runs-on: ubuntu-latest
+    needs: [load-test, stress-test, spike-test]
+    if: failure()
+    steps:
+      - name: Notify team
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "⚠️ Performance tests failed! Response times or error rates exceeded thresholds."
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
+
+      - name: Create performance issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '📊 Performance Test Failure - ' + new Date().toISOString().split('T')[0],
+              body: `
+                ## Performance Test Alert
+                
+                **Date:** ${new Date().toISOString()}
+                **Environment:** ${{ env.TEST_ENVIRONMENT }}
+                **Virtual Users:** ${{ env.VIRTUAL_USERS }}
+                **Duration:** ${{ env.TEST_DURATION }} minutes
+                
+                ### Failed Tests
+                - Load Test: ${{ needs.load-test.result }}
+                - Stress Test: ${{ needs.stress-test.result }}
+                - Spike Test: ${{ needs.spike-test.result }}
+                
+                ### Action Required
+                - [ ] Review performance test results
+                - [ ] Identify performance bottlenecks
+                - [ ] Optimize slow endpoints
+                - [ ] Consider infrastructure scaling
+                - [ ] Re-run tests after fixes
+                
+                ### Links
+                - [Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+              `,
+              labels: ['performance', 'optimization', 'monitoring'],
+              assignees: ['@devops-team']
+            });

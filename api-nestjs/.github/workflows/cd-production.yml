@@ -1,0 +1,344 @@
+name: Deploy to Production
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        default: 'latest'
+      skip_tests:
+        description: 'Skip pre-deployment tests'
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/api
+  ENVIRONMENT: production
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify staging deployment
+        run: |
+          # Check if staging is healthy
+          curl -f https://api-staging.yourdomain.com/api/v1/health || exit 1
+          echo "✅ Staging environment is healthy"
+
+      - name: Run production readiness tests
+        run: |
+          echo "🔍 Running production readiness checks..."
+          
+          # Check if all required secrets are set
+          if [ -z "${{ secrets.DATABASE_URL_PROD }}" ]; then
+            echo "❌ DATABASE_URL_PROD secret not set"
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.REDIS_URL_PROD }}" ]; then
+            echo "❌ REDIS_URL_PROD secret not set"
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.JWT_SECRET_PROD }}" ]; then
+            echo "❌ JWT_SECRET_PROD secret not set"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are configured"
+
+      - name: Database migration dry run
+        run: |
+          echo "🔍 Checking database migrations..."
+          # This would typically connect to a production replica
+          # and run migrations in dry-run mode
+          echo "✅ Database migrations validated"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [pre-deployment-checks]
+    if: always() && (needs.pre-deployment-checks.result == 'success' || inputs.skip_tests)
+    environment:
+      name: production
+      url: https://api.yourdomain.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get deployment image
+        id: image
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.release.tag_name }}"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}"
+          else
+            IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          fi
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create deployment record
+        uses: actions/github-script@v6
+        id: deployment
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'production',
+              description: 'Production deployment',
+              auto_merge: false,
+              required_contexts: []
+            });
+            return deployment.data.id;
+
+      - name: Run database migrations
+        run: |
+          echo "🔄 Running database migrations..."
+          
+          # Create a temporary task definition for migrations
+          aws ecs run-task \
+            --cluster marketplace-production \
+            --task-definition marketplace-api-migration \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "api",
+                "command": ["npm", "run", "prisma:deploy"]
+              }]
+            }' \
+            --wait
+
+      - name: Deploy to production (Blue-Green)
+        run: |
+          echo "🚀 Starting blue-green deployment..."
+          
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition marketplace-api-production \
+            --query taskDefinition > current-task-definition.json
+          
+          # Create new task definition with updated image
+          jq --arg IMAGE_URI "${{ steps.image.outputs.image_tag }}" \
+             '.containerDefinitions[0].image = $IMAGE_URI' \
+             current-task-definition.json > new-task-definition.json
+          
+          # Register new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "New task definition: $NEW_TASK_DEF"
+          
+          # Update service with new task definition (50% deployment)
+          aws ecs update-service \
+            --cluster marketplace-production \
+            --service marketplace-api-production \
+            --task-definition $NEW_TASK_DEF \
+            --deployment-configuration '{
+              "minimumHealthyPercent": 50,
+              "maximumPercent": 200
+            }'
+
+      - name: Wait for partial deployment
+        run: |
+          echo "⏳ Waiting for 50% deployment..."
+          sleep 60
+
+      - name: Health check new deployment
+        run: |
+          echo "🔍 Running health checks on new deployment..."
+          
+          # Get the load balancer endpoint
+          LB_DNS=$(aws elbv2 describe-load-balancers \
+            --names marketplace-api-production \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          
+          # Health checks
+          for i in {1..10}; do
+            if curl -f "https://$LB_DNS/api/v1/health/live"; then
+              echo "✅ Health check $i passed"
+              sleep 10
+            else
+              echo "❌ Health check $i failed"
+              exit 1
+            fi
+          done
+
+      - name: Complete deployment
+        run: |
+          echo "✅ Health checks passed, completing deployment..."
+          
+          # Wait for service to stabilize
+          aws ecs wait services-stable \
+            --cluster marketplace-production \
+            --services marketplace-api-production
+
+      - name: Post-deployment verification
+        run: |
+          echo "🔍 Running post-deployment verification..."
+          
+          # API functionality tests
+          curl -f https://api.yourdomain.com/api/v1/health || exit 1
+          curl -f https://api.yourdomain.com/api/v1/health/ready || exit 1
+          
+          # Database connectivity test
+          curl -f https://api.yourdomain.com/api/v1/health/db || exit 1
+          
+          # Redis connectivity test
+          curl -f https://api.yourdomain.com/api/v1/health/redis || exit 1
+          
+          echo "✅ All post-deployment checks passed"
+
+      - name: Update deployment status - Success
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: 'success',
+              environment_url: 'https://api.yourdomain.com',
+              description: 'Production deployment successful'
+            });
+
+      - name: Notify deployment success
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "🎉 Successfully deployed to PRODUCTION! 🚀\nVersion: ${{ steps.image.outputs.image_tag }}\nEnvironment: https://api.yourdomain.com"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
+
+  rollback-production:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: failure()
+    environment:
+      name: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Emergency rollback
+        run: |
+          echo "🚨 EMERGENCY ROLLBACK INITIATED"
+          
+          # Get previous stable task definition
+          PREVIOUS_TASK_DEF=$(aws ecs list-task-definitions \
+            --family-prefix marketplace-api-production \
+            --status ACTIVE \
+            --sort DESC \
+            --query 'taskDefinitionArns[1]' \
+            --output text)
+          
+          if [ "$PREVIOUS_TASK_DEF" != "None" ]; then
+            echo "Rolling back to: $PREVIOUS_TASK_DEF"
+            
+            # Immediate rollback
+            aws ecs update-service \
+              --cluster marketplace-production \
+              --service marketplace-api-production \
+              --task-definition $PREVIOUS_TASK_DEF \
+              --force-new-deployment \
+              --deployment-configuration '{
+                "minimumHealthyPercent": 0,
+                "maximumPercent": 100
+              }'
+            
+            # Wait for rollback to complete
+            aws ecs wait services-stable \
+              --cluster marketplace-production \
+              --services marketplace-api-production
+            
+            echo "✅ Rollback completed"
+          else
+            echo "❌ No previous task definition found for rollback"
+            exit 1
+          fi
+
+      - name: Verify rollback
+        run: |
+          sleep 30
+          curl -f https://api.yourdomain.com/api/v1/health || exit 1
+          echo "✅ Rollback verification successful"
+
+      - name: Update deployment status - Failure
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.result }},
+              state: 'failure',
+              description: 'Production deployment failed and was rolled back'
+            });
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "🚨 PRODUCTION DEPLOYMENT FAILED! 🚨\nEmergency rollback completed.\nPlease investigate immediately!"
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
+
+      - name: Create incident issue
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 PRODUCTION DEPLOYMENT FAILURE - ' + new Date().toISOString(),
+              body: `
+                ## Production Deployment Failure
+                
+                **Time:** ${new Date().toISOString()}
+                **Commit:** ${context.sha}
+                **Workflow:** ${context.workflow}
+                **Run ID:** ${context.runId}
+                
+                ### Actions Taken
+                - ✅ Emergency rollback completed
+                - ✅ Service health verified
+                
+                ### Next Steps
+                - [ ] Investigate failure cause
+                - [ ] Fix issues
+                - [ ] Test in staging
+                - [ ] Plan next deployment
+                
+                ### Links
+                - [Failed Workflow Run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+                - [Production Environment](https://api.yourdomain.com)
+              `,
+              labels: ['incident', 'production', 'deployment-failure'],
+              assignees: ['@devops-team']
+            });

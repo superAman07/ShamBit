@@ -1,0 +1,396 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/api
+
+jobs:
+  # ============================================================================
+  # CODE QUALITY & SECURITY CHECKS
+  # ============================================================================
+  lint-and-format:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api-nestjs
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: api-nestjs
+        run: npm run lint
+
+      - name: Check Prettier formatting
+        working-directory: api-nestjs
+        run: npm run format -- --check
+
+      - name: TypeScript type check
+        working-directory: api-nestjs
+        run: npx tsc --noEmit
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Run npm audit
+        working-directory: api-nestjs
+        run: npm audit --audit-level=high
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+          command: test
+        continue-on-error: true
+
+  # ============================================================================
+  # DATABASE & SCHEMA VALIDATION
+  # ============================================================================
+  database-validation:
+    name: Database Schema Validation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api-nestjs
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: api-nestjs
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: api-nestjs
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+        run: npx prisma migrate deploy
+
+      - name: Validate schema
+        working-directory: api-nestjs
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+        run: npx prisma validate
+
+  # ============================================================================
+  # TESTING
+  # ============================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api-nestjs
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: api-nestjs
+        run: npx prisma generate
+
+      - name: Run unit tests
+        working-directory: api-nestjs
+        run: npm run test -- --coverage --watchAll=false
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: api-nestjs/coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api-nestjs
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: api-nestjs
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: api-nestjs
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+        run: npx prisma migrate deploy
+
+      - name: Run integration tests
+        working-directory: api-nestjs
+        env:
+          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret
+          JWT_REFRESH_SECRET: test-refresh-secret
+          NODE_ENV: test
+        run: npm run test:e2e
+
+  # ============================================================================
+  # BUILD & DOCKER
+  # ============================================================================
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, security-audit, database-validation, unit-tests]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: api-nestjs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api-nestjs
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: api-nestjs
+        run: npx prisma generate
+
+      - name: Build application
+        working-directory: api-nestjs
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-files
+          path: |
+            api-nestjs/dist/
+            api-nestjs/node_modules/
+            api-nestjs/package*.json
+            api-nestjs/prisma/
+          retention-days: 1
+
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [build, integration-tests]
+    if: github.event_name == 'push'
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: api-nestjs
+          file: api-nestjs/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+  container-security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.event_name == 'push'
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.docker-build.outputs.image-tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ============================================================================
+  # DEPLOYMENT READINESS CHECK
+  # ============================================================================
+  deployment-readiness:
+    name: Deployment Readiness Check
+    runs-on: ubuntu-latest
+    needs: [docker-build, container-security-scan]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check deployment requirements
+        run: |
+          echo "✅ All tests passed"
+          echo "✅ Security scans completed"
+          echo "✅ Docker image built successfully"
+          echo "✅ Ready for deployment to staging"
+
+      - name: Create deployment artifact
+        run: |
+          echo "IMAGE_TAG=${{ needs.docker-build.outputs.image-tag }}" > deployment.env
+          echo "IMAGE_DIGEST=${{ needs.docker-build.outputs.image-digest }}" >> deployment.env
+          echo "COMMIT_SHA=${{ github.sha }}" >> deployment.env
+          echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> deployment.env
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-info
+          path: deployment.env
+          retention-days: 30
+
+  # ============================================================================
+  # NOTIFICATION
+  # ============================================================================
+  notify-success:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: [deployment-readiness]
+    if: success() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "✅ CI Pipeline completed successfully! Ready for deployment."
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
+
+  notify-failure:
+    name: Notify Failure
+    runs-on: ubuntu-latest
+    needs: [lint-and-format, security-audit, database-validation, unit-tests, integration-tests, build, docker-build]
+    if: failure()
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: "❌ CI Pipeline failed! Please check the logs."
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        if: env.SLACK_WEBHOOK != ''
