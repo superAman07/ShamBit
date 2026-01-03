@@ -1,0 +1,8 @@
+{
+  "json.schemaDownload.enable": false,
+  "json.validate.enable": false,
+  "json.maxItemsComputed": 5000,
+  "json.trace.server": "off",
+  "redhat.telemetry.enabled": false,
+  "extensions.ignoreRecommendations": false
+}

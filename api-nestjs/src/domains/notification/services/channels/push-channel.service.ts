@@ -193,7 +193,19 @@ export class PushChannelService {
 
   private initializeFCM(): void {
     if (!this.config.fcm) {
-      throw new Error('FCM configuration is required');
+      this.logger.warn('FCM configuration is missing');
+      return;
+    }
+
+    // Check if FCM credentials are properly configured (not placeholder values)
+    if (!this.config.fcm.projectId || 
+        !this.config.fcm.privateKey || 
+        !this.config.fcm.clientEmail ||
+        this.config.fcm.projectId.includes('your-firebase') ||
+        this.config.fcm.privateKey.includes('your-firebase') ||
+        this.config.fcm.clientEmail.includes('your-firebase')) {
+      this.logger.warn('FCM credentials not configured - push notifications will be disabled');
+      return;
     }
 
     try {
@@ -218,7 +230,8 @@ export class PushChannelService {
       this.logger.log('FCM initialized');
     } catch (error) {
       this.logger.error('FCM initialization failed', error.stack);
-      throw error;
+      // Don't throw error - just log it and continue without FCM
+      this.logger.warn('Push notifications will be disabled due to FCM initialization failure');
     }
   }
 
@@ -236,7 +249,8 @@ export class PushChannelService {
     request: ChannelDeliveryRequest
   ): Promise<any> {
     if (!this.fcmApp) {
-      throw new Error('FCM not initialized');
+      this.logger.warn('FCM not initialized - cannot send push notification');
+      throw new Error('FCM not initialized - push notifications are disabled');
     }
 
     const message = this.buildFCMMessage(request);

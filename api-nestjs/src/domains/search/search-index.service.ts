@@ -11,6 +11,7 @@ export class SearchIndexService implements OnModuleInit {
   private readonly logger = new Logger(SearchIndexService.name);
   private elasticsearchClient: Client;
   private readonly indexPrefix: string;
+  private isElasticsearchAvailable = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -28,7 +29,22 @@ export class SearchIndexService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.initializeIndices();
+    try {
+      await this.initializeIndices();
+      this.isElasticsearchAvailable = true;
+    } catch (error) {
+      this.logger.warn('Elasticsearch not available - search functionality will be disabled', error.message);
+      this.isElasticsearchAvailable = false;
+      // Don't throw error to prevent app startup failure
+    }
+  }
+
+  private async checkElasticsearchAvailability(): Promise<boolean> {
+    if (!this.isElasticsearchAvailable) {
+      this.logger.warn('Elasticsearch is not available - skipping operation');
+      return false;
+    }
+    return true;
   }
 
   private getIndexName(type: string): string {
@@ -37,6 +53,9 @@ export class SearchIndexService implements OnModuleInit {
 
   async initializeIndices() {
     try {
+      // Test connection first
+      await this.elasticsearchClient.ping();
+      
       const indexName = this.getIndexName('products');
 
       // Check if index exists
@@ -58,6 +77,8 @@ export class SearchIndexService implements OnModuleInit {
         });
 
         this.logger.log(`Created Elasticsearch index: ${indexName}`);
+      } else {
+        this.logger.log(`Elasticsearch index already exists: ${indexName}`);
       }
     } catch (error) {
       this.logger.error('Failed to initialize Elasticsearch indices', error);
@@ -66,6 +87,10 @@ export class SearchIndexService implements OnModuleInit {
   }
 
   async indexEntity(entityType: string, entityId: string, data?: any) {
+    if (!(await this.checkElasticsearchAvailability())) {
+      return;
+    }
+
     try {
       let document: SearchDocument | undefined;
 
@@ -113,11 +138,15 @@ export class SearchIndexService implements OnModuleInit {
 
     } catch (error) {
       this.logger.error(`Failed to index ${entityType}:${entityId}`, error);
-      throw error;
+      // Don't throw error to prevent app failure
     }
   }
 
   async removeEntity(entityType: string, entityId: string) {
+    if (!(await this.checkElasticsearchAvailability())) {
+      return;
+    }
+
     try {
       const indexName = this.getIndexName('products');
 
@@ -143,7 +172,7 @@ export class SearchIndexService implements OnModuleInit {
         return;
       }
       this.logger.error(`Failed to remove ${entityType}:${entityId}`, error);
-      throw error;
+      // Don't throw error to prevent app failure
     }
   }
 
@@ -177,6 +206,10 @@ export class SearchIndexService implements OnModuleInit {
   }
 
   async reindexAll() {
+    if (!(await this.checkElasticsearchAvailability())) {
+      throw new Error('Elasticsearch is not available');
+    }
+
     try {
       this.logger.log('Starting full reindex...');
 
