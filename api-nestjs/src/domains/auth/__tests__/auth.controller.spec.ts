@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Request, Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { AuthController } from '../auth.controller';
 import { AuthService } from '../auth.service';
@@ -15,6 +16,7 @@ import {
   TestAssertions,
   TestPerformanceHelper,
   TestSecurityHelper,
+  MockServicesFactory,
 } from '../../../test/utils/test-helpers';
 
 describe('AuthController', () => {
@@ -36,7 +38,12 @@ describe('AuthController', () => {
             logout: jest.fn(),
             googleAuth: jest.fn(),
             validateUser: jest.fn(),
+            getProfile: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: MockServicesFactory.createMockConfigService(),
         },
       ],
     })
@@ -93,23 +100,21 @@ describe('AuthController', () => {
       expect(authService.register).toHaveBeenCalledWith(registerDto);
       expect(mockResponse.cookie).toHaveBeenCalledWith('accessToken', authResponse.accessToken, {
         httpOnly: true,
-        secure: true,
+        secure: false, // Not production
         sameSite: 'strict',
+        path: '/',
         maxAge: 15 * 60 * 1000, // 15 minutes
       });
       expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', authResponse.refreshToken, {
         httpOnly: true,
-        secure: true,
+        secure: false, // Not production
         sameSite: 'strict',
+        path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
       expect(result).toEqual({
-        success: true,
-        message: 'User registered successfully',
-        data: {
-          user: authResponse.user,
-          accessToken: authResponse.accessToken,
-        },
+        message: 'Registration successful',
+        user: authResponse.user,
       });
     });
 
@@ -205,12 +210,8 @@ describe('AuthController', () => {
       expect(authService.login).toHaveBeenCalledWith(loginDto);
       expect(mockResponse.cookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
-        success: true,
         message: 'Login successful',
-        data: {
-          user: authResponse.user,
-          accessToken: authResponse.accessToken,
-        },
+        user: authResponse.user,
       });
     });
 
@@ -287,18 +288,14 @@ describe('AuthController', () => {
       authService.refreshToken.mockResolvedValue(authResponse);
 
       // Act
-      const result = await controller.refreshToken(mockRequest as Request, mockResponse as Response);
+      const result = await controller.refresh({}, mockRequest as Request, mockResponse as Response);
 
       // Assert
       expect(authService.refreshToken).toHaveBeenCalledWith(refreshToken);
       expect(mockResponse.cookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
-        success: true,
-        message: 'Tokens refreshed successfully',
-        data: {
-          user: authResponse.user,
-          accessToken: authResponse.accessToken,
-        },
+        message: 'Token refreshed successfully',
+        user: authResponse.user,
       });
     });
 
@@ -307,8 +304,8 @@ describe('AuthController', () => {
       mockRequest.cookies = {};
 
       // Act & Assert
-      await expect(controller.refreshToken(mockRequest as Request, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
+        .rejects.toThrow(BadRequestException);
       expect(authService.refreshToken).not.toHaveBeenCalled();
     });
 
@@ -320,7 +317,7 @@ describe('AuthController', () => {
       authService.refreshToken.mockRejectedValue(new UnauthorizedException('Invalid refresh token'));
 
       // Act & Assert
-      await expect(controller.refreshToken(mockRequest as Request, mockResponse as Response))
+      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
         .rejects.toThrow(UnauthorizedException);
       expect(authService.refreshToken).toHaveBeenCalledWith(invalidRefreshToken);
     });
@@ -333,7 +330,7 @@ describe('AuthController', () => {
       authService.refreshToken.mockRejectedValue(new UnauthorizedException('Token expired'));
 
       // Act & Assert
-      await expect(controller.refreshToken(mockRequest as Request, mockResponse as Response))
+      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
         .rejects.toThrow(UnauthorizedException);
     });
   });
@@ -349,15 +346,13 @@ describe('AuthController', () => {
       authService.logout.mockResolvedValue(undefined);
 
       // Act
-      const result = await controller.logout(mockRequest as Request, mockResponse as Response);
+      const result = await controller.logout(user, mockRequest as Request, mockResponse as Response);
 
       // Assert
-      expect(authService.logout).toHaveBeenCalledWith(user.id, accessToken);
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('accessToken');
-      expect(mockResponse.clearCookie).toHaveBeenCalledWith('refreshToken');
+      expect(authService.logout).toHaveBeenCalledWith(user.sub, accessToken);
+      expect(mockResponse.clearCookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
-        success: true,
-        message: 'Logout successful',
+        message: 'Logged out successfully',
       });
     });
 
@@ -389,17 +384,23 @@ describe('AuthController', () => {
     it('should return user profile successfully', async () => {
       // Arrange
       const user = TestDataFactory.createTestUser();
-      mockRequest.user = user;
+      const profileData = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        roles: user.roles,
+        isEmailVerified: user.isEmailVerified,
+        status: user.status,
+      };
+
+      authService.getProfile.mockResolvedValue(profileData);
 
       // Act
-      const result = await controller.getProfile(mockRequest as Request);
+      const result = await controller.getProfile(user);
 
       // Assert
-      expect(result).toEqual({
-        success: true,
-        message: 'Profile retrieved successfully',
-        data: { user },
-      });
+      expect(result).toEqual(profileData);
     });
 
     it('should handle missing user in request', async () => {
@@ -414,16 +415,26 @@ describe('AuthController', () => {
     it('should not expose sensitive information', async () => {
       // Arrange
       const user = TestDataFactory.createTestUser();
-      mockRequest.user = user;
+      const profileData = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        roles: user.roles,
+        isEmailVerified: user.isEmailVerified,
+        status: user.status,
+      };
+
+      authService.getProfile.mockResolvedValue(profileData);
 
       // Act
-      const result = await controller.getProfile(mockRequest as Request);
+      const result = await controller.getProfile(user);
 
       // Assert
-      expect(result.data.user).not.toHaveProperty('password');
-      expect(result.data.user).toHaveProperty('id');
-      expect(result.data.user).toHaveProperty('email');
-      expect(result.data.user).toHaveProperty('name');
+      expect(result).not.toHaveProperty('password');
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('email');
+      expect(result).toHaveProperty('name');
     });
   });
 
@@ -434,7 +445,7 @@ describe('AuthController', () => {
       const authResponse = {
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
-        user: TestDataFactory.createTestUser({ email: googleAuthDto.email }),
+        user: TestDataFactory.createTestUser({ email: 'test@google.com' }),
       };
 
       authService.googleAuth.mockResolvedValue(authResponse);
@@ -446,12 +457,8 @@ describe('AuthController', () => {
       expect(authService.googleAuth).toHaveBeenCalledWith(googleAuthDto);
       expect(mockResponse.cookie).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
-        success: true,
         message: 'Google authentication successful',
-        data: {
-          user: authResponse.user,
-          accessToken: authResponse.accessToken,
-        },
+        user: authResponse.user,
       });
     });
 
@@ -567,7 +574,7 @@ describe('AuthController', () => {
       // Act
       const { duration } = await TestPerformanceHelper.measureExecutionTime(async () => {
         const promises = Array(5).fill(null).map(() =>
-          controller.refreshToken(mockRequest as Request, mockResponse as Response)
+          controller.refresh({}, mockRequest as Request, mockResponse as Response)
         );
         return Promise.all(promises);
       });

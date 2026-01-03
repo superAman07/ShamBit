@@ -84,6 +84,7 @@ export class MockServicesFactory {
       del: jest.fn(),
       exists: jest.fn(),
       expire: jest.fn(),
+      keys: jest.fn(),
     };
   }
 
@@ -153,9 +154,7 @@ export class TestDataFactory {
 
   static createValidGoogleAuthDto() {
     return {
-      token: 'valid-google-token',
-      email: 'google@example.com',
-      name: 'Google User',
+      googleToken: 'valid-google-token',
     };
   }
 
@@ -192,8 +191,8 @@ export class TestDataFactory {
 
   static createAuthTokens() {
     return {
-      accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-      refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQwOTk2MTAwfQ.signature',
+      refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQxNjAwMDAwfQ.signature',
     };
   }
 }

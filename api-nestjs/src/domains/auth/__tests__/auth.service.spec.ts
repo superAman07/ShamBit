@@ -68,7 +68,7 @@ describe('AuthService', () => {
       authRepository.findByEmail.mockResolvedValue(null);
       jest.spyOn(bcrypt, 'hash').mockResolvedValue(hashedPassword as never);
       authRepository.create.mockResolvedValue(createdUser);
-      jwtService.sign.mockReturnValueOnce(tokens.accessToken).mockReturnValueOnce(tokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
 
       // Act
@@ -135,7 +135,7 @@ describe('AuthService', () => {
       authRepository.findByEmail.mockResolvedValue(null);
       jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedpassword' as never);
       authRepository.create.mockResolvedValue(TestDataFactory.createTestUser());
-      jwtService.sign.mockReturnValue('token');
+      jwtService.signAsync.mockResolvedValue('token');
 
       // Act
       await service.register(maliciousDto);
@@ -155,7 +155,7 @@ describe('AuthService', () => {
 
       authRepository.findByEmail.mockResolvedValue(user);
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
-      jwtService.sign.mockReturnValueOnce(tokens.accessToken).mockReturnValueOnce(tokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
@@ -230,7 +230,7 @@ describe('AuthService', () => {
 
       authRepository.findByEmail.mockResolvedValue(user);
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
-      jwtService.sign.mockReturnValue('token');
+      jwtService.signAsync.mockResolvedValue('token');
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
@@ -252,7 +252,7 @@ describe('AuthService', () => {
       const newTokens = TestDataFactory.createAuthTokens();
 
       authRepository.findByRefreshToken.mockResolvedValue(user);
-      jwtService.sign.mockReturnValueOnce(newTokens.accessToken).mockReturnValueOnce(newTokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(newTokens.accessToken).mockResolvedValueOnce(newTokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
 
       // Act
@@ -312,7 +312,7 @@ describe('AuthService', () => {
       const roles = [UserRole.BUYER];
       const tokens = TestDataFactory.createAuthTokens();
 
-      jwtService.sign.mockReturnValueOnce(tokens.accessToken).mockReturnValueOnce(tokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
 
       // Act
       const result = await service.generateTokens(userId, email, roles);
@@ -330,18 +330,18 @@ describe('AuthService', () => {
       const email = 'test@example.com';
       const roles = [UserRole.BUYER];
 
-      jwtService.sign.mockReturnValue('token');
+      jwtService.signAsync.mockResolvedValue('token');
 
       // Act
       await service.generateTokens(userId, email, roles);
 
       // Assert
-      expect(jwtService.sign).toHaveBeenCalledWith(
-        { sub: userId, email, roles },
+      expect(jwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: userId, email, roles }),
         { secret: 'test-jwt-secret', expiresIn: '15m' }
       );
-      expect(jwtService.sign).toHaveBeenCalledWith(
-        { sub: userId, email, roles },
+      expect(jwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: userId, email, roles }),
         { secret: 'test-refresh-secret', expiresIn: '7d' }
       );
     });
@@ -361,7 +361,8 @@ describe('AuthService', () => {
       const result = await service.validateUser(email, password);
 
       // Assert
-      expect(result).toEqual(user);
+      const { password: _, ...expectedUser } = user;
+      expect(result).toEqual(expectedUser);
       expect(authRepository.findByEmail).toHaveBeenCalledWith(email);
       expect(bcrypt.compare).toHaveBeenCalledWith(password, user.password);
     });
@@ -388,31 +389,36 @@ describe('AuthService', () => {
       // Arrange
       const googleAuthDto = TestDataFactory.createValidGoogleAuthDto();
       const tokens = TestDataFactory.createAuthTokens();
+      const mockGoogleEmail = 'test@google.com';
 
       authRepository.findByEmail.mockResolvedValue(null);
       authRepository.create.mockResolvedValue(TestDataFactory.createTestUser({
-        email: googleAuthDto.email,
-        name: googleAuthDto.name,
+        email: mockGoogleEmail,
+        name: 'Google Test User',
       }));
-      jwtService.sign.mockReturnValueOnce(tokens.accessToken).mockReturnValueOnce(tokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      authRepository.saveRefreshToken.mockResolvedValue(undefined);
+      authRepository.updateLastLogin.mockResolvedValue(undefined);
 
       // Act
       const result = await service.googleAuth(googleAuthDto);
 
       // Assert
       TestAssertions.expectValidAuthResponse(result);
-      expect(authRepository.findByEmail).toHaveBeenCalledWith(googleAuthDto.email);
+      expect(authRepository.findByEmail).toHaveBeenCalledWith(mockGoogleEmail);
     });
 
     it('should login existing Google user', async () => {
       // Arrange
       const googleAuthDto = TestDataFactory.createValidGoogleAuthDto();
-      const existingUser = TestDataFactory.createTestUser({ email: googleAuthDto.email });
+      const mockGoogleEmail = 'test@google.com';
+      const existingUser = TestDataFactory.createTestUser({ email: mockGoogleEmail });
       const tokens = TestDataFactory.createAuthTokens();
 
       authRepository.findByEmail.mockResolvedValue(existingUser);
-      jwtService.sign.mockReturnValueOnce(tokens.accessToken).mockReturnValueOnce(tokens.refreshToken);
+      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
+      authRepository.updateLastLogin.mockResolvedValue(undefined);
 
       // Act
       const result = await service.googleAuth(googleAuthDto);
@@ -443,7 +449,7 @@ describe('AuthService', () => {
       const email = 'test@example.com';
       const roles = [UserRole.BUYER];
 
-      jwtService.sign.mockImplementation(() => {
+      jwtService.signAsync.mockImplementation(() => {
         throw new Error('JWT signing failed');
       });
 

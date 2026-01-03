@@ -152,7 +152,10 @@ describe('AuthRepository', () => {
       // Assert
       expect(result).toEqual(createdUser);
       expect(prismaService.user.create).toHaveBeenCalledWith({
-        data: userData,
+        data: {
+          ...userData,
+          status: 'ACTIVE',
+        },
         include: {
           userTenants: {
             include: {
@@ -280,17 +283,9 @@ describe('AuthRepository', () => {
       const user = TestDataFactory.createTestUser({ id: userId });
       const expectedKey = `refresh_token:${userId}`;
 
-      // Mock Redis to return the user ID for the token
-      redisService.get.mockImplementation((key: string) => {
-        if (key === `token_to_user:${refreshToken}`) {
-          return Promise.resolve(userId);
-        }
-        if (key === expectedKey) {
-          return Promise.resolve(refreshToken);
-        }
-        return Promise.resolve(null);
-      });
-
+      // Mock Redis keys and get methods
+      redisService.keys.mockResolvedValue([expectedKey]);
+      redisService.get.mockResolvedValue(refreshToken);
       prismaService.user.findUnique.mockResolvedValue(user);
 
       // Act
@@ -298,6 +293,8 @@ describe('AuthRepository', () => {
 
       // Assert
       expect(result).toEqual(user);
+      expect(redisService.keys).toHaveBeenCalledWith('refresh_token:*');
+      expect(redisService.get).toHaveBeenCalledWith(expectedKey);
     });
 
     it('should return null for invalid refresh token', async () => {

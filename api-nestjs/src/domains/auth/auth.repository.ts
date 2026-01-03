@@ -12,17 +12,12 @@ export class AuthRepository {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        password: true,
-        roles: true,
-        status: true,
-        isEmailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        userTenants: {
+          include: {
+            tenant: true,
+          },
+        },
       },
     });
   }
@@ -30,16 +25,12 @@ export class AuthRepository {
   async findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        roles: true,
-        status: true,
-        isEmailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        userTenants: {
+          include: {
+            tenant: true,
+          },
+        },
       },
     });
   }
@@ -57,16 +48,52 @@ export class AuthRepository {
         ...userData,
         status: 'ACTIVE',
       },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        roles: true,
-        status: true,
-        isEmailVerified: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        userTenants: {
+          include: {
+            tenant: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findByRefreshToken(refreshToken: string) {
+    // Find which user this token belongs to by searching Redis keys
+    try {
+      const keys = await this.redis.keys('refresh_token:*');
+      
+      for (const key of keys) {
+        const storedToken = await this.redis.get(key);
+        if (storedToken === refreshToken) {
+          const userId = key.replace('refresh_token:', '');
+          return this.findById(userId);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async updateLastLogin(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+  }
+
+  async updateUser(userId: string, updateData: any) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: {
+        userTenants: {
+          include: {
+            tenant: true,
+          },
+        },
       },
     });
   }
