@@ -6,7 +6,7 @@ import { SearchQuery, SearchFacets, FacetBucket } from './types/search.types';
 export class FilterService {
   private readonly logger = new Logger(FilterService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getAvailableFilters(
     categoryOrQuery?: string | { category?: string; q?: string },
@@ -18,7 +18,8 @@ export class FilterService {
           ? categoryOrQuery
           : categoryOrQuery?.category;
 
-      const query = typeof categoryOrQuery === 'object' ? categoryOrQuery.q : undefined;
+      const query =
+        typeof categoryOrQuery === 'object' ? categoryOrQuery.q : undefined;
 
       // Build base filter conditions
       const baseWhere = {
@@ -48,7 +49,6 @@ export class FilterService {
         ratings,
         attributes,
       };
-
     } catch (error) {
       this.logger.error('Failed to get available filters', error);
       return {
@@ -70,15 +70,15 @@ export class FilterService {
       take: 50,
     });
 
-    const categoryIds = categories.map(c => c.categoryId);
+    const categoryIds = categories.map((c) => c.categoryId);
     const categoryDetails = await this.prisma.category.findMany({
       where: { id: { in: categoryIds } },
       select: { id: true, name: true },
     });
 
-    const categoryMap = new Map(categoryDetails.map(c => [c.id, c.name]));
+    const categoryMap = new Map(categoryDetails.map((c) => [c.id, c.name]));
 
-    return categories.map(category => ({
+    return categories.map((category) => ({
       key: category.categoryId,
       label: categoryMap.get(category.categoryId) || 'Unknown',
       count: category._count.categoryId,
@@ -98,18 +98,18 @@ export class FilterService {
     });
 
     const brandIds = brands
-      .map(b => b.brandId)
+      .map((b) => b.brandId)
       .filter((v): v is string => v !== null);
     const brandDetails = await this.prisma.brand.findMany({
       where: { id: { in: brandIds } },
       select: { id: true, name: true },
     });
 
-    const brandMap = new Map(brandDetails.map(b => [b.id, b.name]));
+    const brandMap = new Map(brandDetails.map((b) => [b.id, b.name]));
 
     return brands
-      .filter(brand => brand.brandId)
-      .map(brand => ({
+      .filter((brand) => brand.brandId)
+      .map((brand) => ({
         key: brand.brandId!,
         label: brandMap.get(brand.brandId!) || 'Unknown',
         count: brand._count.brandId,
@@ -143,7 +143,7 @@ export class FilterService {
 
     // Count products in each range
     const rangeCounts = await Promise.all(
-      ranges.map(async range => {
+      ranges.map(async (range) => {
         const count = await this.prisma.product.count({
           where: {
             ...baseWhere,
@@ -166,10 +166,10 @@ export class FilterService {
           label: range.label,
           count,
         };
-      })
+      }),
     );
 
-    return rangeCounts.filter(range => range.count > 0);
+    return rangeCounts.filter((range) => range.count > 0);
   }
 
   private async getRatingFilters(baseWhere: any): Promise<FacetBucket[]> {
@@ -183,7 +183,9 @@ export class FilterService {
     ];
   }
 
-  private async getAttributeFilters(categoryId?: string): Promise<Record<string, FacetBucket[]>> {
+  private async getAttributeFilters(
+    categoryId?: string,
+  ): Promise<Record<string, FacetBucket[]>> {
     if (!categoryId) return {};
 
     try {
@@ -207,7 +209,7 @@ export class FilterService {
         if (attr.allowedValues && attr.allowedValues.length > 0) {
           // For predefined values, count products for each value
           const valueCounts = await Promise.all(
-            attr.allowedValues.map(async value => {
+            attr.allowedValues.map(async (value) => {
               const count = await this.prisma.product.count({
                 where: {
                   categoryId,
@@ -226,10 +228,10 @@ export class FilterService {
                 label: value,
                 count,
               };
-            })
+            }),
           );
 
-          attributeFilters[attr.slug] = valueCounts.filter(v => v.count > 0);
+          attributeFilters[attr.slug] = valueCounts.filter((v) => v.count > 0);
         } else {
           // For dynamic values, get unique values from products
           const uniqueValues = await this.prisma.productAttributeValue.groupBy({
@@ -248,8 +250,8 @@ export class FilterService {
           });
 
           attributeFilters[attr.slug] = uniqueValues
-            .filter(v => v.stringValue)
-            .map(v => ({
+            .filter((v) => v.stringValue)
+            .map((v) => ({
               key: v.stringValue!,
               label: v.stringValue!,
               count: v._count.stringValue,
@@ -258,7 +260,6 @@ export class FilterService {
       }
 
       return attributeFilters;
-
     } catch (error) {
       this.logger.error('Failed to get attribute filters', error);
       return {};
@@ -278,31 +279,31 @@ export class FilterService {
         ...(categoryId && { categoryId }),
       };
 
-      const [totalProducts, inStockProducts, featuredProducts] = await Promise.all([
-        this.prisma.product.count({ where: baseWhere }),
-        this.prisma.product.count({
-          where: {
-            ...baseWhere,
-            variants: {
-              some: {
-                inventory: {
-                  quantity: { gt: 0 },
+      const [totalProducts, inStockProducts, featuredProducts] =
+        await Promise.all([
+          this.prisma.product.count({ where: baseWhere }),
+          this.prisma.product.count({
+            where: {
+              ...baseWhere,
+              variants: {
+                some: {
+                  inventory: {
+                    quantity: { gt: 0 },
+                  },
                 },
               },
             },
-          },
-        }),
-        this.prisma.product.count({
-          where: { ...baseWhere, isFeatured: true },
-        }),
-      ]);
+          }),
+          this.prisma.product.count({
+            where: { ...baseWhere, isFeatured: true },
+          }),
+        ]);
 
       return {
         total: totalProducts,
         inStock: inStockProducts,
         featured: featuredProducts,
       };
-
     } catch (error) {
       this.logger.error('Failed to get filter counts', error);
       return {

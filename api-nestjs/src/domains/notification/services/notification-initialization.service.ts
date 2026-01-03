@@ -18,12 +18,15 @@ export class NotificationInitializationService implements OnModuleInit {
 
   private async initializeDefaultRateLimits(): Promise<void> {
     try {
-      const defaultRules = this.configService.get('notification.rateLimit.defaultRules', []);
-      
+      const defaultRules = this.configService.get(
+        'notification.rateLimit.defaultRules',
+        [],
+      );
+
       for (const rule of defaultRules) {
         const exists = this.rateLimitService.hasRateLimitRule(
           rule.channel as NotificationChannel,
-          rule.scope
+          rule.scope,
         );
 
         if (!exists) {
@@ -35,7 +38,7 @@ export class NotificationInitializationService implements OnModuleInit {
               maxPerHour: rule.maxPerHour,
               maxPerDay: rule.maxPerDay,
               burstLimit: rule.burstLimit,
-            }
+            },
           );
 
           this.logger.log('Default rate limit rule created', {
@@ -45,7 +48,10 @@ export class NotificationInitializationService implements OnModuleInit {
         }
       }
     } catch (error) {
-      this.logger.error('Failed to initialize default rate limits', error.stack);
+      this.logger.error(
+        'Failed to initialize default rate limits',
+        error.stack,
+      );
     }
   }
 }

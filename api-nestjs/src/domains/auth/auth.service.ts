@@ -39,7 +39,10 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
     // Basic input sanitization
-    const sanitizedName = registerDto.name.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    const sanitizedName = registerDto.name.replace(
+      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+      '',
+    );
 
     const user = await this.authRepository.create({
       ...registerDto,
@@ -101,20 +104,20 @@ export class AuthService {
   async googleAuth(googleAuthDto: GoogleAuthDto): Promise<AuthResponseDto> {
     // For testing purposes, we'll implement a basic version
     // In production, you would verify the Google token here
-    
+
     // Mock Google token verification - in real implementation, verify with Google
     if (!googleAuthDto.googleToken) {
       throw new BadRequestException('Invalid Google token');
     }
-    
+
     // Mock user data from Google token (in real implementation, extract from verified token)
     const mockGoogleUser = {
       email: 'test@google.com',
       name: 'Google Test User',
     };
-    
+
     let user = await this.authRepository.findByEmail(mockGoogleUser.email);
-    
+
     if (!user) {
       // Create new user from Google data
       user = await this.authRepository.create({

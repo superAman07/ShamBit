@@ -55,20 +55,24 @@ export class NotificationHealthController {
 
   @Get()
   @ApiOperation({ summary: 'Get notification system health status' })
-  @ApiResponse({ status: 200, description: 'Health status retrieved successfully' })
+  @ApiResponse({
+    status: 200,
+    description: 'Health status retrieved successfully',
+  })
   async getHealth(): Promise<HealthStatus> {
     const timestamp = new Date().toISOString();
-    
+
     try {
       // Check all services in parallel
-      const [database, redis, email, sms, push, metrics] = await Promise.allSettled([
-        this.checkDatabase(),
-        this.checkRedis(),
-        this.checkEmailService(),
-        this.checkSMSService(),
-        this.checkPushService(),
-        this.getMetrics(),
-      ]);
+      const [database, redis, email, sms, push, metrics] =
+        await Promise.allSettled([
+          this.checkDatabase(),
+          this.checkRedis(),
+          this.checkEmailService(),
+          this.checkSMSService(),
+          this.checkPushService(),
+          this.getMetrics(),
+        ]);
 
       const services = {
         database: this.getServiceResult(database),
@@ -78,12 +82,15 @@ export class NotificationHealthController {
         push: this.getServiceResult(push),
       };
 
-      const metricsData = metrics.status === 'fulfilled' ? metrics.value : {
-        totalNotifications: 0,
-        pendingNotifications: 0,
-        failedNotifications: 0,
-        queueSize: 0,
-      };
+      const metricsData =
+        metrics.status === 'fulfilled'
+          ? metrics.value
+          : {
+              totalNotifications: 0,
+              pendingNotifications: 0,
+              failedNotifications: 0,
+              queueSize: 0,
+            };
 
       // Determine overall status
       const overallStatus = this.determineOverallStatus(services);
@@ -96,16 +103,36 @@ export class NotificationHealthController {
       };
     } catch (error) {
       this.logger.error('Health check failed', error.stack);
-      
+
       return {
         status: 'unhealthy',
         timestamp,
         services: {
-          database: { status: 'unhealthy', error: 'Health check failed', lastCheck: timestamp },
-          redis: { status: 'unhealthy', error: 'Health check failed', lastCheck: timestamp },
-          email: { status: 'unhealthy', error: 'Health check failed', lastCheck: timestamp },
-          sms: { status: 'unhealthy', error: 'Health check failed', lastCheck: timestamp },
-          push: { status: 'unhealthy', error: 'Health check failed', lastCheck: timestamp },
+          database: {
+            status: 'unhealthy',
+            error: 'Health check failed',
+            lastCheck: timestamp,
+          },
+          redis: {
+            status: 'unhealthy',
+            error: 'Health check failed',
+            lastCheck: timestamp,
+          },
+          email: {
+            status: 'unhealthy',
+            error: 'Health check failed',
+            lastCheck: timestamp,
+          },
+          sms: {
+            status: 'unhealthy',
+            error: 'Health check failed',
+            lastCheck: timestamp,
+          },
+          push: {
+            status: 'unhealthy',
+            error: 'Health check failed',
+            lastCheck: timestamp,
+          },
         },
         metrics: {
           totalNotifications: 0,
@@ -119,10 +146,10 @@ export class NotificationHealthController {
 
   private async checkDatabase(): Promise<ServiceHealth> {
     const startTime = Date.now();
-    
+
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      
+
       return {
         status: 'healthy',
         responseTime: Date.now() - startTime,
@@ -139,10 +166,10 @@ export class NotificationHealthController {
 
   private async checkRedis(): Promise<ServiceHealth> {
     const startTime = Date.now();
-    
+
     try {
       await this.redis.ping();
-      
+
       return {
         status: 'healthy',
         responseTime: Date.now() - startTime,
@@ -159,7 +186,7 @@ export class NotificationHealthController {
 
   private async checkEmailService(): Promise<ServiceHealth> {
     const emailConfig = this.configService.get('notification.email');
-    
+
     if (!emailConfig?.provider) {
       return {
         status: 'not_configured',
@@ -169,7 +196,7 @@ export class NotificationHealthController {
 
     // Basic configuration check
     const isConfigured = this.isEmailConfigured(emailConfig);
-    
+
     return {
       status: isConfigured ? 'healthy' : 'unhealthy',
       error: isConfigured ? undefined : 'Email service not properly configured',
@@ -179,7 +206,7 @@ export class NotificationHealthController {
 
   private async checkSMSService(): Promise<ServiceHealth> {
     const smsConfig = this.configService.get('notification.sms');
-    
+
     if (!smsConfig?.provider) {
       return {
         status: 'not_configured',
@@ -189,7 +216,7 @@ export class NotificationHealthController {
 
     // Basic configuration check
     const isConfigured = this.isSMSConfigured(smsConfig);
-    
+
     return {
       status: isConfigured ? 'healthy' : 'unhealthy',
       error: isConfigured ? undefined : 'SMS service not properly configured',
@@ -199,7 +226,7 @@ export class NotificationHealthController {
 
   private async checkPushService(): Promise<ServiceHealth> {
     const pushConfig = this.configService.get('notification.push');
-    
+
     if (!pushConfig?.provider) {
       return {
         status: 'not_configured',
@@ -209,7 +236,7 @@ export class NotificationHealthController {
 
     // Basic configuration check
     const isConfigured = this.isPushConfigured(pushConfig);
-    
+
     return {
       status: isConfigured ? 'healthy' : 'unhealthy',
       error: isConfigured ? undefined : 'Push service not properly configured',
@@ -218,7 +245,12 @@ export class NotificationHealthController {
   }
 
   private async getMetrics() {
-    const [totalNotifications, pendingNotifications, failedNotifications, queueSize] = await Promise.all([
+    const [
+      totalNotifications,
+      pendingNotifications,
+      failedNotifications,
+      queueSize,
+    ] = await Promise.all([
       this.prisma.notification.count(),
       this.prisma.notification.count({ where: { status: 'PENDING' } }),
       this.prisma.notification.count({ where: { status: 'FAILED' } }),
@@ -279,7 +311,9 @@ export class NotificationHealthController {
     }
   }
 
-  private getServiceResult(result: PromiseSettledResult<ServiceHealth>): ServiceHealth {
+  private getServiceResult(
+    result: PromiseSettledResult<ServiceHealth>,
+  ): ServiceHealth {
     if (result.status === 'fulfilled') {
       return result.value;
     } else {
@@ -291,17 +325,19 @@ export class NotificationHealthController {
     }
   }
 
-  private determineOverallStatus(services: Record<string, ServiceHealth>): 'healthy' | 'unhealthy' | 'degraded' {
-    const statuses = Object.values(services).map(s => s.status);
-    
-    if (statuses.every(s => s === 'healthy' || s === 'not_configured')) {
+  private determineOverallStatus(
+    services: Record<string, ServiceHealth>,
+  ): 'healthy' | 'unhealthy' | 'degraded' {
+    const statuses = Object.values(services).map((s) => s.status);
+
+    if (statuses.every((s) => s === 'healthy' || s === 'not_configured')) {
       return 'healthy';
     }
-    
-    if (statuses.some(s => s === 'healthy')) {
+
+    if (statuses.some((s) => s === 'healthy')) {
       return 'degraded';
     }
-    
+
     return 'unhealthy';
   }
 }

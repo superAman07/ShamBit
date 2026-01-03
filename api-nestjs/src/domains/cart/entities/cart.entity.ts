@@ -209,7 +209,7 @@ export class CartItem {
     if ((this.unitPrice as any).equals(0)) return 0;
 
     const change = (this.currentUnitPrice as any).sub(this.unitPrice);
-    return (change as any).div(this.unitPrice).mul(100).toNumber();
+    return change.div(this.unitPrice).mul(100).toNumber();
   }
 
   /**

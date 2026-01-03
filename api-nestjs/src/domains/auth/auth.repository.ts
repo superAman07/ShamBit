@@ -62,7 +62,7 @@ export class AuthRepository {
     // Find which user this token belongs to by searching Redis keys
     try {
       const keys = await this.redis.keys('refresh_token:*');
-      
+
       for (const key of keys) {
         const storedToken = await this.redis.get(key);
         if (storedToken === refreshToken) {
@@ -70,7 +70,7 @@ export class AuthRepository {
           return this.findById(userId);
         }
       }
-      
+
       return null;
     } catch (error) {
       return null;

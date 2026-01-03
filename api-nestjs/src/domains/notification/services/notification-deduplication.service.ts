@@ -30,7 +30,9 @@ export class NotificationDeduplicationService {
     private readonly configService: ConfigService,
     private readonly logger: LoggerService,
   ) {
-    this.config = this.configService.get<DeduplicationConfig>('deduplication') || {
+    this.config = this.configService.get<DeduplicationConfig>(
+      'deduplication',
+    ) || {
       redis: {
         host: 'localhost',
         port: 6379,
@@ -46,11 +48,13 @@ export class NotificationDeduplicationService {
   // IDEMPOTENCY MANAGEMENT
   // ============================================================================
 
-  async checkIdempotency(idempotencyKey: string): Promise<IdempotencyRecord | null> {
+  async checkIdempotency(
+    idempotencyKey: string,
+  ): Promise<IdempotencyRecord | null> {
     try {
       const key = this.buildIdempotencyKey(idempotencyKey);
       const data = await this.redis.get(key);
-      
+
       if (!data) {
         return null;
       }
@@ -62,7 +66,9 @@ export class NotificationDeduplicationService {
         expiresAt: new Date(record.expiresAt),
       };
     } catch (error) {
-      this.logger.error('Failed to check idempotency', error.stack, { idempotencyKey });
+      this.logger.error('Failed to check idempotency', error.stack, {
+        idempotencyKey,
+      });
       return null;
     }
   }
@@ -70,7 +76,7 @@ export class NotificationDeduplicationService {
   async storeIdempotency(
     idempotencyKey: string,
     notificationId: string,
-    ttl?: number
+    ttl?: number,
   ): Promise<void> {
     try {
       const key = this.buildIdempotencyKey(idempotencyKey);
@@ -106,7 +112,9 @@ export class NotificationDeduplicationService {
 
       this.logger.log('Idempotency key removed', { idempotencyKey });
     } catch (error) {
-      this.logger.error('Failed to remove idempotency', error.stack, { idempotencyKey });
+      this.logger.error('Failed to remove idempotency', error.stack, {
+        idempotencyKey,
+      });
     }
   }
 
@@ -117,14 +125,14 @@ export class NotificationDeduplicationService {
   async checkContentDuplication(
     userId: string,
     content: string,
-    timeWindow: number = 300 // 5 minutes
+    timeWindow: number = 300, // 5 minutes
   ): Promise<boolean> {
     try {
       const contentHash = this.generateContentHash(content);
       const key = this.buildContentKey(userId, contentHash);
-      
+
       const exists = await this.redis.exists(key);
-      
+
       if (exists) {
         this.logger.log('Duplicate content detected', {
           userId,
@@ -149,12 +157,12 @@ export class NotificationDeduplicationService {
   async markContentSent(
     userId: string,
     content: string,
-    ttl: number = 300
+    ttl: number = 300,
   ): Promise<void> {
     try {
       const contentHash = this.generateContentHash(content);
       const key = this.buildContentKey(userId, contentHash);
-      
+
       await this.redis.setex(key, ttl, Date.now().toString());
 
       this.logger.log('Content marked as sent', {
@@ -175,14 +183,18 @@ export class NotificationDeduplicationService {
 
   async deduplicateRecipients(
     recipients: Array<{ userId?: string; email?: string; phone?: string }>,
-    notificationType: string
+    notificationType: string,
   ): Promise<Array<{ userId?: string; email?: string; phone?: string }>> {
     const seen = new Set<string>();
-    const deduplicated: Array<{ userId?: string; email?: string; phone?: string }> = [];
+    const deduplicated: Array<{
+      userId?: string;
+      email?: string;
+      phone?: string;
+    }> = [];
 
     for (const recipient of recipients) {
       const key = this.generateRecipientKey(recipient);
-      
+
       if (!seen.has(key)) {
         seen.add(key);
         deduplicated.push(recipient);
@@ -200,12 +212,12 @@ export class NotificationDeduplicationService {
   async checkRecentDelivery(
     recipient: { userId?: string; email?: string; phone?: string },
     notificationType: string,
-    timeWindow: number = 3600 // 1 hour
+    timeWindow: number = 3600, // 1 hour
   ): Promise<boolean> {
     try {
       const recipientKey = this.generateRecipientKey(recipient);
       const key = this.buildRecentDeliveryKey(recipientKey, notificationType);
-      
+
       const exists = await this.redis.exists(key);
       return exists === 1;
     } catch (error) {
@@ -220,12 +232,12 @@ export class NotificationDeduplicationService {
   async markRecentDelivery(
     recipient: { userId?: string; email?: string; phone?: string },
     notificationType: string,
-    ttl: number = 3600
+    ttl: number = 3600,
   ): Promise<void> {
     try {
       const recipientKey = this.generateRecipientKey(recipient);
       const key = this.buildRecentDeliveryKey(recipientKey, notificationType);
-      
+
       await this.redis.setex(key, ttl, Date.now().toString());
 
       this.logger.log('Recent delivery marked', {
@@ -255,20 +267,23 @@ export class NotificationDeduplicationService {
       ];
 
       let deletedCount = 0;
-      
+
       for (const pattern of patterns) {
         const keys = await this.redis.keys(pattern);
-        
+
         for (const key of keys) {
           const ttl = await this.redis.ttl(key);
-          if (ttl === -1) { // Key exists but has no expiration
+          if (ttl === -1) {
+            // Key exists but has no expiration
             await this.redis.del(key);
             deletedCount++;
           }
         }
       }
 
-      this.logger.log('Expired deduplication keys cleaned up', { deletedCount });
+      this.logger.log('Expired deduplication keys cleaned up', {
+        deletedCount,
+      });
       return deletedCount;
     } catch (error) {
       this.logger.error('Failed to cleanup expired keys', error.stack);
@@ -282,11 +297,12 @@ export class NotificationDeduplicationService {
     recentDeliveries: number;
   }> {
     try {
-      const [idempotencyKeys, contentHashes, recentDeliveries] = await Promise.all([
-        this.countKeys('notification:idempotency:*'),
-        this.countKeys('notification:content:*'),
-        this.countKeys('notification:delivery:*'),
-      ]);
+      const [idempotencyKeys, contentHashes, recentDeliveries] =
+        await Promise.all([
+          this.countKeys('notification:idempotency:*'),
+          this.countKeys('notification:content:*'),
+          this.countKeys('notification:delivery:*'),
+        ]);
 
       return {
         idempotencyKeys,
@@ -332,7 +348,10 @@ export class NotificationDeduplicationService {
     return `notification:content:${userId}:${contentHash}`;
   }
 
-  private buildRecentDeliveryKey(recipientKey: string, notificationType: string): string {
+  private buildRecentDeliveryKey(
+    recipientKey: string,
+    notificationType: string,
+  ): string {
     return `notification:delivery:${recipientKey}:${notificationType}`;
   }
 
@@ -366,7 +385,7 @@ export class NotificationDeduplicationService {
     phone?: string;
   }): any {
     const masked: any = {};
-    
+
     if (recipient.userId) {
       masked.userId = recipient.userId;
     }
@@ -377,7 +396,7 @@ export class NotificationDeduplicationService {
     if (recipient.phone) {
       masked.phone = `***${recipient.phone.slice(-4)}`;
     }
-    
+
     return masked;
   }
 

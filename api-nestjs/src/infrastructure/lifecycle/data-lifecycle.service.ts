@@ -358,17 +358,17 @@ export class DataLifecycleService {
       switch (entityType) {
         case 'Order':
           await this.prisma.order.create({
-            data: archivedData.data as any,
+            data: archivedData.data,
           });
           break;
         case 'AuditLog':
           await this.prisma.auditLog.create({
-            data: archivedData.data as any,
+            data: archivedData.data,
           });
           break;
         case 'DomainEvent':
           await (this.prisma as any).domainEvent.create({
-            data: archivedData.data as any,
+            data: archivedData.data,
           });
           break;
         default:

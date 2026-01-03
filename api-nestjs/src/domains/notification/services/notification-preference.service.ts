@@ -6,7 +6,7 @@ import {
   NotificationPreference,
   PreferenceFrequency,
   NotificationCategory,
-  NotificationPriority
+  NotificationPriority,
 } from '../types/notification.types';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
@@ -29,7 +29,7 @@ export interface CreatePreferenceDto {
   excludeKeywords?: string[];
 }
 
-export interface UpdatePreferenceDto extends Partial<CreatePreferenceDto> { }
+export interface UpdatePreferenceDto extends Partial<CreatePreferenceDto> {}
 
 export interface UserPreferences {
   userId: string;
@@ -50,13 +50,15 @@ export class NotificationPreferenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: LoggerService,
-  ) { }
+  ) {}
 
   // ============================================================================
   // PREFERENCE MANAGEMENT
   // ============================================================================
 
-  async createPreference(dto: CreatePreferenceDto): Promise<NotificationPreference> {
+  async createPreference(
+    dto: CreatePreferenceDto,
+  ): Promise<NotificationPreference> {
     this.logger.log('Creating notification preference', {
       userId: dto.userId,
       type: dto.type,
@@ -90,17 +92,18 @@ export class NotificationPreferenceService {
   async getUserPreferences(
     userId: string,
     type?: NotificationType,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<NotificationPreference | null> {
     // Try to find specific type preference first
     if (type) {
-      const specificPreference = await this.prisma.notificationPreference.findFirst({
-        where: {
-          userId,
-          type,
-          tenantId,
-        },
-      });
+      const specificPreference =
+        await this.prisma.notificationPreference.findFirst({
+          where: {
+            userId,
+            type,
+            tenantId,
+          },
+        });
 
       if (specificPreference) {
         return this.mapToPreferenceType(specificPreference);
@@ -108,13 +111,15 @@ export class NotificationPreferenceService {
     }
 
     // Fall back to 'ALL' preference
-    const globalPreference = await this.prisma.notificationPreference.findFirst({
-      where: {
-        userId,
-        type: 'ALL',
-        tenantId,
+    const globalPreference = await this.prisma.notificationPreference.findFirst(
+      {
+        where: {
+          userId,
+          type: 'ALL',
+          tenantId,
+        },
       },
-    });
+    );
 
     if (globalPreference) {
       return this.mapToPreferenceType(globalPreference);
@@ -126,7 +131,7 @@ export class NotificationPreferenceService {
 
   async getAllUserPreferences(
     userId: string,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<UserPreferences> {
     const preferences = await this.prisma.notificationPreference.findMany({
       where: {
@@ -136,19 +141,21 @@ export class NotificationPreferenceService {
       orderBy: { type: 'asc' },
     });
 
-    const globalPreference = preferences.find(p => p.type === 'ALL');
+    const globalPreference = preferences.find((p) => p.type === 'ALL');
 
     return {
       userId,
-      preferences: preferences.map(p => this.mapToPreferenceType(p)),
+      preferences: preferences.map((p) => this.mapToPreferenceType(p)),
       globalSettings: {
         isEnabled: globalPreference?.isEnabled ?? true,
-        quietHours: globalPreference?.quietHoursEnabled ? {
-          enabled: true,
-          start: globalPreference.quietHoursStart || '22:00',
-          end: globalPreference.quietHoursEnd || '08:00',
-          timezone: globalPreference.timezone || 'UTC',
-        } : undefined,
+        quietHours: globalPreference?.quietHoursEnabled
+          ? {
+              enabled: true,
+              start: globalPreference.quietHoursStart || '22:00',
+              end: globalPreference.quietHoursEnd || '08:00',
+              timezone: globalPreference.timezone || 'UTC',
+            }
+          : undefined,
       },
     };
   }
@@ -157,7 +164,7 @@ export class NotificationPreferenceService {
     userId: string,
     type: NotificationType | 'ALL',
     updates: UpdatePreferenceDto,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<NotificationPreference> {
     const existing = await this.prisma.notificationPreference.findFirst({
       where: {
@@ -190,7 +197,7 @@ export class NotificationPreferenceService {
   async deletePreference(
     userId: string,
     type: NotificationType | 'ALL',
-    tenantId?: string
+    tenantId?: string,
   ): Promise<void> {
     await this.prisma.notificationPreference.deleteMany({
       where: {
@@ -210,7 +217,7 @@ export class NotificationPreferenceService {
     type: NotificationType,
     channel: NotificationChannel,
     priority?: string,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<boolean> {
     const preferences = await this.getUserPreferences(userId, type, tenantId);
 
@@ -235,11 +242,22 @@ export class NotificationPreferenceService {
     }
 
     // Check quiet hours
-    if (preferences.quietHoursEnabled && preferences.quietHoursStart && preferences.quietHoursEnd) {
+    if (
+      preferences.quietHoursEnabled &&
+      preferences.quietHoursStart &&
+      preferences.quietHoursEnd
+    ) {
       const now = new Date();
       const timezone = preferences.timezone || 'UTC';
 
-      if (this.isInQuietHours(now, preferences.quietHoursStart, preferences.quietHoursEnd, timezone)) {
+      if (
+        this.isInQuietHours(
+          now,
+          preferences.quietHoursStart,
+          preferences.quietHoursEnd,
+          timezone,
+        )
+      ) {
         // Allow urgent notifications during quiet hours
         return priority === 'URGENT';
       }
@@ -250,7 +268,7 @@ export class NotificationPreferenceService {
 
   async checkKeywordFilters(
     preferences: NotificationPreference,
-    content: string
+    content: string,
   ): Promise<boolean> {
     const lowerContent = content.toLowerCase();
 
@@ -282,25 +300,30 @@ export class NotificationPreferenceService {
 
   async getBatchPreferences(
     userId: string,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<{
     batchingEnabled: boolean;
     maxBatchSize: number;
     frequency: PreferenceFrequency;
   }> {
-    const preferences = await this.getUserPreferences(userId, undefined, tenantId);
+    const preferences = await this.getUserPreferences(
+      userId,
+      undefined,
+      tenantId,
+    );
 
     return {
       batchingEnabled: preferences?.batchingEnabled || false,
       maxBatchSize: preferences?.maxBatchSize || 10,
-      frequency: (preferences?.frequency || PreferenceFrequency.IMMEDIATE) as any,
+      frequency: (preferences?.frequency ||
+        PreferenceFrequency.IMMEDIATE) as any,
     };
   }
 
   async shouldBatchNotification(
     userId: string,
     type: NotificationType,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<boolean> {
     const preferences = await this.getUserPreferences(userId, type, tenantId);
     return preferences?.batchingEnabled || false;
@@ -318,7 +341,7 @@ export class NotificationPreferenceService {
       phone?: string;
       deviceToken?: string;
     },
-    tenantId?: string
+    tenantId?: string,
   ): Promise<void> {
     const subscriptionType = this.getSubscriptionType(channel);
 
@@ -363,7 +386,7 @@ export class NotificationPreferenceService {
   async unsubscribeFromChannel(
     userId: string,
     channel: NotificationChannel,
-    reason?: string
+    reason?: string,
   ): Promise<void> {
     const subscriptionType = this.getSubscriptionType(channel);
 
@@ -383,7 +406,7 @@ export class NotificationPreferenceService {
 
   async getSubscriptionStatus(
     userId: string,
-    channel: NotificationChannel
+    channel: NotificationChannel,
   ): Promise<'ACTIVE' | 'UNSUBSCRIBED' | 'BOUNCED' | null> {
     const subscriptionType = this.getSubscriptionType(channel);
 
@@ -395,7 +418,7 @@ export class NotificationPreferenceService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return subscription?.status as any || null;
+    return (subscription?.status as any) || null;
   }
 
   // ============================================================================
@@ -404,7 +427,7 @@ export class NotificationPreferenceService {
 
   private getDefaultPreferences(
     userId: string,
-    type?: NotificationType
+    type?: NotificationType,
   ): NotificationPreference {
     return {
       userId,
@@ -426,11 +449,13 @@ export class NotificationPreferenceService {
     now: Date,
     startTime: string,
     endTime: string,
-    timezone: string
+    timezone: string,
   ): boolean {
     try {
       // Convert to user's timezone
-      const userTime = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+      const userTime = new Date(
+        now.toLocaleString('en-US', { timeZone: timezone }),
+      );
       const currentHour = userTime.getHours();
       const currentMinute = userTime.getMinutes();
       const currentTimeMinutes = currentHour * 60 + currentMinute;
@@ -442,9 +467,15 @@ export class NotificationPreferenceService {
 
       // Handle overnight quiet hours (e.g., 22:00 to 08:00)
       if (startTimeMinutes > endTimeMinutes) {
-        return currentTimeMinutes >= startTimeMinutes || currentTimeMinutes <= endTimeMinutes;
+        return (
+          currentTimeMinutes >= startTimeMinutes ||
+          currentTimeMinutes <= endTimeMinutes
+        );
       } else {
-        return currentTimeMinutes >= startTimeMinutes && currentTimeMinutes <= endTimeMinutes;
+        return (
+          currentTimeMinutes >= startTimeMinutes &&
+          currentTimeMinutes <= endTimeMinutes
+        );
       }
     } catch (error) {
       this.logger.error('Error checking quiet hours', error.stack);
@@ -484,11 +515,13 @@ export class NotificationPreferenceService {
       priority: preference.priority,
       keywords: preference.keywords,
       excludeKeywords: preference.excludeKeywords,
-      quietHours: preference.quietHoursEnabled ? {
-        start: preference.quietHoursStart,
-        end: preference.quietHoursEnd,
-        timezone: preference.timezone,
-      } : undefined,
+      quietHours: preference.quietHoursEnabled
+        ? {
+            start: preference.quietHoursStart,
+            end: preference.quietHoursEnd,
+            timezone: preference.timezone,
+          }
+        : undefined,
     };
   }
 }

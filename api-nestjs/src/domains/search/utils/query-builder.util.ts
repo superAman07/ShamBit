@@ -19,13 +19,13 @@ export class QueryBuilderUtil {
             'brand.name^2',
             'category.name^2',
             'keywords^2',
-            'tags^1'
+            'tags^1',
           ],
           type: 'best_fields',
           fuzziness: 'AUTO',
           operator: 'and',
-          minimum_should_match: '75%'
-        }
+          minimum_should_match: '75%',
+        },
       });
 
       // Boost exact matches
@@ -33,9 +33,9 @@ export class QueryBuilderUtil {
         term: {
           'name.keyword': {
             value: query.q,
-            boost: 10
-          }
-        }
+            boost: 10,
+          },
+        },
       });
 
       // Boost phrase matches
@@ -43,9 +43,9 @@ export class QueryBuilderUtil {
         match_phrase: {
           name: {
             query: query.q,
-            boost: 5
-          }
-        }
+            boost: 5,
+          },
+        },
       });
 
       // Boost prefix matches
@@ -53,9 +53,9 @@ export class QueryBuilderUtil {
         prefix: {
           'name.keyword': {
             value: query.q.toLowerCase(),
-            boost: 3
-          }
-        }
+            boost: 3,
+          },
+        },
       });
     } else {
       must.push({ match_all: {} });
@@ -67,9 +67,9 @@ export class QueryBuilderUtil {
         bool: {
           should: [
             { term: { 'category.id': query.category } },
-            { term: { 'category.pathIds': query.category } }
-          ]
-        }
+            { term: { 'category.pathIds': query.category } },
+          ],
+        },
       });
     }
 
@@ -77,11 +77,11 @@ export class QueryBuilderUtil {
     if (query.brand) {
       if (Array.isArray(query.brand)) {
         filter.push({
-          terms: { 'brand.id': query.brand }
+          terms: { 'brand.id': query.brand },
         });
       } else {
         filter.push({
-          term: { 'brand.id': query.brand }
+          term: { 'brand.id': query.brand },
         });
       }
     }
@@ -89,7 +89,7 @@ export class QueryBuilderUtil {
     // Seller filter
     if (query.seller) {
       filter.push({
-        term: { 'seller.id': query.seller }
+        term: { 'seller.id': query.seller },
       });
     }
 
@@ -100,21 +100,21 @@ export class QueryBuilderUtil {
       if (query.maxPrice !== undefined) priceFilter.lte = query.maxPrice;
 
       filter.push({
-        range: { 'pricing.minPrice': priceFilter }
+        range: { 'pricing.minPrice': priceFilter },
       });
     }
 
     // Rating filter
     if (query.rating !== undefined) {
       filter.push({
-        range: { 'popularity.rating': { gte: query.rating } }
+        range: { 'popularity.rating': { gte: query.rating } },
       });
     }
 
     // In stock filter
     if (query.inStock === true) {
       filter.push({
-        term: { 'inventory.isInStock': true }
+        term: { 'inventory.isInStock': true },
       });
     }
 
@@ -125,9 +125,9 @@ export class QueryBuilderUtil {
           distance: query.location.radius || '50km',
           location: {
             lat: query.location.lat,
-            lon: query.location.lon
-          }
-        }
+            lon: query.location.lon,
+          },
+        },
       });
     }
 
@@ -143,11 +143,11 @@ export class QueryBuilderUtil {
                 bool: {
                   must: [
                     { term: { 'attributes.name': key } },
-                    { terms: { 'attributes.value': value } }
-                  ]
-                }
-              }
-            }
+                    { terms: { 'attributes.value': value } },
+                  ],
+                },
+              },
+            },
           });
         } else {
           // Single value
@@ -158,11 +158,11 @@ export class QueryBuilderUtil {
                 bool: {
                   must: [
                     { term: { 'attributes.name': key } },
-                    { term: { 'attributes.value': value } }
-                  ]
-                }
-              }
-            }
+                    { term: { 'attributes.value': value } },
+                  ],
+                },
+              },
+            },
           });
         }
       });
@@ -181,8 +181,8 @@ export class QueryBuilderUtil {
         must,
         filter,
         should,
-        minimum_should_match: should.length > 0 ? 1 : 0
-      }
+        minimum_should_match: should.length > 0 ? 1 : 0,
+      },
     };
   }
 
@@ -238,24 +238,24 @@ export class QueryBuilderUtil {
       categories: {
         terms: {
           field: 'category.id',
-          size: facetSize
+          size: facetSize,
         },
         aggs: {
           category_name: {
-            terms: { field: 'category.name.keyword', size: 1 }
-          }
-        }
+            terms: { field: 'category.name.keyword', size: 1 },
+          },
+        },
       },
       brands: {
         terms: {
           field: 'brand.id',
-          size: facetSize
+          size: facetSize,
         },
         aggs: {
           brand_name: {
-            terms: { field: 'brand.name.keyword', size: 1 }
-          }
-        }
+            terms: { field: 'brand.name.keyword', size: 1 },
+          },
+        },
       },
       price_ranges: {
         range: {
@@ -266,9 +266,9 @@ export class QueryBuilderUtil {
             { key: '1000-5000', from: 1000, to: 5000 },
             { key: '5000-10000', from: 5000, to: 10000 },
             { key: '10000-50000', from: 10000, to: 50000 },
-            { key: '50000+', from: 50000 }
-          ]
-        }
+            { key: '50000+', from: 50000 },
+          ],
+        },
       },
       ratings: {
         range: {
@@ -277,40 +277,40 @@ export class QueryBuilderUtil {
             { key: '4+', from: 4 },
             { key: '3+', from: 3 },
             { key: '2+', from: 2 },
-            { key: '1+', from: 1 }
-          ]
-        }
+            { key: '1+', from: 1 },
+          ],
+        },
       },
       availability: {
         terms: {
           field: 'inventory.isInStock',
-          size: 2
-        }
-      }
+          size: 2,
+        },
+      },
     };
 
     // Add dynamic attribute aggregations if category is specified
     if (query.category) {
       aggs.attributes = {
         nested: {
-          path: 'attributes'
+          path: 'attributes',
         },
         aggs: {
           attribute_names: {
             terms: {
               field: 'attributes.name',
-              size: 20
+              size: 20,
             },
             aggs: {
               attribute_values: {
                 terms: {
                   field: 'attributes.value',
-                  size: 20
-                }
-              }
-            }
-          }
-        }
+                  size: 20,
+                },
+              },
+            },
+          },
+        },
       };
     }
 
@@ -326,15 +326,15 @@ export class QueryBuilderUtil {
           fragment_size: 150,
           number_of_fragments: 1,
           pre_tags: ['<mark>'],
-          post_tags: ['</mark>']
+          post_tags: ['</mark>'],
         },
         description: {
           fragment_size: 200,
           number_of_fragments: 2,
           pre_tags: ['<mark>'],
-          post_tags: ['</mark>']
-        }
-      }
+          post_tags: ['</mark>'],
+        },
+      },
     };
   }
 
@@ -344,25 +344,25 @@ export class QueryBuilderUtil {
     // Boost featured products
     functions.push({
       filter: { term: { isFeatured: true } },
-      weight: 1.5
+      weight: 1.5,
     });
 
     // Boost promoted products
     functions.push({
       filter: { term: { isPromoted: true } },
-      weight: 1.3
+      weight: 1.3,
     });
 
     // Boost verified sellers
     functions.push({
       filter: { term: { 'seller.isVerified': true } },
-      weight: 1.2
+      weight: 1.2,
     });
 
     // Boost products with high ratings
     functions.push({
       filter: { range: { 'popularity.rating': { gte: 4 } } },
-      weight: 1.1
+      weight: 1.1,
     });
 
     // Decay function for freshness (newer products get slight boost)
@@ -371,9 +371,9 @@ export class QueryBuilderUtil {
         createdAt: {
           origin: 'now',
           scale: '30d',
-          decay: 0.5
-        }
-      }
+          decay: 0.5,
+        },
+      },
     });
 
     // Popularity score boost
@@ -382,14 +382,14 @@ export class QueryBuilderUtil {
         field: 'popularity.score',
         factor: 0.1,
         modifier: 'log1p',
-        missing: 0
-      }
+        missing: 0,
+      },
     });
 
     return {
       score_mode: 'multiply',
       boost_mode: 'multiply',
-      functions
+      functions,
     };
   }
 }

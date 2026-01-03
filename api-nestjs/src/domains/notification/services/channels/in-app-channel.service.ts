@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../infrastructure/prisma/prisma.service';
 import { NotificationRecipient } from '../../types/notification.types';
-import { ChannelDeliveryRequest, ChannelDeliveryResult } from '../notification-channel.service';
+import {
+  ChannelDeliveryRequest,
+  ChannelDeliveryResult,
+} from '../notification-channel.service';
 import { LoggerService } from '../../../../infrastructure/observability/logger.service';
 import { $Enums } from '@prisma/client';
 
@@ -14,7 +17,7 @@ export class InAppChannelService {
 
   async send(
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     if (!recipient.userId) {
       throw new Error('User ID is required for in-app notifications');
@@ -78,10 +81,10 @@ export class InAppChannelService {
   }> {
     try {
       const startTime = Date.now();
-      
+
       // Test database connection
       await this.prisma.$queryRaw`SELECT 1`;
-      
+
       const responseTime = Date.now() - startTime;
 
       return {
@@ -119,15 +122,15 @@ export class InAppChannelService {
   async markAllAsRead(userId: string): Promise<number> {
     // Get all unread notifications for the user
     const notifications = await this.prisma.notification.findMany({
-      where: { 
+      where: {
         userId,
-        channels: { has: $Enums.NotificationChannel.IN_APP }
+        channels: { has: $Enums.NotificationChannel.IN_APP },
       },
       select: { id: true },
     });
 
     // Create read events for all notifications
-    const events = notifications.map(n => ({
+    const events = notifications.map((n) => ({
       id: `${n.id}_read_${Date.now()}`,
       notificationId: n.id,
       type: 'READ' as const,
@@ -150,7 +153,7 @@ export class InAppChannelService {
     const allNotifications = await this.prisma.notification.findMany({
       where: {
         userId,
-        channels: { has: $Enums.NotificationChannel.IN_APP }
+        channels: { has: $Enums.NotificationChannel.IN_APP },
       },
       select: { id: true },
     });
@@ -160,13 +163,13 @@ export class InAppChannelService {
       where: {
         userId,
         type: 'READ',
-        notificationId: { in: allNotifications.map(n => n.id) }
+        notificationId: { in: allNotifications.map((n) => n.id) },
       },
       select: { notificationId: true },
     });
 
-    const readIds = new Set(readNotificationIds.map(e => e.notificationId));
-    return allNotifications.filter(n => !readIds.has(n.id)).length;
+    const readIds = new Set(readNotificationIds.map((e) => e.notificationId));
+    return allNotifications.filter((n) => !readIds.has(n.id)).length;
   }
 
   async getUserNotifications(
@@ -176,13 +179,13 @@ export class InAppChannelService {
       offset?: number;
       isRead?: boolean;
       type?: string;
-    } = {}
+    } = {},
   ): Promise<{ notifications: any[]; total: number }> {
-    const where: any = { 
+    const where: any = {
       userId,
-      channels: { has: $Enums.NotificationChannel.IN_APP }
+      channels: { has: $Enums.NotificationChannel.IN_APP },
     };
-    
+
     if (options.type) {
       where.type = options.type;
     }
@@ -204,14 +207,14 @@ export class InAppChannelService {
         where: {
           userId,
           type: 'READ',
-          notificationId: { in: allNotifications.map(n => n.id) }
+          notificationId: { in: allNotifications.map((n) => n.id) },
         },
         select: { notificationId: true },
       });
 
-      const readIds = new Set(readEvents.map(e => e.notificationId));
-      const filteredNotifications = allNotifications.filter(n => 
-        options.isRead ? readIds.has(n.id) : !readIds.has(n.id)
+      const readIds = new Set(readEvents.map((e) => e.notificationId));
+      const filteredNotifications = allNotifications.filter((n) =>
+        options.isRead ? readIds.has(n.id) : !readIds.has(n.id),
       );
 
       return {
@@ -220,13 +223,16 @@ export class InAppChannelService {
       };
     }
 
-    return { 
-      notifications: allNotifications, 
-      total: totalCount 
+    return {
+      notifications: allNotifications,
+      total: totalCount,
     };
   }
 
-  async deleteNotification(notificationId: string, userId: string): Promise<void> {
+  async deleteNotification(
+    notificationId: string,
+    userId: string,
+  ): Promise<void> {
     await this.prisma.notification.deleteMany({
       where: {
         id: notificationId,

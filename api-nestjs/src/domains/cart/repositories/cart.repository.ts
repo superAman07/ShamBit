@@ -565,7 +565,9 @@ export class CartRepository implements ICartRepository {
           discountType: promotionData.discountType! as any, // Cast to enum type
           discountValue: this.toPrismaDecimal(promotionData.discountValue),
           discountAmount: this.toPrismaDecimal(promotionData.discountAmount),
-          maxDiscountAmount: this.toPrismaDecimalOptional(promotionData.maxDiscountAmount),
+          maxDiscountAmount: this.toPrismaDecimalOptional(
+            promotionData.maxDiscountAmount,
+          ),
           priority: promotionData.priority || 0,
           eligibilitySnapshot: promotionData.eligibilitySnapshot || {},
           appliedAt: promotionData.appliedAt || new Date(),
@@ -626,12 +628,14 @@ export class CartRepository implements ICartRepository {
 
       // Calculate new totals
       const subtotal = cart.items.reduce(
-        (sum, item) => (sum as any).add(new Prisma.Decimal(item.totalPrice.toString())),
+        (sum, item) =>
+          (sum as any).add(new Prisma.Decimal(item.totalPrice.toString())),
         new Prisma.Decimal(0),
       );
 
       const discountAmount = cart.appliedPromotionDetails.reduce(
-        (sum, promo) => (sum as any).add(new Prisma.Decimal(promo.discountAmount.toString())),
+        (sum, promo) =>
+          (sum as any).add(new Prisma.Decimal(promo.discountAmount.toString())),
         new Prisma.Decimal(0),
       );
 
@@ -641,7 +645,7 @@ export class CartRepository implements ICartRepository {
         data: {
           subtotal,
           discountAmount,
-          totalAmount: (subtotal as any)
+          totalAmount: subtotal
             .sub(discountAmount)
             .add(cart.taxAmount)
             .add(cart.shippingAmount),

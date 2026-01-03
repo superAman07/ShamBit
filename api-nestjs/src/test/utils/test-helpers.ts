@@ -19,7 +19,10 @@ export class TestDatabaseHelper {
     await prisma.tenant.deleteMany();
   }
 
-  static async createTestUser(prisma: PrismaService, overrides: Partial<any> = {}) {
+  static async createTestUser(
+    prisma: PrismaService,
+    overrides: Partial<any> = {},
+  ) {
     return prisma.user.create({
       data: {
         email: 'test@example.com',
@@ -33,7 +36,10 @@ export class TestDatabaseHelper {
     });
   }
 
-  static async createTestTenant(prisma: PrismaService, overrides: Partial<any> = {}) {
+  static async createTestTenant(
+    prisma: PrismaService,
+    overrides: Partial<any> = {},
+  ) {
     return prisma.tenant.create({
       data: {
         name: 'Test Tenant',
@@ -191,8 +197,10 @@ export class TestDataFactory {
 
   static createAuthTokens() {
     return {
-      accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQwOTk2MTAwfQ.signature',
-      refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQxNjAwMDAwfQ.signature',
+      accessToken:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQwOTk2MTAwfQ.signature',
+      refreshToken:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsInJvbGVzIjpbIkJVWUVSIl0sImlhdCI6MTY0MDk5NTIwMCwiZXhwIjoxNjQxNjAwMDAwfQ.signature',
     };
   }
 }
@@ -202,7 +210,9 @@ export class TestDataFactory {
  * Helps create testing modules with proper mocks
  */
 export class TestModuleBuilder {
-  static async createAuthTestingModule(customProviders: any[] = []): Promise<TestingModule> {
+  static async createAuthTestingModule(
+    customProviders: any[] = [],
+  ): Promise<TestingModule> {
     return Test.createTestingModule({
       providers: [
         {
@@ -299,7 +309,9 @@ export class TestErrorHelper {
  * Utilities for performance testing
  */
 export class TestPerformanceHelper {
-  static async measureExecutionTime<T>(fn: () => Promise<T>): Promise<{ result: T; duration: number }> {
+  static async measureExecutionTime<T>(
+    fn: () => Promise<T>,
+  ): Promise<{ result: T; duration: number }> {
     const start = process.hrtime.bigint();
     const result = await fn();
     const end = process.hrtime.bigint();
@@ -336,7 +348,7 @@ export class TestSecurityHelper {
       /union\s+select/i,
     ];
 
-    maliciousPatterns.forEach(pattern => {
+    maliciousPatterns.forEach((pattern) => {
       expect(output).not.toMatch(pattern);
     });
   }

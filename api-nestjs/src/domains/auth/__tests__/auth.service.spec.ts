@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcrypt';
@@ -27,20 +31,21 @@ describe('AuthService', () => {
   let tokenDenylistService: jest.Mocked<TokenDenylistService>;
 
   beforeEach(async () => {
-    const module: TestingModule = await TestModuleBuilder.createAuthTestingModule([
-      AuthService,
-      {
-        provide: AuthRepository,
-        useValue: {
-          findByEmail: jest.fn(),
-          create: jest.fn(),
-          saveRefreshToken: jest.fn(),
-          findByRefreshToken: jest.fn(),
-          removeRefreshToken: jest.fn(),
-          updateLastLogin: jest.fn(),
+    const module: TestingModule =
+      await TestModuleBuilder.createAuthTestingModule([
+        AuthService,
+        {
+          provide: AuthRepository,
+          useValue: {
+            findByEmail: jest.fn(),
+            create: jest.fn(),
+            saveRefreshToken: jest.fn(),
+            findByRefreshToken: jest.fn(),
+            removeRefreshToken: jest.fn(),
+            updateLastLogin: jest.fn(),
+          },
         },
-      },
-    ]);
+      ]);
 
     service = module.get<AuthService>(AuthService);
     authRepository = module.get(AuthRepository);
@@ -68,7 +73,9 @@ describe('AuthService', () => {
       authRepository.findByEmail.mockResolvedValue(null);
       jest.spyOn(bcrypt, 'hash').mockResolvedValue(hashedPassword as never);
       authRepository.create.mockResolvedValue(createdUser);
-      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      jwtService.signAsync
+        .mockResolvedValueOnce(tokens.accessToken)
+        .mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
 
       // Act
@@ -76,7 +83,9 @@ describe('AuthService', () => {
 
       // Assert
       TestAssertions.expectValidAuthResponse(result);
-      expect(authRepository.findByEmail).toHaveBeenCalledWith(registerDto.email);
+      expect(authRepository.findByEmail).toHaveBeenCalledWith(
+        registerDto.email,
+      );
       expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 12);
       expect(authRepository.create).toHaveBeenCalledWith({
         ...registerDto,
@@ -84,19 +93,28 @@ describe('AuthService', () => {
         roles: [UserRole.BUYER],
         isEmailVerified: false,
       });
-      expect(authRepository.saveRefreshToken).toHaveBeenCalledWith(createdUser.id, tokens.refreshToken);
+      expect(authRepository.saveRefreshToken).toHaveBeenCalledWith(
+        createdUser.id,
+        tokens.refreshToken,
+      );
     });
 
     it('should throw ConflictException if user already exists', async () => {
       // Arrange
       const registerDto = TestDataFactory.createValidRegisterDto();
-      const existingUser = TestDataFactory.createTestUser({ email: registerDto.email });
+      const existingUser = TestDataFactory.createTestUser({
+        email: registerDto.email,
+      });
 
       authRepository.findByEmail.mockResolvedValue(existingUser);
 
       // Act & Assert
-      await expect(service.register(registerDto)).rejects.toThrow(ConflictException);
-      expect(authRepository.findByEmail).toHaveBeenCalledWith(registerDto.email);
+      await expect(service.register(registerDto)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(authRepository.findByEmail).toHaveBeenCalledWith(
+        registerDto.email,
+      );
       expect(authRepository.create).not.toHaveBeenCalled();
     });
 
@@ -155,7 +173,9 @@ describe('AuthService', () => {
 
       authRepository.findByEmail.mockResolvedValue(user);
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
-      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      jwtService.signAsync
+        .mockResolvedValueOnce(tokens.accessToken)
+        .mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
@@ -165,7 +185,10 @@ describe('AuthService', () => {
       // Assert
       TestAssertions.expectValidAuthResponse(result);
       expect(authRepository.findByEmail).toHaveBeenCalledWith(loginDto.email);
-      expect(bcrypt.compare).toHaveBeenCalledWith(loginDto.password, user.password);
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        loginDto.password,
+        user.password,
+      );
       expect(authRepository.updateLastLogin).toHaveBeenCalledWith(user.id);
     });
 
@@ -176,7 +199,9 @@ describe('AuthService', () => {
       authRepository.findByEmail.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(loginDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
       expect(authRepository.findByEmail).toHaveBeenCalledWith(loginDto.email);
     });
 
@@ -189,8 +214,13 @@ describe('AuthService', () => {
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(false as never);
 
       // Act & Assert
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
-      expect(bcrypt.compare).toHaveBeenCalledWith(loginDto.password, user.password);
+      await expect(service.login(loginDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        loginDto.password,
+        user.password,
+      );
     });
 
     it('should throw UnauthorizedException for suspended user', async () => {
@@ -205,7 +235,9 @@ describe('AuthService', () => {
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
 
       // Act & Assert
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(loginDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should throw UnauthorizedException for banned user', async () => {
@@ -220,7 +252,9 @@ describe('AuthService', () => {
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
 
       // Act & Assert
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(loginDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should complete login within acceptable time', async () => {
@@ -235,8 +269,8 @@ describe('AuthService', () => {
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(() =>
-        service.login(loginDto)
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        () => service.login(loginDto),
       );
 
       // Assert
@@ -252,7 +286,9 @@ describe('AuthService', () => {
       const newTokens = TestDataFactory.createAuthTokens();
 
       authRepository.findByRefreshToken.mockResolvedValue(user);
-      jwtService.signAsync.mockResolvedValueOnce(newTokens.accessToken).mockResolvedValueOnce(newTokens.refreshToken);
+      jwtService.signAsync
+        .mockResolvedValueOnce(newTokens.accessToken)
+        .mockResolvedValueOnce(newTokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
 
       // Act
@@ -260,8 +296,13 @@ describe('AuthService', () => {
 
       // Assert
       TestAssertions.expectValidAuthResponse(result);
-      expect(authRepository.findByRefreshToken).toHaveBeenCalledWith(refreshToken);
-      expect(authRepository.saveRefreshToken).toHaveBeenCalledWith(user.id, newTokens.refreshToken);
+      expect(authRepository.findByRefreshToken).toHaveBeenCalledWith(
+        refreshToken,
+      );
+      expect(authRepository.saveRefreshToken).toHaveBeenCalledWith(
+        user.id,
+        newTokens.refreshToken,
+      );
     });
 
     it('should throw UnauthorizedException for invalid refresh token', async () => {
@@ -271,7 +312,9 @@ describe('AuthService', () => {
       authRepository.findByRefreshToken.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.refreshToken(invalidRefreshToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(invalidRefreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -297,7 +340,9 @@ describe('AuthService', () => {
       const userId = 'user-123';
       const accessToken = 'valid-access-token';
 
-      authRepository.removeRefreshToken.mockRejectedValue(new Error('Database error'));
+      authRepository.removeRefreshToken.mockRejectedValue(
+        new Error('Database error'),
+      );
 
       // Act & Assert
       await expect(service.logout(userId, accessToken)).rejects.toThrow();
@@ -312,7 +357,9 @@ describe('AuthService', () => {
       const roles = [UserRole.BUYER];
       const tokens = TestDataFactory.createAuthTokens();
 
-      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      jwtService.signAsync
+        .mockResolvedValueOnce(tokens.accessToken)
+        .mockResolvedValueOnce(tokens.refreshToken);
 
       // Act
       const result = await service.generateTokens(userId, email, roles);
@@ -338,11 +385,11 @@ describe('AuthService', () => {
       // Assert
       expect(jwtService.signAsync).toHaveBeenCalledWith(
         expect.objectContaining({ sub: userId, email, roles }),
-        { secret: 'test-jwt-secret', expiresIn: '15m' }
+        { secret: 'test-jwt-secret', expiresIn: '15m' },
       );
       expect(jwtService.signAsync).toHaveBeenCalledWith(
         expect.objectContaining({ sub: userId, email, roles }),
-        { secret: 'test-refresh-secret', expiresIn: '7d' }
+        { secret: 'test-refresh-secret', expiresIn: '7d' },
       );
     });
   });
@@ -392,11 +439,15 @@ describe('AuthService', () => {
       const mockGoogleEmail = 'test@google.com';
 
       authRepository.findByEmail.mockResolvedValue(null);
-      authRepository.create.mockResolvedValue(TestDataFactory.createTestUser({
-        email: mockGoogleEmail,
-        name: 'Google Test User',
-      }));
-      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      authRepository.create.mockResolvedValue(
+        TestDataFactory.createTestUser({
+          email: mockGoogleEmail,
+          name: 'Google Test User',
+        }),
+      );
+      jwtService.signAsync
+        .mockResolvedValueOnce(tokens.accessToken)
+        .mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
@@ -412,11 +463,15 @@ describe('AuthService', () => {
       // Arrange
       const googleAuthDto = TestDataFactory.createValidGoogleAuthDto();
       const mockGoogleEmail = 'test@google.com';
-      const existingUser = TestDataFactory.createTestUser({ email: mockGoogleEmail });
+      const existingUser = TestDataFactory.createTestUser({
+        email: mockGoogleEmail,
+      });
       const tokens = TestDataFactory.createAuthTokens();
 
       authRepository.findByEmail.mockResolvedValue(existingUser);
-      jwtService.signAsync.mockResolvedValueOnce(tokens.accessToken).mockResolvedValueOnce(tokens.refreshToken);
+      jwtService.signAsync
+        .mockResolvedValueOnce(tokens.accessToken)
+        .mockResolvedValueOnce(tokens.refreshToken);
       authRepository.saveRefreshToken.mockResolvedValue(undefined);
       authRepository.updateLastLogin.mockResolvedValue(undefined);
 
@@ -454,7 +509,9 @@ describe('AuthService', () => {
       });
 
       // Act & Assert
-      await expect(service.generateTokens(userId, email, roles)).rejects.toThrow();
+      await expect(
+        service.generateTokens(userId, email, roles),
+      ).rejects.toThrow();
     });
 
     it('should handle malformed refresh tokens', async () => {
@@ -464,7 +521,9 @@ describe('AuthService', () => {
       authRepository.findByRefreshToken.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(service.refreshToken(malformedToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshToken(malformedToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

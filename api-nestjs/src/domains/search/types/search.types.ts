@@ -2,12 +2,12 @@ export interface SearchDocument {
   // Core identifiers
   id: string;
   type: 'product' | 'variant' | 'category' | 'brand';
-  
+
   // Basic information
   name: string;
   description: string;
   slug: string;
-  
+
   // Hierarchical data
   category: {
     id: string;
@@ -16,14 +16,14 @@ export interface SearchDocument {
     pathIds: string[];
     level: number;
   };
-  
+
   // Brand information
   brand?: {
     id: string;
     name: string;
     slug: string;
   };
-  
+
   // Seller information
   seller: {
     id: string;
@@ -31,7 +31,7 @@ export interface SearchDocument {
     rating: number;
     isVerified: boolean;
   };
-  
+
   // Pricing (aggregated from variants)
   pricing: {
     minPrice: number;
@@ -40,17 +40,17 @@ export interface SearchDocument {
     hasDiscount: boolean;
     discountPercentage?: number;
   };
-  
+
   // Inventory (aggregated)
   inventory: {
     totalQuantity: number;
     isInStock: boolean;
     lowStock: boolean;
   };
-  
+
   // Attributes (flattened for filtering)
   attributes: Record<string, any>;
-  
+
   // Variants (for product documents)
   variants?: Array<{
     id: string;
@@ -59,16 +59,16 @@ export interface SearchDocument {
     inventory: number;
     attributes: Record<string, any>;
   }>;
-  
+
   // Media
   images: string[];
   primaryImage: string;
-  
+
   // Search optimization
   searchText: string;
   keywords: string[];
   tags: string[];
-  
+
   // Popularity metrics
   popularity: {
     viewCount: number;
@@ -78,17 +78,17 @@ export interface SearchDocument {
     wishlistCount: number;
     score: number;
   };
-  
+
   // Status and flags
   status: string;
   isActive: boolean;
   isFeatured: boolean;
   isPromoted: boolean;
-  
+
   // Localization
   locale: string;
   translations?: Record<string, Partial<SearchDocument>>;
-  
+
   // Timestamps
   createdAt: Date;
   updatedAt: Date;

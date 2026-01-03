@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { 
-  NotificationChannel, 
-  NotificationType, 
+import {
+  NotificationChannel,
+  NotificationType,
   NotificationDeliveryResult,
-  NotificationCategory
+  NotificationCategory,
 } from '../types/notification.types';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
@@ -53,7 +53,9 @@ export class NotificationMetricsService {
   // DELIVERY METRICS RECORDING
   // ============================================================================
 
-  async recordDeliveryResults(results: NotificationDeliveryResult[]): Promise<void> {
+  async recordDeliveryResults(
+    results: NotificationDeliveryResult[],
+  ): Promise<void> {
     try {
       const now = new Date();
       const hour = now.getHours();
@@ -64,14 +66,26 @@ export class NotificationMetricsService {
 
       for (const result of results) {
         const dimensions = [
-          { tenantId: null, userId: null, type: null, channel: result.channel, category: null },
-          { tenantId: null, userId: result.recipient.userId, type: null, channel: result.channel, category: null },
+          {
+            tenantId: null,
+            userId: null,
+            type: null,
+            channel: result.channel,
+            category: null,
+          },
+          {
+            tenantId: null,
+            userId: result.recipient.userId,
+            type: null,
+            channel: result.channel,
+            category: null,
+          },
           // Add more dimension combinations as needed
         ];
 
         for (const dimension of dimensions) {
           const key = this.buildMetricsKey(dimension);
-          
+
           if (!metricsMap.has(key)) {
             metricsMap.set(key, {
               ...dimension,
@@ -89,7 +103,7 @@ export class NotificationMetricsService {
           }
 
           const metrics = metricsMap.get(key);
-          
+
           // Update counters based on result status
           switch (result.status) {
             case 'SENT':
@@ -130,7 +144,7 @@ export class NotificationMetricsService {
     notificationId: string,
     eventType: string,
     channel?: NotificationChannel,
-    data?: any
+    data?: any,
   ): Promise<void> {
     try {
       await this.prisma.notificationEvent.create({
@@ -157,13 +171,13 @@ export class NotificationMetricsService {
   async getMetrics(filters: MetricsFilter = {}): Promise<NotificationMetrics> {
     try {
       const where: any = {};
-      
+
       if (filters.dateFrom || filters.dateTo) {
         where.date = {};
         if (filters.dateFrom) where.date.gte = filters.dateFrom;
         if (filters.dateTo) where.date.lte = filters.dateTo;
       }
-      
+
       if (filters.tenantId) where.tenantId = filters.tenantId;
       if (filters.userId) where.userId = filters.userId;
       if (filters.type) where.type = filters.type;
@@ -206,16 +220,18 @@ export class NotificationMetricsService {
     }
   }
 
-  async getChannelPerformance(filters: MetricsFilter = {}): Promise<ChannelPerformance[]> {
+  async getChannelPerformance(
+    filters: MetricsFilter = {},
+  ): Promise<ChannelPerformance[]> {
     try {
       const where: any = {};
-      
+
       if (filters.dateFrom || filters.dateTo) {
         where.date = {};
         if (filters.dateFrom) where.date.gte = filters.dateFrom;
         if (filters.dateTo) where.date.lte = filters.dateTo;
       }
-      
+
       if (filters.tenantId) where.tenantId = filters.tenantId;
 
       const results = await this.prisma.notificationMetrics.groupBy({
@@ -237,7 +253,7 @@ export class NotificationMetricsService {
         },
       });
 
-      return results.map(result => {
+      return results.map((result) => {
         const total = (result._sum.sent || 0) + (result._sum.failed || 0);
         const errorRate = total > 0 ? (result._sum.failed || 0) / total : 0;
 
@@ -255,28 +271,32 @@ export class NotificationMetricsService {
           avgProcessingTime: result._avg.avgProcessingTime || undefined,
           avgDeliveryTime: result._avg.avgDeliveryTime || undefined,
           errorRate,
-          cost: result._sum.totalCost ? Number(result._sum.totalCost) : undefined,
+          cost: result._sum.totalCost
+            ? Number(result._sum.totalCost)
+            : undefined,
         };
       });
     } catch (error) {
-      this.logger.error('Failed to get channel performance', error.stack, { filters });
+      this.logger.error('Failed to get channel performance', error.stack, {
+        filters,
+      });
       return [];
     }
   }
 
   async getTimeSeriesData(
     filters: MetricsFilter = {},
-    granularity: 'hour' | 'day' = 'day'
+    granularity: 'hour' | 'day' = 'day',
   ): Promise<TimeSeriesData[]> {
     try {
       const where: any = {};
-      
+
       if (filters.dateFrom || filters.dateTo) {
         where.date = {};
         if (filters.dateFrom) where.date.gte = filters.dateFrom;
         if (filters.dateTo) where.date.lte = filters.dateTo;
       }
-      
+
       if (filters.tenantId) where.tenantId = filters.tenantId;
       if (filters.type) where.type = filters.type;
       if (filters.channel) where.channel = filters.channel;
@@ -295,15 +315,17 @@ export class NotificationMetricsService {
           clicked: true,
           unsubscribed: true,
         },
-        orderBy: granularity === 'hour' 
-          ? [{ date: 'asc' }, { hour: 'asc' }]
-          : { date: 'asc' },
+        orderBy:
+          granularity === 'hour'
+            ? [{ date: 'asc' }, { hour: 'asc' }]
+            : { date: 'asc' },
       });
 
-      return results.map(result => {
-        const timestamp = granularity === 'hour' && result.hour !== null
-          ? new Date(result.date.getTime() + result.hour * 60 * 60 * 1000)
-          : result.date;
+      return results.map((result) => {
+        const timestamp =
+          granularity === 'hour' && result.hour !== null
+            ? new Date(result.date.getTime() + result.hour * 60 * 60 * 1000)
+            : result.date;
 
         return {
           timestamp,
@@ -319,7 +341,9 @@ export class NotificationMetricsService {
         };
       });
     } catch (error) {
-      this.logger.error('Failed to get time series data', error.stack, { filters });
+      this.logger.error('Failed to get time series data', error.stack, {
+        filters,
+      });
       return [];
     }
   }
@@ -335,11 +359,19 @@ export class NotificationMetricsService {
     unsubscribeRate: number;
   }> {
     const metrics = await this.getMetrics(filters);
-    
-    const deliveryRate = metrics.sent > 0 ? metrics.delivered / metrics.sent : 0;
-    const openRate = metrics.delivered > 0 ? (metrics.opened || 0) / metrics.delivered : 0;
-    const clickRate = (metrics.opened || 0) > 0 ? (metrics.clicked || 0) / (metrics.opened || 1) : 0;
-    const unsubscribeRate = metrics.delivered > 0 ? (metrics.unsubscribed || 0) / metrics.delivered : 0;
+
+    const deliveryRate =
+      metrics.sent > 0 ? metrics.delivered / metrics.sent : 0;
+    const openRate =
+      metrics.delivered > 0 ? (metrics.opened || 0) / metrics.delivered : 0;
+    const clickRate =
+      (metrics.opened || 0) > 0
+        ? (metrics.clicked || 0) / (metrics.opened || 1)
+        : 0;
+    const unsubscribeRate =
+      metrics.delivered > 0
+        ? (metrics.unsubscribed || 0) / metrics.delivered
+        : 0;
 
     return {
       deliveryRate,
@@ -351,21 +383,23 @@ export class NotificationMetricsService {
 
   async getTopPerformingTypes(
     filters: MetricsFilter = {},
-    limit: number = 10
-  ): Promise<Array<{
-    type: NotificationType;
-    metrics: NotificationMetrics;
-    engagementScore: number;
-  }>> {
+    limit: number = 10,
+  ): Promise<
+    Array<{
+      type: NotificationType;
+      metrics: NotificationMetrics;
+      engagementScore: number;
+    }>
+  > {
     try {
       const where: any = {};
-      
+
       if (filters.dateFrom || filters.dateTo) {
         where.date = {};
         if (filters.dateFrom) where.date.gte = filters.dateFrom;
         if (filters.dateTo) where.date.lte = filters.dateTo;
       }
-      
+
       if (filters.tenantId) where.tenantId = filters.tenantId;
       if (filters.channel) where.channel = filters.channel;
 
@@ -389,7 +423,7 @@ export class NotificationMetricsService {
         take: limit,
       });
 
-      return results.map(result => {
+      return results.map((result) => {
         const metrics = {
           sent: result._sum.sent || 0,
           delivered: result._sum.delivered || 0,
@@ -401,11 +435,15 @@ export class NotificationMetricsService {
         };
 
         // Calculate engagement score (weighted combination of rates)
-        const deliveryRate = metrics.sent > 0 ? metrics.delivered / metrics.sent : 0;
-        const openRate = metrics.delivered > 0 ? metrics.opened / metrics.delivered : 0;
-        const clickRate = metrics.opened > 0 ? metrics.clicked / metrics.opened : 0;
-        
-        const engagementScore = (deliveryRate * 0.3) + (openRate * 0.4) + (clickRate * 0.3);
+        const deliveryRate =
+          metrics.sent > 0 ? metrics.delivered / metrics.sent : 0;
+        const openRate =
+          metrics.delivered > 0 ? metrics.opened / metrics.delivered : 0;
+        const clickRate =
+          metrics.opened > 0 ? metrics.clicked / metrics.opened : 0;
+
+        const engagementScore =
+          deliveryRate * 0.3 + openRate * 0.4 + clickRate * 0.3;
 
         return {
           type: result.type as NotificationType,
@@ -414,7 +452,9 @@ export class NotificationMetricsService {
         };
       });
     } catch (error) {
-      this.logger.error('Failed to get top performing types', error.stack, { filters });
+      this.logger.error('Failed to get top performing types', error.stack, {
+        filters,
+      });
       return [];
     }
   }
@@ -431,13 +471,13 @@ export class NotificationMetricsService {
   }> {
     try {
       const where: any = {};
-      
+
       if (filters.dateFrom || filters.dateTo) {
         where.date = {};
         if (filters.dateFrom) where.date.gte = filters.dateFrom;
         if (filters.dateTo) where.date.lte = filters.dateTo;
       }
-      
+
       if (filters.tenantId) where.tenantId = filters.tenantId;
 
       const [totalResult, channelResults] = await Promise.all([
@@ -461,7 +501,7 @@ export class NotificationMetricsService {
       const totalSent = totalResult._sum.sent || 0;
       const costPerNotification = totalSent > 0 ? totalCost / totalSent : 0;
 
-      const costPerChannel = channelResults.map(result => ({
+      const costPerChannel = channelResults.map((result) => ({
         channel: result.channel as NotificationChannel,
         cost: Number(result._sum.totalCost || 0),
       }));
@@ -473,7 +513,9 @@ export class NotificationMetricsService {
         currency: 'USD', // This should come from configuration
       };
     } catch (error) {
-      this.logger.error('Failed to get cost analytics', error.stack, { filters });
+      this.logger.error('Failed to get cost analytics', error.stack, {
+        filters,
+      });
       return {
         totalCost: 0,
         costPerChannel: [],

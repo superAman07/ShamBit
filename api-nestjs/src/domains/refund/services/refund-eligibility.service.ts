@@ -564,7 +564,7 @@ export class RefundEligibilityService {
       // Handle both array and object return types
       const customerRefunds = Array.isArray(customerRefundsResult)
         ? customerRefundsResult
-        : (customerRefundsResult as any)?.refunds || [];
+        : customerRefundsResult?.refunds || [];
 
       // Create a mock refund object for fraud detection
       const mockRefund = new Refund({

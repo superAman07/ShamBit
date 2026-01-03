@@ -2,10 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { createHmac, randomBytes } from 'crypto';
-import { 
-  NotificationType, 
+import {
+  NotificationType,
   WebhookSubscription,
-  WebhookStatus
+  WebhookStatus,
 } from '../types/notification.types';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
 
@@ -62,7 +62,10 @@ export class WebhookService {
   // WEBHOOK SUBSCRIPTION MANAGEMENT
   // ============================================================================
 
-  async createSubscription(dto: CreateWebhookDto, createdBy: string): Promise<WebhookSubscription> {
+  async createSubscription(
+    dto: CreateWebhookDto,
+    createdBy: string,
+  ): Promise<WebhookSubscription> {
     this.logger.log('Creating webhook subscription', {
       name: dto.name,
       url: dto.url,
@@ -99,7 +102,7 @@ export class WebhookService {
 
   async updateSubscription(
     subscriptionId: string,
-    updates: Partial<CreateWebhookDto>
+    updates: Partial<CreateWebhookDto>,
   ): Promise<WebhookSubscription> {
     const subscription = await this.prisma.webhookSubscription.update({
       where: { id: subscriptionId },
@@ -120,7 +123,9 @@ export class WebhookService {
     this.logger.log('Webhook subscription deleted', { subscriptionId });
   }
 
-  async getSubscription(subscriptionId: string): Promise<WebhookSubscription | null> {
+  async getSubscription(
+    subscriptionId: string,
+  ): Promise<WebhookSubscription | null> {
     const subscription = await this.prisma.webhookSubscription.findUnique({
       where: { id: subscriptionId },
     });
@@ -128,16 +133,18 @@ export class WebhookService {
     return subscription ? this.mapToWebhookType(subscription) : null;
   }
 
-  async getSubscriptions(filters: {
-    tenantId?: string;
-    userId?: string;
-    isActive?: boolean;
-    events?: NotificationType[];
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<{ subscriptions: WebhookSubscription[]; total: number }> {
+  async getSubscriptions(
+    filters: {
+      tenantId?: string;
+      userId?: string;
+      isActive?: boolean;
+      events?: NotificationType[];
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ subscriptions: WebhookSubscription[]; total: number }> {
     const where: any = {};
-    
+
     if (filters.tenantId) where.tenantId = filters.tenantId;
     if (filters.userId) where.userId = filters.userId;
     if (filters.isActive !== undefined) where.isActive = filters.isActive;
@@ -156,7 +163,7 @@ export class WebhookService {
     ]);
 
     return {
-      subscriptions: subscriptions.map(s => this.mapToWebhookType(s)),
+      subscriptions: subscriptions.map((s) => this.mapToWebhookType(s)),
       total,
     };
   }
@@ -169,20 +176,26 @@ export class WebhookService {
     eventType: NotificationType,
     eventData: any,
     eventId?: string,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<void> {
     try {
       // Find matching subscriptions
-      const subscriptions = await this.findMatchingSubscriptions(eventType, tenantId);
+      const subscriptions = await this.findMatchingSubscriptions(
+        eventType,
+        tenantId,
+      );
 
       if (subscriptions.length === 0) {
-        this.logger.log('No webhook subscriptions found for event', { eventType, tenantId });
+        this.logger.log('No webhook subscriptions found for event', {
+          eventType,
+          tenantId,
+        });
         return;
       }
 
       // Create delivery attempts for each subscription
-      const deliveryPromises = subscriptions.map(subscription =>
-        this.createDeliveryAttempt(subscription, eventType, eventData, eventId)
+      const deliveryPromises = subscriptions.map((subscription) =>
+        this.createDeliveryAttempt(subscription, eventType, eventData, eventId),
       );
 
       await Promise.allSettled(deliveryPromises);
@@ -192,7 +205,9 @@ export class WebhookService {
         subscriptionCount: subscriptions.length,
       });
     } catch (error) {
-      this.logger.error('Failed to deliver webhooks', error.stack, { eventType });
+      this.logger.error('Failed to deliver webhooks', error.stack, {
+        eventType,
+      });
     }
   }
 
@@ -303,7 +318,10 @@ export class WebhookService {
       return {
         isValid: true,
         isReachable: response.status < 500,
-        error: response.status >= 500 ? `Server error: ${response.status}` : undefined,
+        error:
+          response.status >= 500
+            ? `Server error: ${response.status}`
+            : undefined,
       };
     } catch (error) {
       return {
@@ -320,7 +338,7 @@ export class WebhookService {
 
   async getWebhookMetrics(
     subscriptionId?: string,
-    timeRange: 'hour' | 'day' | 'week' = 'day'
+    timeRange: 'hour' | 'day' | 'week' = 'day',
   ): Promise<{
     totalDeliveries: number;
     successfulDeliveries: number;
@@ -355,7 +373,8 @@ export class WebhookService {
       const totalDeliveries = totalResult;
       const successfulDeliveries = successResult;
       const failedDeliveries = totalDeliveries - successfulDeliveries;
-      const successRate = totalDeliveries > 0 ? successfulDeliveries / totalDeliveries : 0;
+      const successRate =
+        totalDeliveries > 0 ? successfulDeliveries / totalDeliveries : 0;
 
       return {
         totalDeliveries,
@@ -365,7 +384,9 @@ export class WebhookService {
         avgResponseTime: avgResponseTime._avg.responseTime || 0,
       };
     } catch (error) {
-      this.logger.error('Failed to get webhook metrics', error.stack, { subscriptionId });
+      this.logger.error('Failed to get webhook metrics', error.stack, {
+        subscriptionId,
+      });
       return {
         totalDeliveries: 0,
         successfulDeliveries: 0,
@@ -382,7 +403,7 @@ export class WebhookService {
 
   private async findMatchingSubscriptions(
     eventType: NotificationType,
-    tenantId?: string
+    tenantId?: string,
   ): Promise<any[]> {
     return this.prisma.webhookSubscription.findMany({
       where: {
@@ -398,7 +419,7 @@ export class WebhookService {
     subscription: any,
     eventType: NotificationType,
     eventData: any,
-    eventId?: string
+    eventId?: string,
   ): Promise<void> {
     const payload = this.buildWebhookPayload(eventType, eventData, eventId);
 
@@ -421,7 +442,10 @@ export class WebhookService {
     setImmediate(() => this.executeDelivery(subscription, delivery));
   }
 
-  private async executeDelivery(subscription: any, delivery: any): Promise<void> {
+  private async executeDelivery(
+    subscription: any,
+    delivery: any,
+  ): Promise<void> {
     try {
       const startTime = Date.now();
 
@@ -435,7 +459,10 @@ export class WebhookService {
         },
       });
 
-      const response = await this.sendWebhookRequest(subscription, delivery.payload);
+      const response = await this.sendWebhookRequest(
+        subscription,
+        delivery.payload,
+      );
       const responseTime = Date.now() - startTime;
 
       // Update delivery with success
@@ -445,9 +472,10 @@ export class WebhookService {
           status: 'SUCCESS',
           responseStatus: response.status,
           responseHeaders: response.headers,
-          responseBody: typeof response.data === 'string' 
-            ? response.data.substring(0, 1000) // Limit response body size
-            : JSON.stringify(response.data).substring(0, 1000),
+          responseBody:
+            typeof response.data === 'string'
+              ? response.data.substring(0, 1000) // Limit response body size
+              : JSON.stringify(response.data).substring(0, 1000),
           responseTime,
           completedAt: new Date(),
         },
@@ -455,10 +483,9 @@ export class WebhookService {
 
       // Update subscription health
       await this.updateSubscriptionHealth(subscription.id, true);
-
     } catch (error) {
       const shouldRetry = delivery.attempts < subscription.maxRetries;
-      const nextRetryAt = shouldRetry 
+      const nextRetryAt = shouldRetry
         ? this.calculateNextRetryTime(delivery.attempts, subscription)
         : null;
 
@@ -469,7 +496,7 @@ export class WebhookService {
           status: shouldRetry ? 'FAILED' : 'FAILED',
           responseStatus: error.response?.status,
           responseHeaders: error.response?.headers,
-          responseBody: error.response?.data 
+          responseBody: error.response?.data
             ? JSON.stringify(error.response.data).substring(0, 1000)
             : error.message,
           errorCode: error.code,
@@ -491,7 +518,10 @@ export class WebhookService {
     }
   }
 
-  private async sendWebhookRequest(subscription: any, payload: any): Promise<any> {
+  private async sendWebhookRequest(
+    subscription: any,
+    payload: any,
+  ): Promise<any> {
     const headers = this.buildWebhookHeaders(subscription, payload);
 
     return this.httpService.axiosRef.post(subscription.url, payload, {
@@ -504,17 +534,22 @@ export class WebhookService {
   private buildWebhookPayload(
     eventType: NotificationType,
     eventData: any,
-    eventId?: string
+    eventId?: string,
   ): any {
     return {
-      id: eventId || `evt_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+      id:
+        eventId ||
+        `evt_${Date.now()}_${Math.random().toString(36).substring(2)}`,
       type: eventType,
       timestamp: new Date().toISOString(),
       data: eventData,
     };
   }
 
-  private buildWebhookHeaders(subscription: any, payload: any): Record<string, string> {
+  private buildWebhookHeaders(
+    subscription: any,
+    payload: any,
+  ): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'User-Agent': 'NotificationService-Webhook/1.0',
@@ -524,7 +559,10 @@ export class WebhookService {
 
     if (subscription.secret) {
       const payloadString = JSON.stringify(payload);
-      headers['X-Webhook-Signature'] = this.generateSignature(payloadString, subscription.secret);
+      headers['X-Webhook-Signature'] = this.generateSignature(
+        payloadString,
+        subscription.secret,
+      );
     }
 
     return headers;
@@ -548,7 +586,8 @@ export class WebhookService {
       delay = baseDelay * attempts;
     } else {
       // Exponential backoff
-      delay = baseDelay * Math.pow(subscription.retryMultiplier || 2, attempts - 1);
+      delay =
+        baseDelay * Math.pow(subscription.retryMultiplier || 2, attempts - 1);
     }
 
     // Cap at max retry delay
@@ -557,7 +596,10 @@ export class WebhookService {
     return new Date(Date.now() + delay);
   }
 
-  private async updateSubscriptionHealth(subscriptionId: string, success: boolean): Promise<void> {
+  private async updateSubscriptionHealth(
+    subscriptionId: string,
+    success: boolean,
+  ): Promise<void> {
     const updateData: any = {};
 
     if (success) {

@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { createHmac } from 'crypto';
 import { NotificationRecipient } from '../../types/notification.types';
-import { ChannelDeliveryRequest, ChannelDeliveryResult } from '../notification-channel.service';
+import {
+  ChannelDeliveryRequest,
+  ChannelDeliveryResult,
+} from '../notification-channel.service';
 import { LoggerService } from '../../../../infrastructure/observability/logger.service';
 
 export interface WebhookConfig {
@@ -30,7 +33,7 @@ export class WebhookChannelService {
 
   async send(
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     if (!recipient.webhookUrl) {
       throw new Error('Webhook URL is required for webhook notifications');
@@ -47,7 +50,7 @@ export class WebhookChannelService {
           headers,
           timeout: this.config.timeout,
           validateStatus: (status) => status >= 200 && status < 300,
-        }
+        },
       );
 
       return {
@@ -110,7 +113,7 @@ export class WebhookChannelService {
   async testWebhook(
     url: string,
     secret?: string,
-    testPayload?: any
+    testPayload?: any,
   ): Promise<{
     success: boolean;
     statusCode?: number;
@@ -151,7 +154,7 @@ export class WebhookChannelService {
   async verifyWebhookSignature(
     payload: string,
     signature: string,
-    secret: string
+    secret: string,
   ): Promise<boolean> {
     try {
       const expectedSignature = this.generateSignature(payload, secret);

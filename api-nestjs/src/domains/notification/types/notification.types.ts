@@ -217,7 +217,7 @@ export interface NotificationPreference {
   excludeKeywords: string[];
   quietHours?: {
     start: string | null; // HH:mm format
-    end: string | null;   // HH:mm format
+    end: string | null; // HH:mm format
     timezone: string;
   };
 }

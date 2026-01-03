@@ -26,12 +26,12 @@ import { AuthGuard } from '../../common/guards/auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { UserRole, PaginationQuery } from '../../common/types';
-import { 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationType,
+  NotificationChannel,
   NotificationPriority,
   NotificationCategory,
-  PreferenceFrequency
+  PreferenceFrequency,
 } from './types/notification.types';
 
 @ApiTags('Notifications')
@@ -57,9 +57,11 @@ export class NotificationController {
     @Query() query: PaginationQuery & { isRead?: boolean; type?: string },
   ) {
     // Validate and cast type parameter
-    const validType = query.type && Object.values(NotificationType).includes(query.type as NotificationType) 
-      ? query.type as NotificationType 
-      : undefined;
+    const validType =
+      query.type &&
+      Object.values(NotificationType).includes(query.type as NotificationType)
+        ? (query.type as NotificationType)
+        : undefined;
 
     return this.notificationService.getUserNotifications(userId, {
       limit: query.limit,
@@ -81,10 +83,7 @@ export class NotificationController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark notification as read' })
-  async markAsRead(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string
-  ) {
+  async markAsRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
     await this.notificationService.markAsRead(id, userId);
     return { success: true };
   }
@@ -126,7 +125,8 @@ export class NotificationController {
   async updatePreference(
     @CurrentUser('id') userId: string,
     @Param('type') type: NotificationType | 'ALL',
-    @Body() body: {
+    @Body()
+    body: {
       channels: NotificationChannel[];
       isEnabled: boolean;
       frequency?: string;
@@ -139,11 +139,15 @@ export class NotificationController {
     // Validate frequency if provided
     const validatedBody = {
       ...body,
-      frequency: body.frequency && Object.values(PreferenceFrequency).includes(body.frequency as PreferenceFrequency) 
-        ? body.frequency as PreferenceFrequency 
-        : undefined
+      frequency:
+        body.frequency &&
+        Object.values(PreferenceFrequency).includes(
+          body.frequency as PreferenceFrequency,
+        )
+          ? (body.frequency as PreferenceFrequency)
+          : undefined,
     };
-    
+
     return this.preferenceService.updatePreference(userId, type, validatedBody);
   }
 
@@ -152,7 +156,8 @@ export class NotificationController {
   @ApiOperation({ summary: 'Subscribe to notification channel' })
   async subscribeToChannel(
     @CurrentUser('id') userId: string,
-    @Body() body: {
+    @Body()
+    body: {
       channel: NotificationChannel;
       email?: string;
       phone?: string;
@@ -172,12 +177,17 @@ export class NotificationController {
   @ApiOperation({ summary: 'Unsubscribe from notification channel' })
   async unsubscribeFromChannel(
     @CurrentUser('id') userId: string,
-    @Body() body: {
+    @Body()
+    body: {
       channel: NotificationChannel;
       reason?: string;
     },
   ) {
-    await this.preferenceService.unsubscribeFromChannel(userId, body.channel, body.reason);
+    await this.preferenceService.unsubscribeFromChannel(
+      userId,
+      body.channel,
+      body.reason,
+    );
     return { success: true };
   }
 
@@ -205,7 +215,8 @@ export class NotificationController {
   @ApiOperation({ summary: 'Create webhook subscription' })
   async createWebhook(
     @CurrentUser('id') userId: string,
-    @Body() body: {
+    @Body()
+    body: {
       name: string;
       url: string;
       events: NotificationType[];
@@ -214,10 +225,13 @@ export class NotificationController {
       description?: string;
     },
   ) {
-    return this.webhookService.createSubscription({
-      ...body,
+    return this.webhookService.createSubscription(
+      {
+        ...body,
+        userId,
+      },
       userId,
-    }, userId);
+    );
   }
 
   @Put('webhooks/:id')
@@ -225,7 +239,8 @@ export class NotificationController {
   @ApiOperation({ summary: 'Update webhook subscription' })
   async updateWebhook(
     @Param('id') webhookId: string,
-    @Body() body: {
+    @Body()
+    body: {
       name?: string;
       url?: string;
       events?: NotificationType[];
@@ -261,7 +276,8 @@ export class NotificationController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Send notification (Admin only)' })
   async sendNotification(
-    @Body() body: {
+    @Body()
+    body: {
       type: NotificationType;
       recipients: Array<{
         userId?: string;
@@ -300,7 +316,8 @@ export class NotificationController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get notification metrics (Admin only)' })
   async getMetrics(
-    @Query() query: {
+    @Query()
+    query: {
       dateFrom?: string;
       dateTo?: string;
       type?: NotificationType;
@@ -333,7 +350,8 @@ export class NotificationController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get time series metrics (Admin only)' })
   async getTimeSeriesMetrics(
-    @Query() query: {
+    @Query()
+    query: {
       dateFrom?: string;
       dateTo?: string;
       granularity?: 'hour' | 'day';
@@ -349,7 +367,7 @@ export class NotificationController {
 
     return this.metricsService.getTimeSeriesData(
       filters,
-      query.granularity || 'day'
+      query.granularity || 'day',
     );
   }
 

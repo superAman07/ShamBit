@@ -47,7 +47,7 @@ export class CartService {
     @Inject('ICartRepository') private readonly cartRepository: ICartRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly prisma: PrismaService,
-  ) { }
+  ) {}
 
   /**
    * Get or create cart for user/session
@@ -390,7 +390,7 @@ export class CartService {
     sellerId: string,
   ): Promise<CartItem> {
     const unitPrice = variant.pricing.sellingPrice;
-    const totalPrice = (unitPrice as any).mul(quantity);
+    const totalPrice = unitPrice.mul(quantity);
 
     const itemData: Partial<CartItem> = {
       cartId: cart.id,
@@ -476,7 +476,7 @@ export class CartService {
       if (!(item.currentUnitPrice as any).equals(currentPricing.sellingPrice)) {
         await this.cartRepository.updateItem(item.id, {
           currentUnitPrice: currentPricing.sellingPrice,
-          totalPrice: (currentPricing.sellingPrice as any).mul(item.quantity),
+          totalPrice: currentPricing.sellingPrice.mul(item.quantity),
           lastCheckedAt: new Date(),
         });
       }

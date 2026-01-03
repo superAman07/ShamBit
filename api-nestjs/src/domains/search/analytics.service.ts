@@ -6,7 +6,7 @@ import { SearchAnalytics } from './types/search.types';
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
 
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async trackSearch(analytics: SearchAnalytics): Promise<void> {
     try {
@@ -21,13 +21,17 @@ export class AnalyticsService {
 
       // TODO: Implement proper analytics storage
       // This could be sent to ClickHouse, ElasticSearch, or another analytics service
-
     } catch (error) {
       this.logger.error('Failed to track search analytics', error);
     }
   }
 
-  async trackClick(productId: string, query: string, position: number, userId?: string): Promise<void> {
+  async trackClick(
+    productId: string,
+    query: string,
+    position: number,
+    userId?: string,
+  ): Promise<void> {
     try {
       this.logger.debug('Click tracked', {
         productId,
@@ -37,7 +41,6 @@ export class AnalyticsService {
       });
 
       // TODO: Store click data for improving relevance scoring
-
     } catch (error) {
       this.logger.error('Failed to track click', error);
     }

@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { 
-  NotificationStatus, 
-  NotificationDeliveryResult, 
+import {
+  NotificationDeliveryResult,
   NotificationBatch,
   NotificationRecipient,
   NotificationContext,
   NotificationType,
-  NotificationChannel
+  NotificationChannel,
 } from '../types/notification.types';
 import { Prisma, $Enums } from '@prisma/client';
 
@@ -75,7 +74,10 @@ export class NotificationRepository {
     return notification ? this.mapToNotificationRecord(notification) : null;
   }
 
-  async updateStatus(id: string, status: $Enums.NotificationStatus): Promise<void> {
+  async updateStatus(
+    id: string,
+    status: $Enums.NotificationStatus,
+  ): Promise<void> {
     const updateData: Prisma.NotificationUpdateInput = {
       status,
       updatedAt: new Date(),
@@ -83,7 +85,10 @@ export class NotificationRepository {
 
     if (status === $Enums.NotificationStatus.PROCESSING) {
       updateData.processedAt = new Date();
-    } else if (status === $Enums.NotificationStatus.SENT || status === $Enums.NotificationStatus.DELIVERED) {
+    } else if (
+      status === $Enums.NotificationStatus.SENT ||
+      status === $Enums.NotificationStatus.DELIVERED
+    ) {
       updateData.completedAt = new Date();
     }
 
@@ -95,15 +100,17 @@ export class NotificationRepository {
 
   async storeDeliveryResults(
     notificationId: string,
-    results: NotificationDeliveryResult[]
+    results: NotificationDeliveryResult[],
   ): Promise<void> {
     // Create individual delivery records for proper tracking
-    const deliveryData = results.map(result => ({
+    const deliveryData = results.map((result) => ({
       id: `${notificationId}_${result.channel}_${Date.now()}`,
       notificationId,
       channel: result.channel as $Enums.NotificationChannel,
       recipient: result.recipient as any,
-      status: result.success ? $Enums.DeliveryStatus.DELIVERED : $Enums.DeliveryStatus.FAILED,
+      status: result.success
+        ? $Enums.DeliveryStatus.DELIVERED
+        : $Enums.DeliveryStatus.FAILED,
       messageId: result.messageId,
       errorCode: result.error,
       errorMessage: result.error,
@@ -125,14 +132,14 @@ export class NotificationRepository {
           lte: new Date(),
         },
       },
-      include: {
-        deliveries: true,
-        events: true,
-      },
-      take: 100,
+      // Temporarily disable includes to fix startup issue
+      // include: {
+      //   deliveries: true,
+      //   events: true,
+      // }: 100,
     });
 
-    return notifications.map(n => this.mapToNotificationRecord(n));
+    return notifications.map((n) => this.mapToNotificationRecord(n));
   }
 
   async findFailedNotificationsForRetry(): Promise<NotificationRecord[]> {
@@ -146,14 +153,11 @@ export class NotificationRepository {
       include: {
         deliveries: {
           where: {
-            status: 'FAILED',
+            status: $Enums.DeliveryStatus.FAILED,
             attempts: {
               lt: 3,
             },
-            OR: [
-              { nextRetryAt: null },
-              { nextRetryAt: { lte: new Date() } },
-            ],
+            OR: [{ nextRetryAt: null }, { nextRetryAt: { lte: new Date() } }],
           },
         },
         events: true,
@@ -162,8 +166,8 @@ export class NotificationRepository {
     });
 
     return notifications
-      .filter(n => n.deliveries.length > 0)
-      .map(n => this.mapToNotificationRecord(n));
+      .filter((n) => n.deliveries.length > 0)
+      .map((n) => this.mapToNotificationRecord(n));
   }
 
   async deleteExpiredNotifications(): Promise<number> {
@@ -173,7 +177,11 @@ export class NotificationRepository {
           lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days old
         },
         status: {
-          in: [$Enums.NotificationStatus.SENT, $Enums.NotificationStatus.DELIVERED, $Enums.NotificationStatus.CANCELLED],
+          in: [
+            $Enums.NotificationStatus.SENT,
+            $Enums.NotificationStatus.DELIVERED,
+            $Enums.NotificationStatus.CANCELLED,
+          ],
         },
       },
     });
@@ -191,7 +199,7 @@ export class NotificationRepository {
       successfulDeliveries: batch.successfulDeliveries || 0,
       failedDeliveries: batch.failedDeliveries || 0,
       templateVariables: batch.templateVariables || {},
-      channels: batch.channels as $Enums.NotificationChannel[] || [],
+      channels: (batch.channels as $Enums.NotificationChannel[]) || [],
       scheduledAt: batch.scheduledAt,
       createdBy: batch.createdBy,
       createdAt: batch.createdAt,
@@ -207,7 +215,10 @@ export class NotificationRepository {
     });
   }
 
-  async updateBatchStatus(batchId: string, status: $Enums.BatchStatus): Promise<void> {
+  async updateBatchStatus(
+    batchId: string,
+    status: $Enums.BatchStatus,
+  ): Promise<void> {
     await this.prisma.notificationBatch.update({
       where: { id: batchId },
       data: {
@@ -225,18 +236,18 @@ export class NotificationRepository {
       channels?: $Enums.NotificationChannel[];
       type?: $Enums.NotificationType;
       status?: $Enums.NotificationStatus;
-    } = {}
+    } = {},
   ): Promise<{ notifications: any[]; total: number }> {
-    const where: Prisma.NotificationWhereInput = { 
+    const where: Prisma.NotificationWhereInput = {
       userId,
     };
-    
+
     if (options.channels && options.channels.length > 0) {
       where.channels = {
         hasSome: options.channels,
       };
     }
-    
+
     if (options.type) {
       where.type = options.type;
     }
@@ -259,7 +270,7 @@ export class NotificationRepository {
     ]);
 
     return {
-      notifications: notifications.map(n => this.mapToUserNotification(n)),
+      notifications: notifications.map((n) => this.mapToUserNotification(n)),
       total,
     };
   }
@@ -284,7 +295,7 @@ export class NotificationRepository {
       select: { id: true },
     });
 
-    const events = notifications.map(n => ({
+    const events = notifications.map((n) => ({
       id: `${n.id}_read_${Date.now()}`,
       notificationId: n.id,
       type: 'READ' as const,
@@ -309,7 +320,7 @@ export class NotificationRepository {
       select: { notificationId: true },
     });
 
-    const readIds = readNotificationIds.map(e => e.notificationId);
+    const readIds = readNotificationIds.map((e) => e.notificationId);
 
     return this.prisma.notification.count({
       where: {
@@ -321,7 +332,10 @@ export class NotificationRepository {
     });
   }
 
-  async deleteNotification(notificationId: string, userId?: string): Promise<void> {
+  async deleteNotification(
+    notificationId: string,
+    userId?: string,
+  ): Promise<void> {
     const where: any = { id: notificationId };
     if (userId) {
       where.userId = userId;
@@ -341,7 +355,7 @@ export class NotificationRepository {
       dateFrom?: Date;
       dateTo?: Date;
       userId?: string;
-    } = {}
+    } = {},
   ): Promise<{
     total: number;
     sent: number;
@@ -350,7 +364,7 @@ export class NotificationRepository {
     opened: number;
   }> {
     const where: Prisma.NotificationWhereInput = {};
-    
+
     if (filters.type) where.type = filters.type;
     if (filters.userId) where.userId = filters.userId;
     if (filters.channel) {

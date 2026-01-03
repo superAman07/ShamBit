@@ -210,7 +210,7 @@ export class RefundWebhookService {
     error?: string;
   }> {
     try {
-      const payload = webhook.payload as any;
+      const payload = webhook.payload;
       const gatewayRefundId = payload.refund?.id;
 
       if (!gatewayRefundId) {
@@ -290,7 +290,7 @@ export class RefundWebhookService {
     error?: string;
   }> {
     try {
-      const payload = webhook.payload as any;
+      const payload = webhook.payload;
       const gatewayRefundId = payload.refund?.id;
       const failureReason =
         payload.refund?.failure_reason || 'Gateway refund failed';
@@ -366,7 +366,7 @@ export class RefundWebhookService {
     error?: string;
   }> {
     try {
-      const payload = webhook.payload as any;
+      const payload = webhook.payload;
       const gatewayRefundId = payload.refund?.id;
       const speed = payload.refund?.speed;
 
@@ -434,7 +434,7 @@ export class RefundWebhookService {
     error?: string;
   }> {
     try {
-      const payload = webhook.payload as any;
+      const payload = webhook.payload;
       const gatewayRefundId = payload.refund?.id;
       const arn = payload.refund?.acquirer_data?.arn;
 

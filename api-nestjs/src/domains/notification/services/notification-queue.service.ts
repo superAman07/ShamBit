@@ -57,7 +57,7 @@ export class NotificationQueueService implements OnModuleInit {
       delay?: number;
       priority?: number;
       attempts?: number;
-    } = {}
+    } = {},
   ): Promise<void> {
     try {
       await this.notificationQueue.add(
@@ -73,12 +73,14 @@ export class NotificationQueueService implements OnModuleInit {
           },
           removeOnComplete: 100,
           removeOnFail: 50,
-        }
+        },
       );
 
       this.logger.log('Notification queued', { notificationId });
     } catch (error) {
-      this.logger.error('Failed to queue notification', error.stack, { notificationId });
+      this.logger.error('Failed to queue notification', error.stack, {
+        notificationId,
+      });
       throw error;
     }
   }
@@ -88,24 +90,20 @@ export class NotificationQueueService implements OnModuleInit {
     options: {
       delay?: number;
       priority?: number;
-    } = {}
+    } = {},
   ): Promise<void> {
     try {
-      await this.bulkQueue.add(
-        'process-bulk-notification',
-        payload,
-        {
-          delay: options.delay || 0,
-          priority: options.priority || 0,
-          attempts: this.config.retryAttempts,
-          backoff: {
-            type: 'exponential',
-            delay: this.config.retryDelay,
-          },
-          removeOnComplete: 50,
-          removeOnFail: 25,
-        }
-      );
+      await this.bulkQueue.add('process-bulk-notification', payload, {
+        delay: options.delay || 0,
+        priority: options.priority || 0,
+        attempts: this.config.retryAttempts,
+        backoff: {
+          type: 'exponential',
+          delay: this.config.retryDelay,
+        },
+        removeOnComplete: 50,
+        removeOnFail: 25,
+      });
 
       this.logger.log('Bulk notification queued', {
         type: payload.type,
@@ -119,10 +117,10 @@ export class NotificationQueueService implements OnModuleInit {
 
   async scheduleNotification(
     notificationId: string,
-    scheduledAt: Date
+    scheduledAt: Date,
   ): Promise<void> {
     const delay = scheduledAt.getTime() - Date.now();
-    
+
     if (delay <= 0) {
       // Schedule immediately if time has passed
       await this.addNotification(notificationId);
@@ -151,27 +149,31 @@ export class NotificationQueueService implements OnModuleInit {
   }
 
   async pauseQueue(queueName: 'notification' | 'bulk'): Promise<void> {
-    const queue = queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
+    const queue =
+      queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
     await queue.pause();
     this.logger.log(`Queue paused: ${queueName}`);
   }
 
   async resumeQueue(queueName: 'notification' | 'bulk'): Promise<void> {
-    const queue = queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
+    const queue =
+      queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
     await queue.resume();
     this.logger.log(`Queue resumed: ${queueName}`);
   }
 
   async clearQueue(queueName: 'notification' | 'bulk'): Promise<void> {
-    const queue = queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
+    const queue =
+      queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
     await queue.obliterate({ force: true });
     this.logger.log(`Queue cleared: ${queueName}`);
   }
 
   async retryFailedJobs(queueName: 'notification' | 'bulk'): Promise<number> {
-    const queue = queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
+    const queue =
+      queueName === 'notification' ? this.notificationQueue : this.bulkQueue;
     const failedJobs = await queue.getFailed();
-    
+
     let retryCount = 0;
     for (const job of failedJobs) {
       await job.retry();
@@ -244,22 +246,31 @@ export class NotificationQueueService implements OnModuleInit {
       'notification-processing',
       async (job: Job) => {
         const { notificationId } = job.data;
-        
+
         // Import here to avoid circular dependency
-        const { NotificationService } = await import('../notification.service.js');
+        const { NotificationService } =
+          await import('../notification.service.js');
         const notificationService = new NotificationService(
           // Dependencies would be injected here in a real implementation
-          null as any, null as any, null as any, null as any, 
-          null as any, null as any, null as any, null as any, 
-          null as any, null as any, null as any
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
+          null as any,
         );
-        
+
         await notificationService.processNotification(notificationId);
       },
       {
         connection,
         concurrency: this.config.concurrency,
-      }
+      },
     );
 
     // Bulk notification processing worker
@@ -267,7 +278,7 @@ export class NotificationQueueService implements OnModuleInit {
       'bulk-notification-processing',
       async (job: Job) => {
         const payload: NotificationPayload = job.data;
-        
+
         // Process bulk notification
         // Implementation would depend on the specific bulk processing logic
         this.logger.log('Processing bulk notification', {
@@ -278,7 +289,7 @@ export class NotificationQueueService implements OnModuleInit {
       {
         connection,
         concurrency: Math.max(1, Math.floor(this.config.concurrency / 2)),
-      }
+      },
     );
 
     // Worker event handlers
@@ -287,7 +298,9 @@ export class NotificationQueueService implements OnModuleInit {
     });
 
     this.worker.on('failed', (job, err) => {
-      this.logger.error('Notification job failed', err.stack, { jobId: job?.id });
+      this.logger.error('Notification job failed', err.stack, {
+        jobId: job?.id,
+      });
     });
 
     this.bulkWorker.on('completed', (job) => {
@@ -295,7 +308,9 @@ export class NotificationQueueService implements OnModuleInit {
     });
 
     this.bulkWorker.on('failed', (job, err) => {
-      this.logger.error('Bulk notification job failed', err.stack, { jobId: job?.id });
+      this.logger.error('Bulk notification job failed', err.stack, {
+        jobId: job?.id,
+      });
     });
 
     this.logger.log('Notification workers initialized');

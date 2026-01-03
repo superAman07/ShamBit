@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { Twilio } from 'twilio';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { NotificationRecipient } from '../../types/notification.types';
-import { ChannelDeliveryRequest, ChannelDeliveryResult } from '../notification-channel.service';
+import {
+  ChannelDeliveryRequest,
+  ChannelDeliveryResult,
+} from '../notification-channel.service';
 import { LoggerService } from '../../../../infrastructure/observability/logger.service';
 
 export interface SMSConfig {
@@ -43,14 +46,14 @@ export class SMSChannelService {
         accountSid: '',
         authToken: '',
         fromNumber: '',
-      }
+      },
     };
     this.initializeProvider();
   }
 
   async send(
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     if (!recipient.phone) {
       throw new Error('Phone number is required for SMS notifications');
@@ -58,8 +61,11 @@ export class SMSChannelService {
 
     try {
       // Truncate message if too long
-      const message = this.truncateMessage(request.content, this.config.maxLength || 160);
-      
+      const message = this.truncateMessage(
+        request.content,
+        this.config.maxLength || 160,
+      );
+
       let result: any;
 
       switch (this.config.provider) {
@@ -116,12 +122,14 @@ export class SMSChannelService {
   }> {
     try {
       const startTime = Date.now();
-      
+
       switch (this.config.provider) {
         case 'twilio':
           if (this.twilioClient) {
             // Twilio account validation
-            await this.twilioClient.api.accounts(this.config.twilio?.accountSid || '').fetch();
+            await this.twilioClient.api
+              .accounts(this.config.twilio?.accountSid || '')
+              .fetch();
           }
           break;
         case 'sns':
@@ -177,7 +185,7 @@ export class SMSChannelService {
 
     this.twilioClient = new Twilio(
       this.config.twilio.accountSid,
-      this.config.twilio.authToken
+      this.config.twilio.authToken,
     );
 
     this.logger.log('Twilio client initialized');
@@ -208,7 +216,10 @@ export class SMSChannelService {
     this.logger.log('Nexmo client initialized');
   }
 
-  private async sendViaTwilio(phoneNumber: string, message: string): Promise<any> {
+  private async sendViaTwilio(
+    phoneNumber: string,
+    message: string,
+  ): Promise<any> {
     if (!this.twilioClient || !this.config.twilio) {
       throw new Error('Twilio client not initialized');
     }
@@ -233,7 +244,10 @@ export class SMSChannelService {
     return await this.snsClient.send(command);
   }
 
-  private async sendViaNexmo(phoneNumber: string, message: string): Promise<any> {
+  private async sendViaNexmo(
+    phoneNumber: string,
+    message: string,
+  ): Promise<any> {
     // Nexmo implementation would go here
     throw new Error('Nexmo implementation not yet available');
   }
@@ -251,7 +265,7 @@ export class SMSChannelService {
     if (phoneNumber.length < 4) {
       return phoneNumber;
     }
-    
+
     const lastFour = phoneNumber.slice(-4);
     const masked = '*'.repeat(phoneNumber.length - 4);
     return masked + lastFour;

@@ -7,7 +7,7 @@ TestEnvironmentHelper.setTestEnvironmentVariables();
 beforeAll(async () => {
   // Set up global test configuration
   process.env.NODE_ENV = 'test';
-  
+
   // Suppress console logs during tests (optional)
   if (process.env.SUPPRESS_LOGS === 'true') {
     jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -20,7 +20,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Clean up test environment
   TestEnvironmentHelper.cleanupTestEnvironment();
-  
+
   // Restore console methods
   if (process.env.SUPPRESS_LOGS === 'true') {
     jest.restoreAllMocks();

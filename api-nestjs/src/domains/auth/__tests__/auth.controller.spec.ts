@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Request, Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { AuthController } from '../auth.controller';
@@ -94,24 +98,35 @@ describe('AuthController', () => {
       authService.register.mockResolvedValue(authResponse);
 
       // Act
-      const result = await controller.register(registerDto, mockResponse as Response);
+      const result = await controller.register(
+        registerDto,
+        mockResponse as Response,
+      );
 
       // Assert
       expect(authService.register).toHaveBeenCalledWith(registerDto);
-      expect(mockResponse.cookie).toHaveBeenCalledWith('accessToken', authResponse.accessToken, {
-        httpOnly: true,
-        secure: false, // Not production
-        sameSite: 'strict',
-        path: '/',
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-      expect(mockResponse.cookie).toHaveBeenCalledWith('refreshToken', authResponse.refreshToken, {
-        httpOnly: true,
-        secure: false, // Not production
-        sameSite: 'strict',
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'accessToken',
+        authResponse.accessToken,
+        {
+          httpOnly: true,
+          secure: false, // Not production
+          sameSite: 'strict',
+          path: '/',
+          maxAge: 15 * 60 * 1000, // 15 minutes
+        },
+      );
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'refreshToken',
+        authResponse.refreshToken,
+        {
+          httpOnly: true,
+          secure: false, // Not production
+          sameSite: 'strict',
+          path: '/',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        },
+      );
       expect(result).toEqual({
         message: 'Registration successful',
         user: authResponse.user,
@@ -126,8 +141,9 @@ describe('AuthController', () => {
       authService.register.mockRejectedValue(conflictError);
 
       // Act & Assert
-      await expect(controller.register(registerDto, mockResponse as Response))
-        .rejects.toThrow(ConflictException);
+      await expect(
+        controller.register(registerDto, mockResponse as Response),
+      ).rejects.toThrow(ConflictException);
       expect(authService.register).toHaveBeenCalledWith(registerDto);
       expect(mockResponse.cookie).not.toHaveBeenCalled();
     });
@@ -142,7 +158,9 @@ describe('AuthController', () => {
 
       // Act & Assert
       // This would be handled by validation pipes in real scenario
-      expect(invalidRegisterDto.email).not.toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+      expect(invalidRegisterDto.email).not.toMatch(
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      );
       expect(invalidRegisterDto.name).toBe('');
       expect(invalidRegisterDto.password.length).toBeLessThan(8);
     });
@@ -182,8 +200,8 @@ describe('AuthController', () => {
       authService.register.mockResolvedValue(authResponse);
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(() =>
-        controller.register(registerDto, mockResponse as Response)
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        () => controller.register(registerDto, mockResponse as Response),
       );
 
       // Assert
@@ -218,13 +236,16 @@ describe('AuthController', () => {
     it('should handle invalid credentials', async () => {
       // Arrange
       const loginDto = TestDataFactory.createValidLoginDto();
-      const unauthorizedError = new UnauthorizedException('Invalid credentials');
+      const unauthorizedError = new UnauthorizedException(
+        'Invalid credentials',
+      );
 
       authService.login.mockRejectedValue(unauthorizedError);
 
       // Act & Assert
-      await expect(controller.login(loginDto, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        controller.login(loginDto, mockResponse as Response),
+      ).rejects.toThrow(UnauthorizedException);
       expect(authService.login).toHaveBeenCalledWith(loginDto);
       expect(mockResponse.cookie).not.toHaveBeenCalled();
     });
@@ -232,13 +253,16 @@ describe('AuthController', () => {
     it('should handle account suspension', async () => {
       // Arrange
       const loginDto = TestDataFactory.createValidLoginDto();
-      const suspendedError = new UnauthorizedException('Account is suspended or banned');
+      const suspendedError = new UnauthorizedException(
+        'Account is suspended or banned',
+      );
 
       authService.login.mockRejectedValue(suspendedError);
 
       // Act & Assert
-      await expect(controller.login(loginDto, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        controller.login(loginDto, mockResponse as Response),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should prevent brute force attacks', async () => {
@@ -246,12 +270,15 @@ describe('AuthController', () => {
       const loginDto = TestDataFactory.createValidLoginDto();
       const attempts = Array(10).fill(loginDto);
 
-      authService.login.mockRejectedValue(new UnauthorizedException('Invalid credentials'));
+      authService.login.mockRejectedValue(
+        new UnauthorizedException('Invalid credentials'),
+      );
 
       // Act & Assert
       for (const attempt of attempts) {
-        await expect(controller.login(attempt, mockResponse as Response))
-          .rejects.toThrow(UnauthorizedException);
+        await expect(
+          controller.login(attempt, mockResponse as Response),
+        ).rejects.toThrow(UnauthorizedException);
       }
 
       expect(authService.login).toHaveBeenCalledTimes(10);
@@ -265,11 +292,14 @@ describe('AuthController', () => {
         password: 'password',
       };
 
-      authService.login.mockRejectedValue(new UnauthorizedException('Invalid credentials'));
+      authService.login.mockRejectedValue(
+        new UnauthorizedException('Invalid credentials'),
+      );
 
       // Act & Assert
-      await expect(controller.login(maliciousLoginDto, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        controller.login(maliciousLoginDto, mockResponse as Response),
+      ).rejects.toThrow(UnauthorizedException);
       expect(authService.login).toHaveBeenCalledWith(maliciousLoginDto);
     });
   });
@@ -288,7 +318,11 @@ describe('AuthController', () => {
       authService.refreshToken.mockResolvedValue(authResponse);
 
       // Act
-      const result = await controller.refresh({}, mockRequest as Request, mockResponse as Response);
+      const result = await controller.refresh(
+        {},
+        mockRequest as Request,
+        mockResponse as Response,
+      );
 
       // Assert
       expect(authService.refreshToken).toHaveBeenCalledWith(refreshToken);
@@ -304,8 +338,13 @@ describe('AuthController', () => {
       mockRequest.cookies = {};
 
       // Act & Assert
-      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        controller.refresh(
+          {},
+          mockRequest as Request,
+          mockResponse as Response,
+        ),
+      ).rejects.toThrow(BadRequestException);
       expect(authService.refreshToken).not.toHaveBeenCalled();
     });
 
@@ -314,12 +353,21 @@ describe('AuthController', () => {
       const invalidRefreshToken = 'invalid-refresh-token';
       mockRequest.cookies = { refreshToken: invalidRefreshToken };
 
-      authService.refreshToken.mockRejectedValue(new UnauthorizedException('Invalid refresh token'));
+      authService.refreshToken.mockRejectedValue(
+        new UnauthorizedException('Invalid refresh token'),
+      );
 
       // Act & Assert
-      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
-      expect(authService.refreshToken).toHaveBeenCalledWith(invalidRefreshToken);
+      await expect(
+        controller.refresh(
+          {},
+          mockRequest as Request,
+          mockResponse as Response,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(authService.refreshToken).toHaveBeenCalledWith(
+        invalidRefreshToken,
+      );
     });
 
     it('should handle expired refresh token', async () => {
@@ -327,11 +375,18 @@ describe('AuthController', () => {
       const expiredRefreshToken = 'expired-refresh-token';
       mockRequest.cookies = { refreshToken: expiredRefreshToken };
 
-      authService.refreshToken.mockRejectedValue(new UnauthorizedException('Token expired'));
+      authService.refreshToken.mockRejectedValue(
+        new UnauthorizedException('Token expired'),
+      );
 
       // Act & Assert
-      await expect(controller.refresh({}, mockRequest as Request, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        controller.refresh(
+          {},
+          mockRequest as Request,
+          mockResponse as Response,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -346,7 +401,11 @@ describe('AuthController', () => {
       authService.logout.mockResolvedValue(undefined);
 
       // Act
-      const result = await controller.logout(user, mockRequest as Request, mockResponse as Response);
+      const result = await controller.logout(
+        user,
+        mockRequest as Request,
+        mockResponse as Response,
+      );
 
       // Assert
       expect(authService.logout).toHaveBeenCalledWith(user.sub, accessToken);
@@ -375,8 +434,9 @@ describe('AuthController', () => {
       authService.logout.mockRejectedValue(new Error('Logout failed'));
 
       // Act & Assert
-      await expect(controller.logout(mockRequest as Request, mockResponse as Response))
-        .rejects.toThrow();
+      await expect(
+        controller.logout(mockRequest as Request, mockResponse as Response),
+      ).rejects.toThrow();
     });
   });
 
@@ -451,7 +511,10 @@ describe('AuthController', () => {
       authService.googleAuth.mockResolvedValue(authResponse);
 
       // Act
-      const result = await controller.googleAuth(googleAuthDto, mockResponse as Response);
+      const result = await controller.googleAuth(
+        googleAuthDto,
+        mockResponse as Response,
+      );
 
       // Assert
       expect(authService.googleAuth).toHaveBeenCalledWith(googleAuthDto);
@@ -469,22 +532,28 @@ describe('AuthController', () => {
         token: 'invalid-google-token',
       };
 
-      authService.googleAuth.mockRejectedValue(new UnauthorizedException('Invalid Google token'));
+      authService.googleAuth.mockRejectedValue(
+        new UnauthorizedException('Invalid Google token'),
+      );
 
       // Act & Assert
-      await expect(controller.googleAuth(invalidGoogleAuthDto, mockResponse as Response))
-        .rejects.toThrow(UnauthorizedException);
+      await expect(
+        controller.googleAuth(invalidGoogleAuthDto, mockResponse as Response),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should handle Google service errors', async () => {
       // Arrange
       const googleAuthDto = TestDataFactory.createValidGoogleAuthDto();
 
-      authService.googleAuth.mockRejectedValue(new Error('Google service unavailable'));
+      authService.googleAuth.mockRejectedValue(
+        new Error('Google service unavailable'),
+      );
 
       // Act & Assert
-      await expect(controller.googleAuth(googleAuthDto, mockResponse as Response))
-        .rejects.toThrow();
+      await expect(
+        controller.googleAuth(googleAuthDto, mockResponse as Response),
+      ).rejects.toThrow();
     });
   });
 
@@ -492,7 +561,7 @@ describe('AuthController', () => {
     it('should prevent CSRF attacks', async () => {
       // Arrange
       const loginDto = TestDataFactory.createValidLoginDto();
-      
+
       // Mock request without proper CSRF token
       mockRequest.headers = {
         ...mockRequest.headers,
@@ -507,18 +576,21 @@ describe('AuthController', () => {
     it('should handle malicious payloads', async () => {
       // Arrange
       const maliciousPayloads = TestSecurityHelper.createMaliciousPayloads();
-      
+
       for (const payload of maliciousPayloads) {
         const maliciousDto = {
           email: payload,
           password: 'password',
         };
 
-        authService.login.mockRejectedValue(new UnauthorizedException('Invalid credentials'));
+        authService.login.mockRejectedValue(
+          new UnauthorizedException('Invalid credentials'),
+        );
 
         // Act & Assert
-        await expect(controller.login(maliciousDto, mockResponse as Response))
-          .rejects.toThrow(UnauthorizedException);
+        await expect(
+          controller.login(maliciousDto, mockResponse as Response),
+        ).rejects.toThrow(UnauthorizedException);
       }
     });
 
@@ -549,12 +621,14 @@ describe('AuthController', () => {
       authService.login.mockResolvedValue(authResponse);
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(async () => {
-        const promises = Array(10).fill(null).map(() =>
-          controller.login(loginDto, mockResponse as Response)
-        );
-        return Promise.all(promises);
-      });
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        async () => {
+          const promises = Array(10)
+            .fill(null)
+            .map(() => controller.login(loginDto, mockResponse as Response));
+          return Promise.all(promises);
+        },
+      );
 
       // Assert
       TestPerformanceHelper.expectExecutionTimeUnder(duration, 500); // Should complete under 500ms
@@ -572,12 +646,20 @@ describe('AuthController', () => {
       authService.refreshToken.mockResolvedValue(authResponse);
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(async () => {
-        const promises = Array(5).fill(null).map(() =>
-          controller.refresh({}, mockRequest as Request, mockResponse as Response)
-        );
-        return Promise.all(promises);
-      });
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        async () => {
+          const promises = Array(5)
+            .fill(null)
+            .map(() =>
+              controller.refresh(
+                {},
+                mockRequest as Request,
+                mockResponse as Response,
+              ),
+            );
+          return Promise.all(promises);
+        },
+      );
 
       // Assert
       TestPerformanceHelper.expectExecutionTimeUnder(duration, 200); // Should complete under 200ms
@@ -589,11 +671,14 @@ describe('AuthController', () => {
       // Arrange
       const loginDto = TestDataFactory.createValidLoginDto();
 
-      authService.login.mockRejectedValue(new Error('Service temporarily unavailable'));
+      authService.login.mockRejectedValue(
+        new Error('Service temporarily unavailable'),
+      );
 
       // Act & Assert
-      await expect(controller.login(loginDto, mockResponse as Response))
-        .rejects.toThrow();
+      await expect(
+        controller.login(loginDto, mockResponse as Response),
+      ).rejects.toThrow();
     });
 
     it('should handle network timeout errors', async () => {
@@ -603,8 +688,9 @@ describe('AuthController', () => {
       authService.register.mockRejectedValue(new Error('Request timeout'));
 
       // Act & Assert
-      await expect(controller.register(registerDto, mockResponse as Response))
-        .rejects.toThrow();
+      await expect(
+        controller.register(registerDto, mockResponse as Response),
+      ).rejects.toThrow();
     });
 
     it('should handle unexpected errors gracefully', async () => {
@@ -614,8 +700,9 @@ describe('AuthController', () => {
       authService.login.mockRejectedValue(new Error('Unexpected error'));
 
       // Act & Assert
-      await expect(controller.login(loginDto, mockResponse as Response))
-        .rejects.toThrow();
+      await expect(
+        controller.login(loginDto, mockResponse as Response),
+      ).rejects.toThrow();
     });
   });
 });

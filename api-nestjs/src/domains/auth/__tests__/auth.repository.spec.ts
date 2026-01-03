@@ -19,9 +19,8 @@ describe('AuthRepository', () => {
   let redisService: jest.Mocked<RedisService>;
 
   beforeEach(async () => {
-    const module: TestingModule = await TestModuleBuilder.createAuthTestingModule([
-      AuthRepository,
-    ]);
+    const module: TestingModule =
+      await TestModuleBuilder.createAuthTestingModule([AuthRepository]);
 
     repository = module.get<AuthRepository>(AuthRepository);
     prismaService = module.get(PrismaService);
@@ -99,8 +98,8 @@ describe('AuthRepository', () => {
       prismaService.user.findUnique.mockResolvedValue(user);
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(() =>
-        repository.findByEmail(email)
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        () => repository.findByEmail(email),
       );
 
       // Assert
@@ -242,7 +241,11 @@ describe('AuthRepository', () => {
       await repository.saveRefreshToken(userId, refreshToken);
 
       // Assert
-      expect(redisService.set).toHaveBeenCalledWith(expectedKey, refreshToken, expectedTTL);
+      expect(redisService.set).toHaveBeenCalledWith(
+        expectedKey,
+        refreshToken,
+        expectedTTL,
+      );
     });
 
     it('should handle Redis connection errors', async () => {
@@ -253,7 +256,9 @@ describe('AuthRepository', () => {
       redisService.set.mockRejectedValue(new Error('Redis connection failed'));
 
       // Act & Assert
-      await expect(repository.saveRefreshToken(userId, refreshToken)).rejects.toThrow();
+      await expect(
+        repository.saveRefreshToken(userId, refreshToken),
+      ).rejects.toThrow();
     });
 
     it('should overwrite existing refresh token', async () => {
@@ -271,7 +276,11 @@ describe('AuthRepository', () => {
 
       // Assert
       expect(redisService.set).toHaveBeenCalledTimes(2);
-      expect(redisService.set).toHaveBeenLastCalledWith(expectedKey, newRefreshToken, expect.any(Number));
+      expect(redisService.set).toHaveBeenLastCalledWith(
+        expectedKey,
+        newRefreshToken,
+        expect.any(Number),
+      );
     });
   });
 
@@ -502,19 +511,27 @@ describe('AuthRepository', () => {
   describe('Performance Tests', () => {
     it('should handle concurrent read operations efficiently', async () => {
       // Arrange
-      const emails = ['user1@example.com', 'user2@example.com', 'user3@example.com'];
-      const users = emails.map(email => TestDataFactory.createTestUser({ email }));
+      const emails = [
+        'user1@example.com',
+        'user2@example.com',
+        'user3@example.com',
+      ];
+      const users = emails.map((email) =>
+        TestDataFactory.createTestUser({ email }),
+      );
 
       prismaService.user.findUnique.mockImplementation((args: any) => {
         const email = args.where.email;
-        return Promise.resolve(users.find(u => u.email === email) || null);
+        return Promise.resolve(users.find((u) => u.email === email) || null);
       });
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(async () => {
-        const promises = emails.map(email => repository.findByEmail(email));
-        return Promise.all(promises);
-      });
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        async () => {
+          const promises = emails.map((email) => repository.findByEmail(email));
+          return Promise.all(promises);
+        },
+      );
 
       // Assert
       TestPerformanceHelper.expectExecutionTimeUnder(duration, 200); // Should complete under 200ms
@@ -523,17 +540,19 @@ describe('AuthRepository', () => {
     it('should handle bulk refresh token operations efficiently', async () => {
       // Arrange
       const userIds = ['user1', 'user2', 'user3', 'user4', 'user5'];
-      const refreshTokens = userIds.map(id => `refresh-token-${id}`);
+      const refreshTokens = userIds.map((id) => `refresh-token-${id}`);
 
       redisService.set.mockResolvedValue('OK');
 
       // Act
-      const { duration } = await TestPerformanceHelper.measureExecutionTime(async () => {
-        const promises = userIds.map((userId, index) =>
-          repository.saveRefreshToken(userId, refreshTokens[index])
-        );
-        return Promise.all(promises);
-      });
+      const { duration } = await TestPerformanceHelper.measureExecutionTime(
+        async () => {
+          const promises = userIds.map((userId, index) =>
+            repository.saveRefreshToken(userId, refreshTokens[index]),
+          );
+          return Promise.all(promises);
+        },
+      );
 
       // Assert
       TestPerformanceHelper.expectExecutionTimeUnder(duration, 100); // Should complete under 100ms

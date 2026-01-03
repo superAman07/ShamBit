@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import { NotificationRecipient } from '../../types/notification.types';
-import { ChannelDeliveryRequest, ChannelDeliveryResult } from '../notification-channel.service';
+import {
+  ChannelDeliveryRequest,
+  ChannelDeliveryResult,
+} from '../notification-channel.service';
 import { LoggerService } from '../../../../infrastructure/observability/logger.service';
 
 export interface PushConfig {
@@ -36,14 +39,14 @@ export class PushChannelService {
         projectId: '',
         privateKey: '',
         clientEmail: '',
-      }
+      },
     };
     this.initializeProvider();
   }
 
   async send(
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     if (!recipient.deviceToken) {
       throw new Error('Device token is required for push notifications');
@@ -90,7 +93,10 @@ export class PushChannelService {
     }
 
     // Basic device token validation (non-empty string)
-    return typeof recipient.deviceToken === 'string' && recipient.deviceToken.length > 0;
+    return (
+      typeof recipient.deviceToken === 'string' &&
+      recipient.deviceToken.length > 0
+    );
   }
 
   async getHealth(): Promise<{
@@ -101,7 +107,7 @@ export class PushChannelService {
   }> {
     try {
       const startTime = Date.now();
-      
+
       switch (this.config.provider) {
         case 'fcm':
           if (this.fcmApp) {
@@ -135,7 +141,7 @@ export class PushChannelService {
 
   async sendBatch(
     recipients: { deviceToken: string; userId?: string }[],
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<{
     successCount: number;
     failureCount: number;
@@ -146,7 +152,7 @@ export class PushChannelService {
     }
 
     try {
-      const tokens = recipients.map(r => r.deviceToken);
+      const tokens = recipients.map((r) => r.deviceToken);
       const message = this.buildFCMMessage(request);
 
       const response = await admin.messaging().sendEachForMulticast({
@@ -154,14 +160,16 @@ export class PushChannelService {
         ...message,
       });
 
-      const results: ChannelDeliveryResult[] = response.responses.map((resp, index) => ({
-        success: resp.success,
-        messageId: resp.messageId,
-        error: resp.error?.message,
-        metadata: {
-          deviceToken: this.maskDeviceToken(tokens[index]),
-        },
-      }));
+      const results: ChannelDeliveryResult[] = response.responses.map(
+        (resp, index) => ({
+          success: resp.success,
+          messageId: resp.messageId,
+          error: resp.error?.message,
+          metadata: {
+            deviceToken: this.maskDeviceToken(tokens[index]),
+          },
+        }),
+      );
 
       return {
         successCount: response.successCount,
@@ -198,13 +206,17 @@ export class PushChannelService {
     }
 
     // Check if FCM credentials are properly configured (not placeholder values)
-    if (!this.config.fcm.projectId || 
-        !this.config.fcm.privateKey || 
-        !this.config.fcm.clientEmail ||
-        this.config.fcm.projectId.includes('your-firebase') ||
-        this.config.fcm.privateKey.includes('your-firebase') ||
-        this.config.fcm.clientEmail.includes('your-firebase')) {
-      this.logger.warn('FCM credentials not configured - push notifications will be disabled');
+    if (
+      !this.config.fcm.projectId ||
+      !this.config.fcm.privateKey ||
+      !this.config.fcm.clientEmail ||
+      this.config.fcm.projectId.includes('your-firebase') ||
+      this.config.fcm.privateKey.includes('your-firebase') ||
+      this.config.fcm.clientEmail.includes('your-firebase')
+    ) {
+      this.logger.warn(
+        'FCM credentials not configured - push notifications will be disabled',
+      );
       return;
     }
 
@@ -216,22 +228,27 @@ export class PushChannelService {
         // App doesn't exist, create it
         this.fcmApp = null;
       }
-      
+
       if (!this.fcmApp) {
-        this.fcmApp = admin.initializeApp({
-          credential: admin.credential.cert({
-            projectId: this.config.fcm.projectId,
-            privateKey: this.config.fcm.privateKey.replace(/\\n/g, '\n'),
-            clientEmail: this.config.fcm.clientEmail,
-          }),
-        }, 'notifications');
+        this.fcmApp = admin.initializeApp(
+          {
+            credential: admin.credential.cert({
+              projectId: this.config.fcm.projectId,
+              privateKey: this.config.fcm.privateKey.replace(/\\n/g, '\n'),
+              clientEmail: this.config.fcm.clientEmail,
+            }),
+          },
+          'notifications',
+        );
       }
 
       this.logger.log('FCM initialized');
     } catch (error) {
       this.logger.error('FCM initialization failed', error.stack);
       // Don't throw error - just log it and continue without FCM
-      this.logger.warn('Push notifications will be disabled due to FCM initialization failure');
+      this.logger.warn(
+        'Push notifications will be disabled due to FCM initialization failure',
+      );
     }
   }
 
@@ -246,7 +263,7 @@ export class PushChannelService {
 
   private async sendViaFCM(
     deviceToken: string,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<any> {
     if (!this.fcmApp) {
       this.logger.warn('FCM not initialized - cannot send push notification');
@@ -263,7 +280,7 @@ export class PushChannelService {
 
   private async sendViaAPNS(
     deviceToken: string,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<any> {
     // APNS implementation would go here
     throw new Error('APNS implementation not yet available');
@@ -280,10 +297,13 @@ export class PushChannelService {
 
     // Add custom data
     if (request.data) {
-      message.data = Object.keys(request.data).reduce((acc, key) => {
-        acc[key] = String(request.data![key]);
-        return acc;
-      }, {} as Record<string, string>);
+      message.data = Object.keys(request.data).reduce(
+        (acc, key) => {
+          acc[key] = String(request.data![key]);
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
     }
 
     // Set priority based on notification priority
@@ -317,7 +337,7 @@ export class PushChannelService {
     if (token.length < 8) {
       return token;
     }
-    
+
     const start = token.substring(0, 4);
     const end = token.substring(token.length - 4);
     return `${start}...${end}`;

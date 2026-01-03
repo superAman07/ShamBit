@@ -52,7 +52,7 @@ export class NotificationRateLimitService {
   async checkRateLimit(
     key: string,
     channel: NotificationChannel,
-    scope: 'GLOBAL' | 'TENANT' | 'USER' = 'USER'
+    scope: 'GLOBAL' | 'TENANT' | 'USER' = 'USER',
   ): Promise<boolean> {
     try {
       const rule = this.getRateLimitRule(channel, scope);
@@ -69,7 +69,7 @@ export class NotificationRateLimitService {
       if (rule.burstLimit) {
         const burstKey = `rate_limit:burst:${key}:${channel}`;
         const burstCount = await this.incrementCounter(burstKey, 60); // 1 minute window
-        
+
         if (burstCount > rule.burstLimit) {
           this.logger.warn('Burst rate limit exceeded', {
             key,
@@ -85,7 +85,7 @@ export class NotificationRateLimitService {
       if (rule.maxPerMinute) {
         const minuteKey = `rate_limit:minute:${key}:${channel}:${minute}`;
         const minuteCount = await this.incrementCounter(minuteKey, 60);
-        
+
         if (minuteCount > rule.maxPerMinute) {
           this.logger.warn('Per-minute rate limit exceeded', {
             key,
@@ -101,7 +101,7 @@ export class NotificationRateLimitService {
       if (rule.maxPerHour) {
         const hourKey = `rate_limit:hour:${key}:${channel}:${hour}`;
         const hourCount = await this.incrementCounter(hourKey, 3600);
-        
+
         if (hourCount > rule.maxPerHour) {
           this.logger.warn('Per-hour rate limit exceeded', {
             key,
@@ -117,7 +117,7 @@ export class NotificationRateLimitService {
       if (rule.maxPerDay) {
         const dayKey = `rate_limit:day:${key}:${channel}:${day}`;
         const dayCount = await this.incrementCounter(dayKey, 86400);
-        
+
         if (dayCount > rule.maxPerDay) {
           this.logger.warn('Per-day rate limit exceeded', {
             key,
@@ -131,14 +131,17 @@ export class NotificationRateLimitService {
 
       return true;
     } catch (error) {
-      this.logger.error('Rate limit check failed', error.stack, { key, channel });
+      this.logger.error('Rate limit check failed', error.stack, {
+        key,
+        channel,
+      });
       return true; // Allow on error to avoid blocking notifications
     }
   }
 
   async getRateLimitStatus(
     key: string,
-    channel: NotificationChannel
+    channel: NotificationChannel,
   ): Promise<{
     allowed: boolean;
     limits: {
@@ -202,7 +205,9 @@ export class NotificationRateLimitService {
     }
 
     // Check if any limit is exceeded
-    const allowed = !Object.values(limits).some((limit: any) => limit.current >= limit.max);
+    const allowed = !Object.values(limits).some(
+      (limit: any) => limit.current >= limit.max,
+    );
 
     return { allowed, limits };
   }
@@ -214,18 +219,18 @@ export class NotificationRateLimitService {
   async setRateLimitRule(
     channel: NotificationChannel,
     scope: 'GLOBAL' | 'TENANT' | 'USER',
-    rule: Omit<RateLimitRule, 'channel' | 'scope'>
+    rule: Omit<RateLimitRule, 'channel' | 'scope'>,
   ): Promise<void> {
     const ruleKey = `${channel}:${scope}`;
     const fullRule: RateLimitRule = { channel, scope, ...rule };
-    
+
     this.rateLimitRules.set(ruleKey, fullRule);
-    
+
     // Persist to Redis
     await this.redis.hset(
       'rate_limit_rules',
       ruleKey,
-      JSON.stringify(fullRule)
+      JSON.stringify(fullRule),
     );
 
     this.logger.log('Rate limit rule updated', { channel, scope, rule });
@@ -233,10 +238,10 @@ export class NotificationRateLimitService {
 
   async removeRateLimitRule(
     channel: NotificationChannel,
-    scope: 'GLOBAL' | 'TENANT' | 'USER'
+    scope: 'GLOBAL' | 'TENANT' | 'USER',
   ): Promise<void> {
     const ruleKey = `${channel}:${scope}`;
-    
+
     this.rateLimitRules.delete(ruleKey);
     await this.redis.hdel('rate_limit_rules', ruleKey);
 
@@ -252,7 +257,7 @@ export class NotificationRateLimitService {
   // ============================================================================
 
   async getRateLimitMetrics(
-    timeRange: 'hour' | 'day' | 'week' = 'day'
+    timeRange: 'hour' | 'day' | 'week' = 'day',
   ): Promise<{
     totalRequests: number;
     blockedRequests: number;
@@ -294,13 +299,15 @@ export class NotificationRateLimitService {
     try {
       // Load rules from Redis
       const rules = await this.redis.hgetall('rate_limit_rules');
-      
+
       for (const [key, ruleJson] of Object.entries(rules)) {
         try {
           const rule = JSON.parse(ruleJson);
           this.rateLimitRules.set(key, rule);
         } catch (error) {
-          this.logger.error('Failed to parse rate limit rule', error.stack, { key });
+          this.logger.error('Failed to parse rate limit rule', error.stack, {
+            key,
+          });
         }
       }
 
@@ -322,20 +329,22 @@ export class NotificationRateLimitService {
 
   public getRateLimitRule(
     channel: NotificationChannel,
-    scope: 'GLOBAL' | 'TENANT' | 'USER'
+    scope: 'GLOBAL' | 'TENANT' | 'USER',
   ): RateLimitRule | null {
     // Try specific scope first, then fall back to global
     const specificKey = `${channel}:${scope}`;
     const globalKey = `${channel}:GLOBAL`;
-    
-    return this.rateLimitRules.get(specificKey) || 
-           this.rateLimitRules.get(globalKey) || 
-           null;
+
+    return (
+      this.rateLimitRules.get(specificKey) ||
+      this.rateLimitRules.get(globalKey) ||
+      null
+    );
   }
 
   public hasRateLimitRule(
     channel: NotificationChannel,
-    scope: 'GLOBAL' | 'TENANT' | 'USER'
+    scope: 'GLOBAL' | 'TENANT' | 'USER',
   ): boolean {
     return this.getRateLimitRule(channel, scope) !== null;
   }
@@ -344,9 +353,9 @@ export class NotificationRateLimitService {
     const pipeline = this.redis.pipeline();
     pipeline.incr(key);
     pipeline.expire(key, ttl);
-    
+
     const results = await pipeline.exec();
-    return results?.[0]?.[1] as number || 0;
+    return (results?.[0]?.[1] as number) || 0;
   }
 
   private async getCounter(key: string): Promise<number> {

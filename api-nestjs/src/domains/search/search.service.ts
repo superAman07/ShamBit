@@ -2,16 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@elastic/elasticsearch';
 import { SEARCH_CONSTANTS } from './config/elasticsearch.config';
-import { 
-  SearchQuery, 
-  SearchResult, 
-  SearchFacets, 
+import {
+  SearchQuery,
+  SearchResult,
+  SearchFacets,
   FacetBucket,
   AutocompleteResult,
   TrendingResult,
   RecommendationResult,
   SortOption,
-  SearchDocument
+  SearchDocument,
 } from './types/search.types';
 import { CacheService } from '../../infrastructure/cache/cache.service';
 import { AnalyticsService } from './analytics.service';
@@ -27,9 +27,15 @@ export class SearchService {
     private readonly cacheService: CacheService,
     private readonly analyticsService: AnalyticsService,
   ) {
-    this.indexPrefix = this.configService.get('ELASTICSEARCH_INDEX_PREFIX', 'marketplace');
+    this.indexPrefix = this.configService.get(
+      'ELASTICSEARCH_INDEX_PREFIX',
+      'marketplace',
+    );
     this.elasticsearchClient = new Client({
-      node: this.configService.get('ELASTICSEARCH_URL', 'http://localhost:9200'),
+      node: this.configService.get(
+        'ELASTICSEARCH_URL',
+        'http://localhost:9200',
+      ),
       auth: {
         username: this.configService.get('ELASTICSEARCH_USERNAME') || '',
         password: this.configService.get('ELASTICSEARCH_PASSWORD') || '',
@@ -43,11 +49,11 @@ export class SearchService {
 
   async search(query: SearchQuery): Promise<SearchResult> {
     const startTime = Date.now();
-    
+
     try {
       // Build Elasticsearch query
       const esQuery = this.buildElasticsearchQuery(query);
-      
+
       // Check cache first
       const cacheKey = this.buildCacheKey(query);
       const cached = await this.cacheService.get(cacheKey);
@@ -63,10 +69,10 @@ export class SearchService {
 
       // Process results
       const result = this.processSearchResponse(response, query);
-      
+
       // Cache results
       await this.cacheService.set(cacheKey, result, SEARCH_CONSTANTS.CACHE_TTL);
-      
+
       // Track analytics
       await this.analyticsService.trackSearch({
         query: query.q || '',
@@ -80,7 +86,6 @@ export class SearchService {
       });
 
       return result;
-
     } catch (error) {
       this.logger.error('Search failed', error);
       throw error;
@@ -104,12 +109,12 @@ export class SearchService {
             'searchText^1',
             'brand.name^2',
             'category.name^2',
-            'keywords^2'
+            'keywords^2',
           ],
           type: 'best_fields',
           fuzziness: 'AUTO',
-          operator: 'and'
-        }
+          operator: 'and',
+        },
       });
 
       // Boost exact matches
@@ -117,9 +122,9 @@ export class SearchService {
         term: {
           'name.keyword': {
             value: query.q,
-            boost: 5
-          }
-        }
+            boost: 5,
+          },
+        },
       });
     } else {
       // Match all if no query
@@ -129,21 +134,21 @@ export class SearchService {
     // Category filter
     if (query.category) {
       filter.push({
-        term: { 'category.id': query.category }
+        term: { 'category.id': query.category },
       });
     }
 
     // Brand filter
     if (query.brand) {
       filter.push({
-        term: { 'brand.id': query.brand }
+        term: { 'brand.id': query.brand },
       });
     }
 
     // Seller filter
     if (query.seller) {
       filter.push({
-        term: { 'seller.id': query.seller }
+        term: { 'seller.id': query.seller },
       });
     }
 
@@ -152,23 +157,23 @@ export class SearchService {
       const priceFilter: any = {};
       if (query.minPrice) priceFilter.gte = query.minPrice;
       if (query.maxPrice) priceFilter.lte = query.maxPrice;
-      
+
       filter.push({
-        range: { 'pricing.minPrice': priceFilter }
+        range: { 'pricing.minPrice': priceFilter },
       });
     }
 
     // Rating filter
     if (query.rating) {
       filter.push({
-        range: { 'popularity.rating': { gte: query.rating } }
+        range: { 'popularity.rating': { gte: query.rating } },
       });
     }
 
     // In stock filter
     if (query.inStock) {
       filter.push({
-        term: { 'inventory.isInStock': true }
+        term: { 'inventory.isInStock': true },
       });
     }
 
@@ -182,11 +187,11 @@ export class SearchService {
               bool: {
                 must: [
                   { term: { 'attributes.name': key } },
-                  { term: { 'attributes.value': value } }
-                ]
-              }
-            }
-          }
+                  { term: { 'attributes.value': value } },
+                ],
+              },
+            },
+          },
         });
       });
     }
@@ -201,8 +206,12 @@ export class SearchService {
     const aggs = this.buildAggregations(query);
 
     // Pagination
-    const from = ((query.page || 1) - 1) * (query.limit || SEARCH_CONSTANTS.DEFAULT_SIZE);
-    const size = Math.min(query.limit || SEARCH_CONSTANTS.DEFAULT_SIZE, SEARCH_CONSTANTS.MAX_SIZE);
+    const from =
+      ((query.page || 1) - 1) * (query.limit || SEARCH_CONSTANTS.DEFAULT_SIZE);
+    const size = Math.min(
+      query.limit || SEARCH_CONSTANTS.DEFAULT_SIZE,
+      SEARCH_CONSTANTS.MAX_SIZE,
+    );
 
     return {
       query: {
@@ -210,8 +219,8 @@ export class SearchService {
           must,
           filter,
           should,
-          minimum_should_match: should.length > 0 ? 1 : 0
-        }
+          minimum_should_match: should.length > 0 ? 1 : 0,
+        },
       },
       sort,
       aggs,
@@ -219,8 +228,8 @@ export class SearchService {
       size,
       track_total_hits: true,
       _source: {
-        excludes: ['searchText'] // Exclude large fields from response
-      }
+        excludes: ['searchText'], // Exclude large fields from response
+      },
     };
   }
 
@@ -265,24 +274,24 @@ export class SearchService {
       categories: {
         terms: {
           field: 'category.id',
-          size: SEARCH_CONSTANTS.FACET_SIZE
+          size: SEARCH_CONSTANTS.FACET_SIZE,
         },
         aggs: {
           category_name: {
-            terms: { field: 'category.name.keyword' }
-          }
-        }
+            terms: { field: 'category.name.keyword' },
+          },
+        },
       },
       brands: {
         terms: {
           field: 'brand.id',
-          size: SEARCH_CONSTANTS.FACET_SIZE
+          size: SEARCH_CONSTANTS.FACET_SIZE,
         },
         aggs: {
           brand_name: {
-            terms: { field: 'brand.name.keyword' }
-          }
-        }
+            terms: { field: 'brand.name.keyword' },
+          },
+        },
       },
       price_ranges: {
         range: {
@@ -292,9 +301,9 @@ export class SearchService {
             { key: '500-1000', from: 500, to: 1000 },
             { key: '1000-5000', from: 1000, to: 5000 },
             { key: '5000-10000', from: 5000, to: 10000 },
-            { key: '10000+', from: 10000 }
-          ]
-        }
+            { key: '10000+', from: 10000 },
+          ],
+        },
       },
       ratings: {
         range: {
@@ -303,20 +312,23 @@ export class SearchService {
             { key: '4+', from: 4 },
             { key: '3+', from: 3 },
             { key: '2+', from: 2 },
-            { key: '1+', from: 1 }
-          ]
-        }
-      }
+            { key: '1+', from: 1 },
+          ],
+        },
+      },
     };
   }
 
-  private processSearchResponse(response: any, query: SearchQuery): SearchResult {
+  private processSearchResponse(
+    response: any,
+    query: SearchQuery,
+  ): SearchResult {
     const hits = response.hits.hits || [];
     const total = response.hits.total?.value || 0;
-    
+
     const results = hits.map((hit: any) => ({
       ...hit._source,
-      _score: hit._score
+      _score: hit._score,
     })) as SearchDocument[];
 
     const facets = this.processFacets(response.aggregations || {});
@@ -327,16 +339,16 @@ export class SearchService {
       page: query.page || 1,
       limit: query.limit || SEARCH_CONSTANTS.DEFAULT_SIZE,
       facets,
-      took: response.took
+      took: response.took,
     };
   }
 
   private processFacets(aggregations: any): SearchFacets {
     const processBuckets = (buckets: any[]): FacetBucket[] => {
-      return buckets.map(bucket => ({
+      return buckets.map((bucket) => ({
         key: bucket.key,
         label: bucket.key_as_string || bucket.key,
-        count: bucket.doc_count
+        count: bucket.doc_count,
       }));
     };
 
@@ -345,17 +357,20 @@ export class SearchService {
       brands: processBuckets(aggregations.brands?.buckets || []),
       priceRanges: processBuckets(aggregations.price_ranges?.buckets || []),
       ratings: processBuckets(aggregations.ratings?.buckets || []),
-      attributes: {} // TODO: Process dynamic attribute facets
+      attributes: {}, // TODO: Process dynamic attribute facets
     };
   }
 
-  async getAutocomplete(query: string, limit = 10): Promise<AutocompleteResult> {
+  async getAutocomplete(
+    query: string,
+    limit = 10,
+  ): Promise<AutocompleteResult> {
     if (!query || query.length < 2) {
       return {
         suggestions: [],
         products: [],
         categories: [],
-        brands: []
+        brands: [],
       };
     }
 
@@ -369,46 +384,64 @@ export class SearchService {
                 {
                   multi_match: {
                     query,
-                    fields: ['name.autocomplete^3', 'brand.name^2', 'category.name^2'],
-                    type: 'bool_prefix'
-                  }
+                    fields: [
+                      'name.autocomplete^3',
+                      'brand.name^2',
+                      'category.name^2',
+                    ],
+                    type: 'bool_prefix',
+                  },
                 },
-                { term: { isActive: true } }
-              ]
-            }
+                { term: { isActive: true } },
+              ],
+            },
           },
           size: limit,
-          _source: ['id', 'name', 'primaryImage', 'pricing.minPrice', 'brand.name', 'category.name']
-        }
+          _source: [
+            'id',
+            'name',
+            'primaryImage',
+            'pricing.minPrice',
+            'brand.name',
+            'category.name',
+          ],
+        },
       });
 
-      const products = response.hits.hits.map((hit: any) => hit._source) as SearchDocument[];
+      const products = response.hits.hits.map(
+        (hit: any) => hit._source,
+      ) as SearchDocument[];
 
       // Extract unique suggestions
-      const suggestions = Array.from(new Set([
-        ...products.map((p: SearchDocument) => p.name),
-        ...products.map((p: SearchDocument) => p.brand?.name).filter(Boolean),
-        ...products.map((p: SearchDocument) => p.category?.name).filter(Boolean)
-      ])).slice(0, limit).map(text => ({
-        text: text as string,
-        type: 'query' as const,
-        score: 1
-      }));
+      const suggestions = Array.from(
+        new Set([
+          ...products.map((p: SearchDocument) => p.name),
+          ...products.map((p: SearchDocument) => p.brand?.name).filter(Boolean),
+          ...products
+            .map((p: SearchDocument) => p.category?.name)
+            .filter(Boolean),
+        ]),
+      )
+        .slice(0, limit)
+        .map((text) => ({
+          text: text as string,
+          type: 'query' as const,
+          score: 1,
+        }));
 
       return {
         suggestions,
         products,
         categories: [], // TODO: Implement category suggestions
-        brands: [] // TODO: Implement brand suggestions
+        brands: [], // TODO: Implement brand suggestions
       };
-
     } catch (error) {
       this.logger.error('Autocomplete failed', error);
       return {
         suggestions: [],
         products: [],
         categories: [],
-        brands: []
+        brands: [],
       };
     }
   }
@@ -424,41 +457,46 @@ export class SearchService {
         index: this.getIndexName(),
         body: {
           query: {
-            bool: { filter }
+            bool: { filter },
           },
           sort: [
             { 'popularity.score': { order: 'desc' } },
-            { 'popularity.viewCount': { order: 'desc' } }
+            { 'popularity.viewCount': { order: 'desc' } },
           ],
-          size: limit
-        }
+          size: limit,
+        },
       });
 
-      const products = response.hits.hits.map((hit: any) => hit._source) as SearchDocument[];
+      const products = response.hits.hits.map(
+        (hit: any) => hit._source,
+      ) as SearchDocument[];
 
       return {
         products,
         categories: [], // TODO: Implement trending categories
         brands: [], // TODO: Implement trending brands
-        queries: [] // TODO: Implement trending queries
+        queries: [], // TODO: Implement trending queries
       };
-
     } catch (error) {
       this.logger.error('Get trending failed', error);
       return {
         products: [],
         categories: [],
         brands: [],
-        queries: []
+        queries: [],
       };
     }
   }
 
-  async getRecommendations(userId?: string, productId?: string, limit = 10): Promise<RecommendationResult> {
+  async getRecommendations(
+    userId?: string,
+    productId?: string,
+    limit = 10,
+  ): Promise<RecommendationResult> {
     // TODO: Implement ML-based recommendations
     // For now, return popular products
     const trending = await this.getTrending(undefined, limit);
-    
+
     return {
       recommendations: trending.products,
       type: 'trending',
@@ -466,8 +504,8 @@ export class SearchService {
         userId,
         productId,
         algorithm: 'popularity_fallback',
-        confidence: 0.5
-      }
+        confidence: 0.5,
+      },
     };
   }
 
@@ -487,22 +525,26 @@ export class SearchService {
 
   async getSearchSuggestions(q: string) {
     const result = await this.getAutocomplete(q);
-    return { suggestions: result.suggestions.map(s => s.text) };
+    return { suggestions: result.suggestions.map((s) => s.text) };
   }
 
   async getTrendingProducts(query: any) {
     const result = await this.getTrending(query?.category, query?.limit);
     return {
       results: result.products,
-      meta: { category: query?.category, limit: query?.limit ?? 10 }
+      meta: { category: query?.category, limit: query?.limit ?? 10 },
     };
   }
 
   async getRecommendationsLegacy(query: any) {
-    const result = await this.getRecommendations(query?.userId, query?.productId, query?.limit);
+    const result = await this.getRecommendations(
+      query?.userId,
+      query?.productId,
+      query?.limit,
+    );
     return {
       recommendations: result.recommendations,
-      meta: { userId: query?.userId, productId: query?.productId }
+      meta: { userId: query?.userId, productId: query?.productId },
     };
   }
 

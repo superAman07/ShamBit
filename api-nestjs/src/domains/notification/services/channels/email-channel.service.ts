@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { NotificationRecipient } from '../../types/notification.types';
-import { ChannelDeliveryRequest, ChannelDeliveryResult } from '../notification-channel.service';
+import {
+  ChannelDeliveryRequest,
+  ChannelDeliveryResult,
+} from '../notification-channel.service';
 import { LoggerService } from '../../../../infrastructure/observability/logger.service';
 
 export interface EmailConfig {
@@ -55,14 +58,14 @@ export class EmailChannelService {
           user: '',
           pass: '',
         },
-      }
+      },
     };
     this.initializeProvider();
   }
 
   async send(
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     if (!recipient.email) {
       throw new Error('Email address is required for email notifications');
@@ -90,7 +93,9 @@ export class EmailChannelService {
           result = await this.sendViaSendGrid(emailData);
           break;
         default:
-          throw new Error(`Unsupported email provider: ${this.config.provider}`);
+          throw new Error(
+            `Unsupported email provider: ${this.config.provider}`,
+          );
       }
 
       return {
@@ -133,7 +138,7 @@ export class EmailChannelService {
     try {
       // Perform a simple health check based on provider
       const startTime = Date.now();
-      
+
       switch (this.config.provider) {
         case 'smtp':
           if (this.transporter) {

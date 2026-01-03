@@ -82,7 +82,7 @@ export class BrandRepository {
 
     const [data, total] = await Promise.all([
       this.prisma.brand.findMany({
-        where: where as any,
+        where: where,
         include: {
           categories: {
             include: {
@@ -113,7 +113,7 @@ export class BrandRepository {
           [sortBy]: sortOrder,
         },
       }),
-      this.prisma.brand.count({ where: where as any }),
+      this.prisma.brand.count({ where: where }),
     ]);
 
     return {
@@ -216,7 +216,7 @@ export class BrandRepository {
 
     const brand = await this.prisma.brand.update({
       where: { id },
-      data: updateData as any,
+      data: updateData,
       include: {
         categories: {
           include: {
@@ -284,7 +284,7 @@ export class BrandRepository {
 
     const counts = await this.prisma.brand.groupBy({
       by: ['status'],
-      where: where as any,
+      where: where,
       _count: true,
     });
 

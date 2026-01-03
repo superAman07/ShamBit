@@ -11,11 +11,11 @@ import { NotificationMetricsService } from './services/notification-metrics.serv
 import { WebhookService } from './services/webhook.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { LoggerService } from '../../infrastructure/observability/logger.service';
-import { 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationType,
+  NotificationChannel,
   NotificationPriority,
-  NotificationCategory
+  NotificationCategory,
 } from './types/notification.types';
 
 // Mock implementations for testing
@@ -23,7 +23,7 @@ class MockNotificationRepository {
   async create(notification: any) {
     return { ...notification, id: 'test-id' };
   }
-  
+
   async findById(id: string) {
     return {
       id,
@@ -33,11 +33,11 @@ class MockNotificationRepository {
       templateVariables: { orderNumber: 'ORD-123' },
     };
   }
-  
+
   async updateStatus(id: string, status: any) {
     return;
   }
-  
+
   async storeDeliveryResults(id: string, results: any[]) {
     return;
   }
@@ -54,10 +54,13 @@ class MockTemplateService {
       variables: ['orderNumber'],
     };
   }
-  
+
   async renderTemplate(template: any, variables: any) {
     return {
-      content: template.content.replace('{{orderNumber}}', variables.orderNumber),
+      content: template.content.replace(
+        '{{orderNumber}}',
+        variables.orderNumber,
+      ),
       subject: 'Test Subject',
       title: 'Test Title',
     };
@@ -88,7 +91,7 @@ class MockQueueService {
   async addNotification(notificationId: string) {
     return;
   }
-  
+
   async scheduleNotification(notificationId: string, scheduledAt: Date) {
     return;
   }
@@ -104,7 +107,7 @@ class MockDeduplicationService {
   async checkIdempotency(key: string) {
     return null; // No duplicates for testing
   }
-  
+
   async storeIdempotency(key: string, notificationId: string) {
     return;
   }
@@ -126,11 +129,11 @@ class MockLoggerService {
   log(message: string, context?: any) {
     console.log(`[LOG] ${message}`, context);
   }
-  
+
   error(message: string, trace?: string, context?: any) {
     console.error(`[ERROR] ${message}`, trace, context);
   }
-  
+
   warn(message: string, context?: any) {
     console.warn(`[WARN] ${message}`, context);
   }
@@ -224,39 +227,43 @@ describe('NotificationService', () => {
     };
 
     const notificationId = await service.sendNotification(payload);
-    
+
     expect(notificationId).toBeDefined();
     expect(typeof notificationId).toBe('string');
   });
 
   it('should process a notification successfully', async () => {
     const notificationId = 'test-notification-id';
-    
+
     // This should not throw an error
-    await expect(service.processNotification(notificationId)).resolves.not.toThrow();
+    await expect(
+      service.processNotification(notificationId),
+    ).resolves.not.toThrow();
   });
 
   it('should get user notifications', async () => {
     const userId = 'user123';
     const options = { limit: 10, offset: 0 };
-    
+
     const result = await service.getUserNotifications(userId, options);
-    
+
     expect(result).toBeDefined();
   });
 
   it('should mark notification as read', async () => {
     const notificationId = 'test-notification-id';
     const userId = 'user123';
-    
-    await expect(service.markAsRead(notificationId, userId)).resolves.not.toThrow();
+
+    await expect(
+      service.markAsRead(notificationId, userId),
+    ).resolves.not.toThrow();
   });
 
   it('should get unread count', async () => {
     const userId = 'user123';
-    
+
     const count = await service.getUnreadCount(userId);
-    
+
     expect(typeof count).toBe('number');
   });
 });
@@ -275,7 +282,9 @@ describe('NotificationTemplateService', () => {
       ],
     }).compile();
 
-    service = module.get<NotificationTemplateService>(NotificationTemplateService);
+    service = module.get<NotificationTemplateService>(
+      NotificationTemplateService,
+    );
   });
 
   afterEach(async () => {
@@ -286,9 +295,9 @@ describe('NotificationTemplateService', () => {
     const template = await service.getTemplate(
       NotificationType.ORDER_CONFIRMATION,
       NotificationChannel.EMAIL,
-      'en'
+      'en',
     );
-    
+
     expect(template).toBeDefined();
     expect(template!.type).toBe(NotificationType.ORDER_CONFIRMATION);
     expect(template!.channel).toBe(NotificationChannel.EMAIL);
@@ -309,7 +318,7 @@ describe('NotificationTemplateService', () => {
     };
 
     const rendered = await service.renderTemplate(template as any, variables);
-    
+
     expect(rendered).toBeDefined();
     expect(rendered.content).toContain('ORD-12345');
   });
@@ -330,19 +339,20 @@ describe('Notification System Integration', () => {
           totalAmount: '$99.99',
         },
       },
-      
+
       // 2. Notification is triggered
       notification: {
         type: NotificationType.ORDER_CONFIRMATION,
         recipients: [{ userId: 'user123' }],
         channels: [NotificationChannel.EMAIL],
       },
-      
+
       // 3. Template is rendered
       template: {
-        content: 'Hi {{customerName}}, your order {{orderNumber}} for {{totalAmount}} has been confirmed.',
+        content:
+          'Hi {{customerName}}, your order {{orderNumber}} for {{totalAmount}} has been confirmed.',
       },
-      
+
       // 4. Notification is delivered
       delivery: {
         success: true,
@@ -352,7 +362,9 @@ describe('Notification System Integration', () => {
 
     // Verify each step would work
     expect(mockFlow.event).toBeDefined();
-    expect(mockFlow.notification.type).toBe(NotificationType.ORDER_CONFIRMATION);
+    expect(mockFlow.notification.type).toBe(
+      NotificationType.ORDER_CONFIRMATION,
+    );
     expect(mockFlow.template.content).toContain('{{customerName}}');
     expect(mockFlow.delivery.success).toBe(true);
   });

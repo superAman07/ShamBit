@@ -6,8 +6,9 @@ export class CartCacheService {
   private readonly logger = new Logger(CartCacheService.name);
   private readonly cache = new Map<string, { data: any; expiry: number }>();
 
-  constructor() // @Inject('REDIS_CLIENT') private readonly redis: Redis,
-  {}
+  constructor() {
+    // @Inject('REDIS_CLIENT') private readonly redis: Redis,
+  }
 
   /**
    * Cache cart data with TTL

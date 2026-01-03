@@ -96,7 +96,7 @@ export class CacheService {
   async mset(keyValues: Record<string, any>, ttl?: number): Promise<void> {
     try {
       const pipeline = this.redis.pipeline();
-      
+
       Object.entries(keyValues).forEach(([key, value]) => {
         const serialized = JSON.stringify(value);
         if (ttl) {

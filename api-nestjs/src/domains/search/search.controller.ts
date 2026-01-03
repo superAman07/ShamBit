@@ -41,19 +41,69 @@ export class SearchController {
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'Search products with advanced filtering and facets' })
+  @ApiOperation({
+    summary: 'Search products with advanced filtering and facets',
+  })
   @ApiQuery({ name: 'q', required: false, description: 'Search query' })
-  @ApiQuery({ name: 'category', required: false, description: 'Category ID filter' })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    description: 'Category ID filter',
+  })
   @ApiQuery({ name: 'brand', required: false, description: 'Brand ID filter' })
-  @ApiQuery({ name: 'seller', required: false, description: 'Seller ID filter' })
-  @ApiQuery({ name: 'minPrice', required: false, type: Number, description: 'Minimum price filter' })
-  @ApiQuery({ name: 'maxPrice', required: false, type: Number, description: 'Maximum price filter' })
-  @ApiQuery({ name: 'rating', required: false, type: Number, description: 'Minimum rating filter' })
-  @ApiQuery({ name: 'inStock', required: false, type: Boolean, description: 'In stock filter' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Results per page' })
-  @ApiQuery({ name: 'sortBy', required: false, enum: SortOption, description: 'Sort option' })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Sort order' })
+  @ApiQuery({
+    name: 'seller',
+    required: false,
+    description: 'Seller ID filter',
+  })
+  @ApiQuery({
+    name: 'minPrice',
+    required: false,
+    type: Number,
+    description: 'Minimum price filter',
+  })
+  @ApiQuery({
+    name: 'maxPrice',
+    required: false,
+    type: Number,
+    description: 'Maximum price filter',
+  })
+  @ApiQuery({
+    name: 'rating',
+    required: false,
+    type: Number,
+    description: 'Minimum rating filter',
+  })
+  @ApiQuery({
+    name: 'inStock',
+    required: false,
+    type: Boolean,
+    description: 'In stock filter',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Results per page',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: SortOption,
+    description: 'Sort option',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: 'Sort order',
+  })
   async searchProducts(@Query() query: SearchQuery) {
     return this.searchService.search(query);
   }
@@ -61,8 +111,17 @@ export class SearchController {
   @Public()
   @Get('autocomplete')
   @ApiOperation({ summary: 'Get search autocomplete suggestions' })
-  @ApiQuery({ name: 'q', required: true, description: 'Search query for autocomplete' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of suggestions' })
+  @ApiQuery({
+    name: 'q',
+    required: true,
+    description: 'Search query for autocomplete',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of suggestions',
+  })
   async getAutocomplete(
     @Query('q') query: string,
     @Query('limit') limit?: number,
@@ -80,8 +139,16 @@ export class SearchController {
   @Public()
   @Get('filters')
   @ApiOperation({ summary: 'Get available filters for search' })
-  @ApiQuery({ name: 'category', required: false, description: 'Category ID for category-specific filters' })
-  @ApiQuery({ name: 'q', required: false, description: 'Search query for context-aware filters' })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    description: 'Category ID for category-specific filters',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Search query for context-aware filters',
+  })
   async getAvailableFilters(@Query() query: { category?: string; q?: string }) {
     return this.filterService.getAvailableFilters(query);
   }
@@ -89,8 +156,17 @@ export class SearchController {
   @Public()
   @Get('trending')
   @ApiOperation({ summary: 'Get trending products' })
-  @ApiQuery({ name: 'category', required: false, description: 'Category ID filter' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of results' })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    description: 'Category ID filter',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of results',
+  })
   async getTrendingProducts(
     @Query() query: { category?: string; limit?: number },
   ) {
@@ -100,8 +176,17 @@ export class SearchController {
   @Public()
   @Get('popular')
   @ApiOperation({ summary: 'Get popular products' })
-  @ApiQuery({ name: 'category', required: false, description: 'Category ID filter' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of results' })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    description: 'Category ID filter',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of results',
+  })
   async getPopularProducts(
     @Query() query: { category?: string; limit?: number },
   ) {
@@ -109,7 +194,7 @@ export class SearchController {
       query.category,
       query.limit,
     );
-    
+
     // TODO: Fetch full product data from search index
     return {
       results: [],
@@ -121,19 +206,41 @@ export class SearchController {
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get personalized product recommendations' })
-  @ApiQuery({ name: 'userId', required: false, description: 'User ID for personalization' })
-  @ApiQuery({ name: 'productId', required: false, description: 'Product ID for related products' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of recommendations' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: 'User ID for personalization',
+  })
+  @ApiQuery({
+    name: 'productId',
+    required: false,
+    description: 'Product ID for related products',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of recommendations',
+  })
   async getRecommendations(
     @Query() query: { userId?: string; productId?: string; limit?: number },
   ) {
-    return this.searchService.getRecommendations(query.userId, query.productId, query.limit);
+    return this.searchService.getRecommendations(
+      query.userId,
+      query.productId,
+      query.limit,
+    );
   }
 
   @Public()
   @Get('categories/popular')
   @ApiOperation({ summary: 'Get popular categories' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of categories' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of categories',
+  })
   async getPopularCategories(@Query('limit') limit?: number) {
     const categories = await this.popularityService.getPopularCategories(limit);
     return { categories };
@@ -144,7 +251,8 @@ export class SearchController {
   @ApiOperation({ summary: 'Track product click for analytics' })
   @HttpCode(HttpStatus.OK)
   async trackClick(
-    @Body() body: {
+    @Body()
+    body: {
       productId: string;
       query: string;
       position: number;
@@ -189,7 +297,12 @@ export class SearchController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get popular search queries' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of queries' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of queries',
+  })
   async getPopularQueries(@Query('limit') limit?: number) {
     const queries = await this.analyticsService.getPopularQueries(limit);
     return { queries };
@@ -200,7 +313,12 @@ export class SearchController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get queries with zero results' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of queries' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of queries',
+  })
   async getZeroResultQueries(@Query('limit') limit?: number) {
     const queries = await this.analyticsService.getZeroResultQueries(limit);
     return { queries };
@@ -211,15 +329,25 @@ export class SearchController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get search analytics metrics' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Start date (ISO string)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'End date (ISO string)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date (ISO string)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date (ISO string)',
+  })
   async getSearchMetrics(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const start = startDate
+      ? new Date(startDate)
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
-    
+
     return this.analyticsService.getSearchMetrics(start, end);
   }
 

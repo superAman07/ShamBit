@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
-import { 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationType,
+  NotificationChannel,
   NotificationTemplate,
   TemplateStatus,
-  NotificationCategory
+  NotificationCategory,
 } from '../types/notification.types';
 import { LoggerService } from '../../../infrastructure/observability/logger.service';
-import { 
+import {
   NotificationType as PrismaNotificationType,
   NotificationChannel as PrismaNotificationChannel,
   NotificationCategory as PrismaNotificationCategory,
-  TemplateStatus as PrismaTemplateStatus
+  TemplateStatus as PrismaTemplateStatus,
 } from '@prisma/client';
 
 export interface RenderedTemplate {
@@ -49,7 +49,10 @@ export class NotificationTemplateService {
   // TEMPLATE MANAGEMENT
   // ============================================================================
 
-  async createTemplate(dto: CreateTemplateDto, createdBy: string): Promise<NotificationTemplate> {
+  async createTemplate(
+    dto: CreateTemplateDto,
+    createdBy: string,
+  ): Promise<NotificationTemplate> {
     this.logger.log('Creating notification template', {
       name: dto.name,
       type: dto.type,
@@ -83,7 +86,7 @@ export class NotificationTemplateService {
     type: NotificationType,
     channel: NotificationChannel,
     locale: string = 'en',
-    tenantId?: string
+    tenantId?: string,
   ): Promise<NotificationTemplate | null> {
     // Try to find tenant-specific template first, then global
     const whereConditions = [
@@ -137,7 +140,7 @@ export class NotificationTemplateService {
 
   async renderTemplate(
     template: NotificationTemplate,
-    variables: Record<string, any>
+    variables: Record<string, any>,
   ): Promise<RenderedTemplate> {
     try {
       // Merge default variables with provided variables
@@ -147,8 +150,11 @@ export class NotificationTemplateService {
       };
 
       // Render content using simple template engine
-      const renderedContent = this.renderTemplateString(template.content, allVariables);
-      const renderedSubject = template.subject 
+      const renderedContent = this.renderTemplateString(
+        template.content,
+        allVariables,
+      );
+      const renderedSubject = template.subject
         ? this.renderTemplateString(template.subject, allVariables)
         : undefined;
       const renderedTitle = template.title
@@ -176,13 +182,13 @@ export class NotificationTemplateService {
   async updateTemplate(
     templateId: string,
     updates: Partial<CreateTemplateDto>,
-    updatedBy: string
+    updatedBy: string,
   ): Promise<NotificationTemplate> {
     const updateData: any = { ...updates };
     if (updatedBy) {
       updateData.updatedBy = updatedBy;
     }
-    
+
     const template = await this.prisma.notificationTemplate.update({
       where: { id: templateId },
       data: updateData,
@@ -215,17 +221,19 @@ export class NotificationTemplateService {
   // TEMPLATE QUERIES
   // ============================================================================
 
-  async getTemplates(filters: {
-    type?: NotificationType;
-    channel?: NotificationChannel;
-    status?: TemplateStatus;
-    tenantId?: string;
-    isGlobal?: boolean;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<{ templates: NotificationTemplate[]; total: number }> {
+  async getTemplates(
+    filters: {
+      type?: NotificationType;
+      channel?: NotificationChannel;
+      status?: TemplateStatus;
+      tenantId?: string;
+      isGlobal?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ templates: NotificationTemplate[]; total: number }> {
     const where: any = {};
-    
+
     if (filters.type) where.type = filters.type;
     if (filters.channel) where.channel = filters.channel;
     if (filters.status) where.status = filters.status;
@@ -243,12 +251,14 @@ export class NotificationTemplateService {
     ]);
 
     return {
-      templates: templates.map(t => this.mapToTemplateType(t)),
+      templates: templates.map((t) => this.mapToTemplateType(t)),
       total,
     };
   }
 
-  async getTemplateById(templateId: string): Promise<NotificationTemplate | null> {
+  async getTemplateById(
+    templateId: string,
+  ): Promise<NotificationTemplate | null> {
     const template = await this.prisma.notificationTemplate.findUnique({
       where: { id: templateId },
     });
@@ -268,7 +278,7 @@ export class NotificationTemplateService {
       title?: string;
       content: string;
       htmlContent?: string;
-    }
+    },
   ): Promise<void> {
     await (this.prisma as any).notificationTemplateLocalization.create({
       data: {
@@ -281,7 +291,7 @@ export class NotificationTemplateService {
 
   async getLocalization(
     templateId: string,
-    locale: string
+    locale: string,
   ): Promise<any | null> {
     return (this.prisma as any).notificationTemplateLocalization.findUnique({
       where: {
@@ -301,7 +311,7 @@ export class NotificationTemplateService {
       title?: string;
       content?: string;
       htmlContent?: string;
-    }
+    },
   ): Promise<void> {
     await (this.prisma as any).notificationTemplateLocalization.update({
       where: {
@@ -332,7 +342,7 @@ export class NotificationTemplateService {
     // Validate template variables
     const requiredVariables = template.variables || [];
     const contentVariables = this.extractVariables(template.content);
-    
+
     for (const variable of requiredVariables) {
       if (!contentVariables.includes(variable)) {
         errors.push(`Required variable '${variable}' not found in content`);
@@ -344,7 +354,9 @@ export class NotificationTemplateService {
       const htmlVariables = this.extractVariables(template.htmlContent);
       for (const variable of requiredVariables) {
         if (!htmlVariables.includes(variable)) {
-          errors.push(`Required variable '${variable}' not found in HTML content`);
+          errors.push(
+            `Required variable '${variable}' not found in HTML content`,
+          );
         }
       }
     }
@@ -357,7 +369,7 @@ export class NotificationTemplateService {
 
   async testTemplate(
     templateId: string,
-    testVariables: Record<string, any>
+    testVariables: Record<string, any>,
   ): Promise<RenderedTemplate> {
     const template = await this.getTemplateById(templateId);
     if (!template) {
@@ -371,7 +383,10 @@ export class NotificationTemplateService {
   // PRIVATE HELPER METHODS
   // ============================================================================
 
-  private renderTemplateString(template: string, variables: Record<string, any>): string {
+  private renderTemplateString(
+    template: string,
+    variables: Record<string, any>,
+  ): string {
     let rendered = template;
 
     // Simple template engine - replace {{variable}} with values
@@ -381,33 +396,41 @@ export class NotificationTemplateService {
     }
 
     // Handle conditional blocks {{#if variable}}...{{/if}}
-    rendered = rendered.replace(/{{#if\s+(\w+)}}(.*?){{\/if}}/gs, (_, variable, content) => {
-      return variables[variable] ? content : '';
-    });
+    rendered = rendered.replace(
+      /{{#if\s+(\w+)}}(.*?){{\/if}}/gs,
+      (_, variable, content) => {
+        return variables[variable] ? content : '';
+      },
+    );
 
     // Handle loops {{#each items}}...{{/each}}
-    rendered = rendered.replace(/{{#each\s+(\w+)}}(.*?){{\/each}}/gs, (_, variable, content) => {
-      const items = variables[variable];
-      if (!Array.isArray(items)) return '';
-      
-      return items.map((item, index) => {
-        let itemContent = content;
-        // Replace {{this}} with current item
-        itemContent = itemContent.replace(/{{this}}/g, String(item));
-        // Replace {{@index}} with current index
-        itemContent = itemContent.replace(/{{@index}}/g, String(index));
-        // Replace {{item.property}} with item properties
-        if (typeof item === 'object') {
-          for (const [prop, val] of Object.entries(item)) {
-            itemContent = itemContent.replace(
-              new RegExp(`{{${variable}\\.${prop}}}`, 'g'),
-              String(val)
-            );
-          }
-        }
-        return itemContent;
-      }).join('');
-    });
+    rendered = rendered.replace(
+      /{{#each\s+(\w+)}}(.*?){{\/each}}/gs,
+      (_, variable, content) => {
+        const items = variables[variable];
+        if (!Array.isArray(items)) return '';
+
+        return items
+          .map((item, index) => {
+            let itemContent = content;
+            // Replace {{this}} with current item
+            itemContent = itemContent.replace(/{{this}}/g, String(item));
+            // Replace {{@index}} with current index
+            itemContent = itemContent.replace(/{{@index}}/g, String(index));
+            // Replace {{item.property}} with item properties
+            if (typeof item === 'object') {
+              for (const [prop, val] of Object.entries(item)) {
+                itemContent = itemContent.replace(
+                  new RegExp(`{{${variable}\\.${prop}}}`, 'g'),
+                  String(val),
+                );
+              }
+            }
+            return itemContent;
+          })
+          .join('');
+      },
+    );
 
     return rendered;
   }

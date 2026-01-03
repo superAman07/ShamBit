@@ -18,7 +18,7 @@ export class TokenDenylistService {
   async denyToken(token: string): Promise<void> {
     try {
       // Decode token to get expiration
-      const decoded = this.jwtService.decode(token) as any;
+      const decoded = this.jwtService.decode(token);
       if (!decoded || !decoded.exp) {
         throw new Error('Invalid token format');
       }

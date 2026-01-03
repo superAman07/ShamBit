@@ -326,7 +326,7 @@ export class SettlementJobService {
       },
     });
 
-    let totalJobs = jobs.length;
+    const totalJobs = jobs.length;
     let completedJobs = 0;
     let failedJobs = 0;
     let runningJobs = 0;

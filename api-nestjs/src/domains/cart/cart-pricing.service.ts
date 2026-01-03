@@ -88,7 +88,7 @@ export class CartPricingService {
   constructor(
     private readonly promotionEngine: PromotionEngineService,
     private readonly eventEmitter: EventEmitter2,
-  ) { }
+  ) {}
 
   // Helper method to convert decimal.js Decimal to Prisma.Decimal
   private toPrismaDecimal(value: any): Prisma.Decimal {
@@ -136,7 +136,9 @@ export class CartPricingService {
 
     if (opts.includePromotions) {
       promotionDiscounts = await this.promotionEngine.applyPromotions(cart);
-      totalDiscountAmount = new Prisma.Decimal(promotionDiscounts.totalDiscount);
+      totalDiscountAmount = new Prisma.Decimal(
+        promotionDiscounts.totalDiscount,
+      );
     }
 
     // 4. Calculate taxes
@@ -195,7 +197,9 @@ export class CartPricingService {
     const currentPricing = await this.getCurrentVariantPricing(item.variantId);
 
     // 2. Check for price changes
-    const priceChanged = !currentPricing.sellingPrice.equals(this.toPrismaDecimal(item.unitPrice));
+    const priceChanged = !currentPricing.sellingPrice.equals(
+      this.toPrismaDecimal(item.unitPrice),
+    );
 
     // 3. Calculate totals
     const unitPrice = currentPricing.sellingPrice;
@@ -222,7 +226,9 @@ export class CartPricingService {
       discountAmount,
       finalPrice: totalPrice.sub(discountAmount),
       priceChanged,
-      previousUnitPrice: priceChanged ? this.toPrismaDecimal(item.unitPrice) : undefined,
+      previousUnitPrice: priceChanged
+        ? this.toPrismaDecimal(item.unitPrice)
+        : undefined,
       itemDiscounts,
       taxAmount,
     };
@@ -240,8 +246,14 @@ export class CartPricingService {
         item.variantId,
       );
 
-      if (!currentPricing.sellingPrice.equals(this.toPrismaDecimal(item.unitPrice))) {
-        const oldTotal = this.toPrismaDecimal(item.unitPrice).mul(item.quantity);
+      if (
+        !currentPricing.sellingPrice.equals(
+          this.toPrismaDecimal(item.unitPrice),
+        )
+      ) {
+        const oldTotal = this.toPrismaDecimal(item.unitPrice).mul(
+          item.quantity,
+        );
         const newTotal = currentPricing.sellingPrice.mul(item.quantity);
         const impact = newTotal.sub(oldTotal);
 
@@ -250,7 +262,9 @@ export class CartPricingService {
           variantId: item.variantId,
           oldPrice: this.toPrismaDecimal(item.unitPrice),
           newPrice: currentPricing.sellingPrice,
-          priceIncrease: currentPricing.sellingPrice.gt(this.toPrismaDecimal(item.unitPrice)),
+          priceIncrease: currentPricing.sellingPrice.gt(
+            this.toPrismaDecimal(item.unitPrice),
+          ),
           percentageChange: this.calculatePercentageChange(
             this.toPrismaDecimal(item.unitPrice),
             currentPricing.sellingPrice,

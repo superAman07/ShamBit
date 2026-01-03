@@ -17,7 +17,7 @@ import { AttributeDataType } from '../enums/attribute-data-type.enum';
 
 @Injectable()
 export class AttributeRepository implements IAttributeRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(
     filters: AttributeFilters = {},
@@ -111,16 +111,16 @@ export class AttributeRepository implements IAttributeRepository {
         createdBy: data.createdBy!,
         localizations: data.localizations
           ? {
-            createMany: {
-              data: data.localizations.map((loc) => ({
-                locale: loc.locale,
-                name: loc.name,
-                description: loc.description,
-                helpText: loc.helpText,
-                placeholder: loc.placeholder,
-              })),
-            },
-          }
+              createMany: {
+                data: data.localizations.map((loc) => ({
+                  locale: loc.locale,
+                  name: loc.name,
+                  description: loc.description,
+                  helpText: loc.helpText,
+                  placeholder: loc.placeholder,
+                })),
+              },
+            }
           : undefined,
       },
       include: {

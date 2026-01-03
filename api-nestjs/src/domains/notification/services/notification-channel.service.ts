@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { 
-  NotificationChannel, 
+import {
+  NotificationChannel,
   NotificationRecipient,
-  NotificationPriority
+  NotificationPriority,
 } from '../types/notification.types';
 import { EmailChannelService } from './channels/email-channel.service';
 import { SMSChannelService } from './channels/sms-channel.service';
@@ -51,7 +51,7 @@ export class NotificationChannelService {
   async deliver(
     channel: NotificationChannel,
     recipient: NotificationRecipient,
-    request: ChannelDeliveryRequest
+    request: ChannelDeliveryRequest,
   ): Promise<ChannelDeliveryResult> {
     this.logger.log('Delivering notification through channel', {
       channel,
@@ -66,7 +66,7 @@ export class NotificationChannelService {
       }
 
       const result = await channelService.send(recipient, request);
-      
+
       this.logger.log('Channel delivery completed', {
         channel,
         success: result.success,
@@ -89,7 +89,7 @@ export class NotificationChannelService {
 
   async validateRecipient(
     channel: NotificationChannel,
-    recipient: NotificationRecipient
+    recipient: NotificationRecipient,
   ): Promise<boolean> {
     try {
       const channelService = this.channelServices.get(channel);
@@ -124,7 +124,9 @@ export class NotificationChannelService {
 
       return await channelService.getHealth();
     } catch (error) {
-      this.logger.error('Channel health check failed', error.stack, { channel });
+      this.logger.error('Channel health check failed', error.stack, {
+        channel,
+      });
       return {
         isHealthy: false,
         lastCheck: new Date(),
@@ -139,7 +141,7 @@ export class NotificationChannelService {
   async testChannel(
     channel: NotificationChannel,
     testRecipient: NotificationRecipient,
-    testMessage: string
+    testMessage: string,
   ): Promise<ChannelDeliveryResult> {
     return this.deliver(channel, testRecipient, {
       title: 'Test Notification',

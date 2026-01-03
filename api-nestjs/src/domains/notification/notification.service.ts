@@ -1,16 +1,16 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationType,
+  NotificationChannel,
   NotificationPriority,
   NotificationStatus,
   NotificationCategory,
   NotificationPayload,
   NotificationDeliveryResult,
   NotificationContext,
-  NotificationRecipient
+  NotificationRecipient,
 } from './types/notification.types';
 import { NotificationRepository } from './repositories/notification.repository';
 import { NotificationTemplateService } from './services/notification-template.service';
@@ -51,7 +51,7 @@ export class NotificationService implements OnModuleInit {
 
   async sendNotification(payload: NotificationPayload): Promise<string> {
     const notificationId = await this.generateNotificationId();
-    
+
     this.logger.log('Processing notification request', {
       notificationId,
       type: payload.type,
@@ -63,7 +63,7 @@ export class NotificationService implements OnModuleInit {
       // Check for idempotency
       if (payload.idempotencyKey) {
         const existing = await this.deduplicationService.checkIdempotency(
-          payload.idempotencyKey
+          payload.idempotencyKey,
         );
         if (existing) {
           this.logger.log('Duplicate notification request ignored', {
@@ -95,7 +95,7 @@ export class NotificationService implements OnModuleInit {
       if (payload.idempotencyKey) {
         await this.deduplicationService.storeIdempotency(
           payload.idempotencyKey,
-          notificationId
+          notificationId,
         );
       }
 
@@ -125,7 +125,8 @@ export class NotificationService implements OnModuleInit {
     this.logger.log('Processing notification', { notificationId });
 
     try {
-      const notification = await this.notificationRepository.findById(notificationId);
+      const notification =
+        await this.notificationRepository.findById(notificationId);
       if (!notification) {
         throw new Error(`Notification not found: ${notificationId}`);
       }
@@ -134,7 +135,7 @@ export class NotificationService implements OnModuleInit {
       if (notification.expiresAt && notification.expiresAt < new Date()) {
         await this.notificationRepository.updateStatus(
           notificationId,
-          NotificationStatus.CANCELLED
+          NotificationStatus.CANCELLED,
         );
         return;
       }
@@ -142,7 +143,7 @@ export class NotificationService implements OnModuleInit {
       // Update status to processing
       await this.notificationRepository.updateStatus(
         notificationId,
-        NotificationStatus.PROCESSING
+        NotificationStatus.PROCESSING,
       );
 
       // Process each recipient and channel combination
@@ -154,11 +155,11 @@ export class NotificationService implements OnModuleInit {
         if (recipient.userId) {
           const preferences = await this.preferenceService.getUserPreferences(
             recipient.userId,
-            notification.type as NotificationType | undefined
+            notification.type as NotificationType | undefined,
           );
           allowedChannels = this.filterChannelsByPreferences(
             notification.channels as NotificationChannel[],
-            preferences
+            preferences,
           );
         }
 
@@ -168,7 +169,7 @@ export class NotificationService implements OnModuleInit {
             const result = await this.deliverNotification(
               notification,
               recipient,
-              channel as NotificationChannel
+              channel as NotificationChannel,
             );
             deliveryResults.push(result);
           } catch (error) {
@@ -194,12 +195,15 @@ export class NotificationService implements OnModuleInit {
       // Store delivery results
       await this.notificationRepository.storeDeliveryResults(
         notificationId,
-        deliveryResults
+        deliveryResults,
       );
 
       // Update overall notification status
       const overallStatus = this.calculateOverallStatus(deliveryResults);
-      await this.notificationRepository.updateStatus(notificationId, overallStatus);
+      await this.notificationRepository.updateStatus(
+        notificationId,
+        overallStatus,
+      );
 
       // Update metrics
       await this.metricsService.recordDeliveryResults(deliveryResults);
@@ -209,7 +213,6 @@ export class NotificationService implements OnModuleInit {
         deliveryResults: deliveryResults.length,
         status: overallStatus,
       });
-
     } catch (error) {
       this.logger.error('Notification processing failed', error.stack, {
         notificationId,
@@ -217,7 +220,7 @@ export class NotificationService implements OnModuleInit {
 
       await this.notificationRepository.updateStatus(
         notificationId,
-        NotificationStatus.FAILED
+        NotificationStatus.FAILED,
       );
       throw error;
     }
@@ -226,13 +229,13 @@ export class NotificationService implements OnModuleInit {
   private async deliverNotification(
     notification: any,
     recipient: NotificationRecipient,
-    channel: NotificationChannel
+    channel: NotificationChannel,
   ): Promise<NotificationDeliveryResult> {
     // Check rate limits
     const rateLimitKey = this.buildRateLimitKey(recipient, channel);
     const isAllowed = await this.rateLimitService.checkRateLimit(
       rateLimitKey,
-      channel
+      channel,
     );
 
     if (!isAllowed) {
@@ -243,7 +246,7 @@ export class NotificationService implements OnModuleInit {
     const template = await this.templateService.getTemplate(
       notification.type,
       channel,
-      recipient.userId ? await this.getUserLocale(recipient.userId) : 'en'
+      recipient.userId ? await this.getUserLocale(recipient.userId) : 'en',
     );
 
     if (!template) {
@@ -252,7 +255,7 @@ export class NotificationService implements OnModuleInit {
 
     const renderedContent = await this.templateService.renderTemplate(
       template,
-      notification.templateVariables
+      notification.templateVariables,
     );
 
     // Deliver through channel
@@ -266,14 +269,16 @@ export class NotificationService implements OnModuleInit {
         htmlContent: renderedContent.htmlContent,
         data: notification.templateVariables,
         priority: notification.priority,
-      }
+      },
     );
 
     return {
       notificationId: notification.id,
       channel,
       recipient,
-      status: deliveryResult.success ? NotificationStatus.SENT : NotificationStatus.FAILED,
+      status: deliveryResult.success
+        ? NotificationStatus.SENT
+        : NotificationStatus.FAILED,
       success: deliveryResult.success,
       messageId: deliveryResult.messageId,
       error: deliveryResult.error,
@@ -481,8 +486,9 @@ export class NotificationService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async processScheduledNotifications() {
-    const scheduledNotifications = await this.notificationRepository.findScheduledNotifications();
-    
+    const scheduledNotifications =
+      await this.notificationRepository.findScheduledNotifications();
+
     for (const notification of scheduledNotifications) {
       await this.queueNotificationForProcessing(notification.id);
     }
@@ -490,8 +496,9 @@ export class NotificationService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async retryFailedNotifications() {
-    const failedNotifications = await this.notificationRepository.findFailedNotificationsForRetry();
-    
+    const failedNotifications =
+      await this.notificationRepository.findFailedNotificationsForRetry();
+
     for (const notification of failedNotifications) {
       await this.queueNotificationForProcessing(notification.id);
     }
@@ -499,7 +506,8 @@ export class NotificationService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpiredNotifications() {
-    const count = await this.notificationRepository.deleteExpiredNotifications();
+    const count =
+      await this.notificationRepository.deleteExpiredNotifications();
     this.logger.log('Cleaned up expired notifications', { count });
   }
 
@@ -514,7 +522,7 @@ export class NotificationService implements OnModuleInit {
       skip?: number;
       isRead?: boolean;
       type?: NotificationType;
-    } = {}
+    } = {},
   ): Promise<{ notifications: any[]; total: number }> {
     // Convert skip to offset for repository
     const repositoryOptions = {
@@ -522,8 +530,11 @@ export class NotificationService implements OnModuleInit {
       offset: options.skip,
     };
     delete repositoryOptions.skip;
-    
-    return this.notificationRepository.findUserNotifications(userId, repositoryOptions);
+
+    return this.notificationRepository.findUserNotifications(
+      userId,
+      repositoryOptions,
+    );
   }
 
   async markAsRead(notificationId: string, userId: string): Promise<void> {
@@ -538,8 +549,14 @@ export class NotificationService implements OnModuleInit {
     return this.notificationRepository.getUnreadCount(userId);
   }
 
-  async deleteNotification(notificationId: string, userId?: string): Promise<void> {
-    await this.notificationRepository.deleteNotification(notificationId, userId);
+  async deleteNotification(
+    notificationId: string,
+    userId?: string,
+  ): Promise<void> {
+    await this.notificationRepository.deleteNotification(
+      notificationId,
+      userId,
+    );
   }
 
   // ============================================================================
@@ -553,26 +570,37 @@ export class NotificationService implements OnModuleInit {
 
   private filterChannelsByPreferences(
     requestedChannels: NotificationChannel[],
-    preferences: any
+    preferences: any,
   ): NotificationChannel[] {
     if (!preferences || !preferences.isEnabled) {
       return [];
     }
-    return requestedChannels.filter(channel => preferences.channels.includes(channel));
+    return requestedChannels.filter((channel) =>
+      preferences.channels.includes(channel),
+    );
   }
 
-  private calculateOverallStatus(results: NotificationDeliveryResult[]): NotificationStatus {
+  private calculateOverallStatus(
+    results: NotificationDeliveryResult[],
+  ): NotificationStatus {
     if (results.length === 0) return NotificationStatus.FAILED;
-    
-    const hasSuccess = results.some(r => r.status === NotificationStatus.SENT);
-    const hasFailure = results.some(r => r.status === NotificationStatus.FAILED);
-    
+
+    const hasSuccess = results.some(
+      (r) => r.status === NotificationStatus.SENT,
+    );
+    const hasFailure = results.some(
+      (r) => r.status === NotificationStatus.FAILED,
+    );
+
     if (hasSuccess && !hasFailure) return NotificationStatus.SENT;
     if (hasSuccess && hasFailure) return NotificationStatus.SENT; // Partial success
     return NotificationStatus.FAILED;
   }
 
-  private buildRateLimitKey(recipient: NotificationRecipient, channel: NotificationChannel): string {
+  private buildRateLimitKey(
+    recipient: NotificationRecipient,
+    channel: NotificationChannel,
+  ): string {
     const identifier = recipient.userId || recipient.email || recipient.phone;
     return `${channel}:${identifier}`;
   }
@@ -586,11 +614,16 @@ export class NotificationService implements OnModuleInit {
     return `notif_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
   }
 
-  private async scheduleNotification(notificationId: string, scheduledAt: Date): Promise<void> {
+  private async scheduleNotification(
+    notificationId: string,
+    scheduledAt: Date,
+  ): Promise<void> {
     await this.queueService.scheduleNotification(notificationId, scheduledAt);
   }
 
-  private async queueNotificationForProcessing(notificationId: string): Promise<void> {
+  private async queueNotificationForProcessing(
+    notificationId: string,
+  ): Promise<void> {
     await this.queueService.addNotification(notificationId);
   }
 }

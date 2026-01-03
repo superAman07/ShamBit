@@ -3,7 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Client } from '@elastic/elasticsearch';
-import { ELASTICSEARCH_CONFIG, INDEX_ALIASES, SEARCH_CONSTANTS } from './config/elasticsearch.config';
+import {
+  ELASTICSEARCH_CONFIG,
+  INDEX_ALIASES,
+  SEARCH_CONSTANTS,
+} from './config/elasticsearch.config';
 import { SearchDocument, IndexUpdateEvent } from './types/search.types';
 
 @Injectable()
@@ -18,12 +22,20 @@ export class SearchIndexService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
   ) {
-    this.indexPrefix = this.configService.get('ELASTICSEARCH_INDEX_PREFIX', 'marketplace');
+    this.indexPrefix = this.configService.get(
+      'ELASTICSEARCH_INDEX_PREFIX',
+      'marketplace',
+    );
     this.elasticsearchClient = new Client({
-      node: this.configService.get('ELASTICSEARCH_URL', 'http://localhost:9200'),
+      node: this.configService.get(
+        'ELASTICSEARCH_URL',
+        'http://localhost:9200',
+      ),
       auth: {
-        username: this.configService.get<string>('ELASTICSEARCH_USERNAME') || '',
-        password: this.configService.get<string>('ELASTICSEARCH_PASSWORD') || '',
+        username:
+          this.configService.get<string>('ELASTICSEARCH_USERNAME') || '',
+        password:
+          this.configService.get<string>('ELASTICSEARCH_PASSWORD') || '',
       },
     });
   }
@@ -33,7 +45,10 @@ export class SearchIndexService implements OnModuleInit {
       await this.initializeIndices();
       this.isElasticsearchAvailable = true;
     } catch (error) {
-      this.logger.warn('Elasticsearch not available - search functionality will be disabled', error.message);
+      this.logger.warn(
+        'Elasticsearch not available - search functionality will be disabled',
+        error.message,
+      );
       this.isElasticsearchAvailable = false;
       // Don't throw error to prevent app startup failure
     }
@@ -55,7 +70,7 @@ export class SearchIndexService implements OnModuleInit {
     try {
       // Test connection first
       await this.elasticsearchClient.ping();
-      
+
       const indexName = this.getIndexName('products');
 
       // Check if index exists
@@ -135,7 +150,6 @@ export class SearchIndexService implements OnModuleInit {
         entityId,
         timestamp: new Date(),
       } as IndexUpdateEvent);
-
     } catch (error) {
       this.logger.error(`Failed to index ${entityType}:${entityId}`, error);
       // Don't throw error to prevent app failure
@@ -165,10 +179,11 @@ export class SearchIndexService implements OnModuleInit {
         entityId,
         timestamp: new Date(),
       } as IndexUpdateEvent);
-
     } catch (error) {
       if (error.meta?.statusCode === 404) {
-        this.logger.warn(`Document ${entityType}:${entityId} not found in index`);
+        this.logger.warn(
+          `Document ${entityType}:${entityId} not found in index`,
+        );
         return;
       }
       this.logger.error(`Failed to remove ${entityType}:${entityId}`, error);
@@ -181,9 +196,9 @@ export class SearchIndexService implements OnModuleInit {
 
     try {
       const indexName = this.getIndexName('products');
-      const body = documents.flatMap(doc => [
+      const body = documents.flatMap((doc) => [
         { index: { _index: indexName, _id: doc.id } },
-        doc
+        doc,
       ]);
 
       const response = await this.elasticsearchClient.bulk({
@@ -193,8 +208,8 @@ export class SearchIndexService implements OnModuleInit {
 
       if (response.errors) {
         const errors = response.items
-          .filter(item => item.index?.error)
-          .map(item => item.index?.error);
+          .filter((item) => item.index?.error)
+          .map((item) => item.index?.error);
         this.logger.error('Bulk indexing errors:', errors);
       }
 
@@ -231,12 +246,12 @@ export class SearchIndexService implements OnModuleInit {
                 pricing: true,
                 inventory: true,
                 attributeValues: {
-                  include: { attribute: true }
-                }
-              }
+                  include: { attribute: true },
+                },
+              },
             },
             attributeValues: {
-              include: { attribute: true }
+              include: { attribute: true },
             },
             images: true,
           },
@@ -245,7 +260,7 @@ export class SearchIndexService implements OnModuleInit {
         if (products.length === 0) break;
 
         const documents = await Promise.all(
-          products.map(product => this.buildProductDocumentFromData(product))
+          products.map((product) => this.buildProductDocumentFromData(product)),
         );
 
         await this.bulkIndex(documents.filter(Boolean));
@@ -258,14 +273,15 @@ export class SearchIndexService implements OnModuleInit {
 
       this.logger.log(`Full reindex completed. Total indexed: ${totalIndexed}`);
       return { success: true, totalIndexed };
-
     } catch (error) {
       this.logger.error('Full reindex failed', error);
       throw error;
     }
   }
 
-  private async buildProductDocument(productId: string): Promise<SearchDocument | null> {
+  private async buildProductDocument(
+    productId: string,
+  ): Promise<SearchDocument | null> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: {
@@ -277,12 +293,12 @@ export class SearchIndexService implements OnModuleInit {
             pricing: true,
             inventory: true,
             attributeValues: {
-              include: { attribute: true }
-            }
-          }
+              include: { attribute: true },
+            },
+          },
         },
         attributeValues: {
-          include: { attribute: true }
+          include: { attribute: true },
         },
         images: true,
       },
@@ -293,10 +309,12 @@ export class SearchIndexService implements OnModuleInit {
     return this.buildProductDocumentFromData(product);
   }
 
-  private async buildProductDocumentFromData(product: any): Promise<SearchDocument> {
+  private async buildProductDocumentFromData(
+    product: any,
+  ): Promise<SearchDocument> {
     // Calculate aggregated pricing
     const prices = product.variants
-      ?.map(v => v.pricing?.sellingPrice)
+      ?.map((v) => v.pricing?.sellingPrice)
       .filter(Boolean)
       .map(Number) || [0];
 
@@ -304,14 +322,18 @@ export class SearchIndexService implements OnModuleInit {
     const maxPrice = Math.max(...prices) || 0;
 
     // Calculate aggregated inventory
-    const totalQuantity = product.variants
-      ?.reduce((sum, v) => sum + (v.inventory?.quantity || 0), 0) || 0;
+    const totalQuantity =
+      product.variants?.reduce(
+        (sum, v) => sum + (v.inventory?.quantity || 0),
+        0,
+      ) || 0;
 
     // Build attributes map
     const attributes = {};
-    product.attributeValues?.forEach(av => {
+    product.attributeValues?.forEach((av) => {
       if (av.attribute) {
-        attributes[av.attribute.slug] = av.stringValue || av.numberValue || av.booleanValue;
+        attributes[av.attribute.slug] =
+          av.stringValue || av.numberValue || av.booleanValue;
       }
     });
 
@@ -323,7 +345,9 @@ export class SearchIndexService implements OnModuleInit {
       product.brand?.name,
       product.seller?.businessName,
       ...Object.values(attributes).map(String),
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
 
     // Get popularity metrics (mock for now - implement with real analytics)
     const popularity = {
@@ -350,11 +374,13 @@ export class SearchIndexService implements OnModuleInit {
         level: product.category.level,
       },
 
-      brand: product.brand ? {
-        id: product.brand.id,
-        name: product.brand.name,
-        slug: product.brand.slug,
-      } : undefined,
+      brand: product.brand
+        ? {
+            id: product.brand.id,
+            name: product.brand.name,
+            slug: product.brand.slug,
+          }
+        : undefined,
 
       seller: {
         id: product.seller.id,
@@ -379,7 +405,7 @@ export class SearchIndexService implements OnModuleInit {
 
       attributes,
 
-      variants: product.variants?.map(v => ({
+      variants: product.variants?.map((v) => ({
         id: v.id,
         sku: v.sku,
         price: Number(v.pricing?.sellingPrice || 0),
@@ -392,7 +418,7 @@ export class SearchIndexService implements OnModuleInit {
         }, {}),
       })),
 
-      images: product.images?.map(img => img.url) || [],
+      images: product.images?.map((img) => img.url) || [],
       primaryImage: product.images?.[0]?.url || '',
 
       searchText,

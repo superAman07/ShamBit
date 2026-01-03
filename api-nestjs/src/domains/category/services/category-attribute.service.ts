@@ -548,7 +548,7 @@ export class CategoryAttributeService {
 
     // Update inheritance rule
     await this.categoryAttributeRepository.updateInheritanceRule(
-      inheritedAttribute.inheritedFrom!,
+      inheritedAttribute.inheritedFrom,
       categoryId,
       {
         isOverridden: true,

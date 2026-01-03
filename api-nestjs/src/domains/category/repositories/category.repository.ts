@@ -30,7 +30,7 @@ export class CategoryRepository implements ICategoryRepository {
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
     private readonly logger: LoggerService,
-  ) { }
+  ) {}
 
   // Basic CRUD operations
   async findById(
@@ -968,13 +968,13 @@ export class CategoryRepository implements ICategoryRepository {
     categoryId: string,
   ): Promise<void> {
     const [childCount, descendantCount, productCount] = await Promise.all([
-      (tx as any).category.count({
+      tx.category.count({
         where: { parentId: categoryId, isActive: true },
       }),
-      (tx as any).category.count({
+      tx.category.count({
         where: { path: { startsWith: `${categoryId}/` }, isActive: true },
       }),
-      (tx as any).product.count({
+      tx.product.count({
         where: { categoryId, isActive: true },
       }),
     ]);

@@ -12,11 +12,7 @@ import { ProductModule } from '../product/product.module';
 import { CacheService } from '../../infrastructure/cache/cache.service';
 
 @Module({
-  imports: [
-    ProductModule,
-    ConfigModule,
-    ScheduleModule.forRoot(),
-  ],
+  imports: [ProductModule, ConfigModule, ScheduleModule.forRoot()],
   controllers: [SearchController],
   providers: [
     SearchService,

@@ -14,30 +14,25 @@ export const ELASTICSEARCH_CONFIG = {
             'stop',
             'synonym_filter',
             'stemmer',
-            'edge_ngram_filter'
-          ]
+            'edge_ngram_filter',
+          ],
         },
         autocomplete_analyzer: {
           type: 'custom',
           tokenizer: 'keyword',
-          filter: ['lowercase', 'edge_ngram_filter']
+          filter: ['lowercase', 'edge_ngram_filter'],
         },
         search_analyzer: {
           type: 'custom',
           tokenizer: 'standard',
-          filter: [
-            'lowercase',
-            'stop',
-            'synonym_filter',
-            'stemmer'
-          ]
-        }
+          filter: ['lowercase', 'stop', 'synonym_filter', 'stemmer'],
+        },
       },
       filter: {
         edge_ngram_filter: {
           type: 'edge_ngram',
           min_gram: 2,
-          max_gram: 20
+          max_gram: 20,
         },
         synonym_filter: {
           type: 'synonym',
@@ -46,11 +41,11 @@ export const ELASTICSEARCH_CONFIG = {
             'laptop,notebook,computer',
             'tv,television',
             'fridge,refrigerator',
-            'ac,air conditioner'
-          ]
-        }
-      }
-    }
+            'ac,air conditioner',
+          ],
+        },
+      },
+    },
   },
 
   // Index mappings
@@ -69,15 +64,15 @@ export const ELASTICSEARCH_CONFIG = {
           autocomplete: {
             type: 'text',
             analyzer: 'autocomplete_analyzer',
-            search_analyzer: 'search_analyzer'
+            search_analyzer: 'search_analyzer',
           },
-          raw: { type: 'keyword' }
-        }
+          raw: { type: 'keyword' },
+        },
       },
       description: {
         type: 'text',
         analyzer: 'product_analyzer',
-        search_analyzer: 'search_analyzer'
+        search_analyzer: 'search_analyzer',
       },
       slug: { type: 'keyword' },
 
@@ -86,7 +81,7 @@ export const ELASTICSEARCH_CONFIG = {
       'category.name': {
         type: 'text',
         analyzer: 'product_analyzer',
-        fields: { keyword: { type: 'keyword' } }
+        fields: { keyword: { type: 'keyword' } },
       },
       'category.path': { type: 'keyword' },
       'category.pathIds': { type: 'keyword' },
@@ -97,7 +92,7 @@ export const ELASTICSEARCH_CONFIG = {
       'brand.name': {
         type: 'text',
         analyzer: 'product_analyzer',
-        fields: { keyword: { type: 'keyword' } }
+        fields: { keyword: { type: 'keyword' } },
       },
       'brand.slug': { type: 'keyword' },
 
@@ -106,7 +101,7 @@ export const ELASTICSEARCH_CONFIG = {
       'seller.businessName': {
         type: 'text',
         analyzer: 'product_analyzer',
-        fields: { keyword: { type: 'keyword' } }
+        fields: { keyword: { type: 'keyword' } },
       },
       'seller.rating': { type: 'float' },
       'seller.isVerified': { type: 'boolean' },
@@ -130,8 +125,8 @@ export const ELASTICSEARCH_CONFIG = {
           name: { type: 'keyword' },
           value: { type: 'keyword' },
           type: { type: 'keyword' },
-          displayValue: { type: 'text' }
-        }
+          displayValue: { type: 'text' },
+        },
       },
 
       // Variants
@@ -146,10 +141,10 @@ export const ELASTICSEARCH_CONFIG = {
             type: 'nested',
             properties: {
               name: { type: 'keyword' },
-              value: { type: 'keyword' }
-            }
-          }
-        }
+              value: { type: 'keyword' },
+            },
+          },
+        },
       },
 
       // Media
@@ -160,7 +155,7 @@ export const ELASTICSEARCH_CONFIG = {
       searchText: {
         type: 'text',
         analyzer: 'product_analyzer',
-        search_analyzer: 'search_analyzer'
+        search_analyzer: 'search_analyzer',
       },
       keywords: { type: 'keyword' },
       tags: { type: 'keyword' },
@@ -188,16 +183,16 @@ export const ELASTICSEARCH_CONFIG = {
       indexedAt: { type: 'date' },
 
       // Geo location (for location-based search)
-      location: { type: 'geo_point' }
-    }
-  }
+      location: { type: 'geo_point' },
+    },
+  },
 } as const;
 
 export const INDEX_ALIASES = {
   PRODUCTS: 'products',
   CATEGORIES: 'categories',
   BRANDS: 'brands',
-  SEARCH_ALL: 'search_all'
+  SEARCH_ALL: 'search_all',
 };
 
 export const SEARCH_CONSTANTS = {
@@ -210,5 +205,5 @@ export const SEARCH_CONSTANTS = {
   CACHE_TTL: 300, // 5 minutes
   BULK_SIZE: 1000,
   SCROLL_SIZE: 5000,
-  SCROLL_TIMEOUT: '5m'
+  SCROLL_TIMEOUT: '5m',
 };

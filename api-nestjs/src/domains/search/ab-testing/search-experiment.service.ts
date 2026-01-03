@@ -99,7 +99,7 @@ export class SearchExperimentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
-  ) { }
+  ) {}
 
   async getActiveExperiments(): Promise<SearchExperiment[]> {
     const cacheKey = 'search:experiments:active';
@@ -130,8 +130,8 @@ export class SearchExperimentService {
                   featuredProducts: 1.0,
                   promotedProducts: 1.0,
                   verifiedSellers: 1.0,
-                }
-              }
+                },
+              },
             },
             {
               id: 'var_001_test',
@@ -143,23 +143,22 @@ export class SearchExperimentService {
                   featuredProducts: 2.0,
                   promotedProducts: 1.5,
                   verifiedSellers: 1.3,
-                }
-              }
-            }
+                },
+              },
+            },
           ],
           startDate: new Date('2024-01-01'),
           endDate: new Date('2024-02-01'),
           targetMetrics: ['clickThroughRate', 'conversionRate'],
           createdAt: new Date('2023-12-15'),
           updatedAt: new Date('2024-01-01'),
-        }
+        },
       ];
 
       // Cache for 5 minutes
       await this.cacheService.set(cacheKey, experiments, 300);
 
       return experiments;
-
     } catch (error) {
       this.logger.error('Failed to get active experiments:', error);
       return [];
@@ -170,7 +169,7 @@ export class SearchExperimentService {
     userId?: string,
     sessionId?: string,
     userAgent?: string,
-    ipAddress?: string
+    ipAddress?: string,
   ): Promise<ExperimentAssignment[]> {
     try {
       const activeExperiments = await this.getActiveExperiments();
@@ -178,12 +177,21 @@ export class SearchExperimentService {
 
       for (const experiment of activeExperiments) {
         // Check if user should be included in this experiment
-        if (!this.shouldIncludeInExperiment(experiment, userId, userAgent, ipAddress)) {
+        if (
+          !this.shouldIncludeInExperiment(
+            experiment,
+            userId,
+            userAgent,
+            ipAddress,
+          )
+        ) {
           continue;
         }
 
         // Check traffic allocation
-        const trafficHash = this.hashString(`${userId || sessionId}_${experiment.id}`);
+        const trafficHash = this.hashString(
+          `${userId || sessionId}_${experiment.id}`,
+        );
         const trafficPercentile = trafficHash % 100;
 
         if (trafficPercentile >= experiment.trafficAllocation) {
@@ -191,7 +199,9 @@ export class SearchExperimentService {
         }
 
         // Assign to variant
-        const variantHash = this.hashString(`${userId || sessionId}_${experiment.id}_variant`);
+        const variantHash = this.hashString(
+          `${userId || sessionId}_${experiment.id}_variant`,
+        );
         const variantPercentile = variantHash % 100;
 
         let cumulativeWeight = 0;
@@ -223,7 +233,6 @@ export class SearchExperimentService {
       }
 
       return assignments;
-
     } catch (error) {
       this.logger.error('Failed to assign user to experiments:', error);
       return [];
@@ -232,7 +241,7 @@ export class SearchExperimentService {
 
   async getExperimentConfiguration(
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<SearchVariantConfig> {
     try {
       const assignments = await this.assignUserToExperiment(userId, sessionId);
@@ -245,16 +254,22 @@ export class SearchExperimentService {
       let mergedConfig: SearchVariantConfig = this.getDefaultConfiguration();
 
       for (const assignment of assignments) {
-        const experiment = await this.getExperimentById(assignment.experimentId);
-        const variant = experiment?.variants.find(v => v.id === assignment.variantId);
+        const experiment = await this.getExperimentById(
+          assignment.experimentId,
+        );
+        const variant = experiment?.variants.find(
+          (v) => v.id === assignment.variantId,
+        );
 
         if (variant) {
-          mergedConfig = this.mergeConfigurations(mergedConfig, variant.configuration);
+          mergedConfig = this.mergeConfigurations(
+            mergedConfig,
+            variant.configuration,
+          );
         }
       }
 
       return mergedConfig;
-
     } catch (error) {
       this.logger.error('Failed to get experiment configuration:', error);
       return this.getDefaultConfiguration();
@@ -277,16 +292,17 @@ export class SearchExperimentService {
           assignment.experimentId,
           assignment.variantId,
           eventType,
-          eventData
+          eventData,
         );
       }
-
     } catch (error) {
       this.logger.error('Failed to track experiment event:', error);
     }
   }
 
-  async getExperimentMetrics(experimentId: string): Promise<ExperimentMetrics[]> {
+  async getExperimentMetrics(
+    experimentId: string,
+  ): Promise<ExperimentMetrics[]> {
     try {
       // Mock metrics - replace with actual analytics data
       const experiment = await this.getExperimentById(experimentId);
@@ -294,25 +310,26 @@ export class SearchExperimentService {
         return [];
       }
 
-      const metrics: ExperimentMetrics[] = experiment.variants.map(variant => ({
-        experimentId,
-        variantId: variant.id,
-        metrics: {
-          searches: Math.floor(Math.random() * 10000),
-          clickThroughRate: Math.random() * 0.3,
-          conversionRate: Math.random() * 0.1,
-          averagePosition: Math.random() * 10 + 1,
-          zeroResultRate: Math.random() * 0.2,
-          averageResponseTime: Math.random() * 200 + 50,
-        },
-        period: {
-          startDate: experiment.startDate,
-          endDate: experiment.endDate || new Date(),
-        },
-      }));
+      const metrics: ExperimentMetrics[] = experiment.variants.map(
+        (variant) => ({
+          experimentId,
+          variantId: variant.id,
+          metrics: {
+            searches: Math.floor(Math.random() * 10000),
+            clickThroughRate: Math.random() * 0.3,
+            conversionRate: Math.random() * 0.1,
+            averagePosition: Math.random() * 10 + 1,
+            zeroResultRate: Math.random() * 0.2,
+            averageResponseTime: Math.random() * 200 + 50,
+          },
+          period: {
+            startDate: experiment.startDate,
+            endDate: experiment.endDate || new Date(),
+          },
+        }),
+      );
 
       return metrics;
-
     } catch (error) {
       this.logger.error('Failed to get experiment metrics:', error);
       return [];
@@ -323,7 +340,7 @@ export class SearchExperimentService {
     experiment: SearchExperiment,
     userId?: string,
     userAgent?: string,
-    ipAddress?: string
+    ipAddress?: string,
   ): boolean {
     // Check experiment status
     if (experiment.status !== 'active') {
@@ -332,7 +349,10 @@ export class SearchExperimentService {
 
     // Check date range
     const now = new Date();
-    if (now < experiment.startDate || (experiment.endDate && now > experiment.endDate)) {
+    if (
+      now < experiment.startDate ||
+      (experiment.endDate && now > experiment.endDate)
+    ) {
       return false;
     }
 
@@ -349,7 +369,7 @@ export class SearchExperimentService {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash);
@@ -390,25 +410,30 @@ export class SearchExperimentService {
 
   private mergeConfigurations(
     base: SearchVariantConfig,
-    override: SearchVariantConfig
+    override: SearchVariantConfig,
   ): SearchVariantConfig {
     return {
       boostFactors: { ...base.boostFactors, ...override.boostFactors },
       searchSettings: { ...base.searchSettings, ...override.searchSettings },
       facetSettings: { ...base.facetSettings, ...override.facetSettings },
-      personalizationSettings: { ...base.personalizationSettings, ...override.personalizationSettings },
+      personalizationSettings: {
+        ...base.personalizationSettings,
+        ...override.personalizationSettings,
+      },
       uiSettings: { ...base.uiSettings, ...override.uiSettings },
     };
   }
 
-  private async getExperimentById(experimentId: string): Promise<SearchExperiment | null> {
+  private async getExperimentById(
+    experimentId: string,
+  ): Promise<SearchExperiment | null> {
     const experiments = await this.getActiveExperiments();
-    return experiments.find(exp => exp.id === experimentId) || null;
+    return experiments.find((exp) => exp.id === experimentId) || null;
   }
 
   private async getUserAssignments(
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<ExperimentAssignment[]> {
     // In a real implementation, this would query the database
     // For now, we'll re-assign to get current assignments
@@ -419,7 +444,7 @@ export class SearchExperimentService {
     experimentId: string,
     variantId: string,
     eventType: string,
-    eventData: any
+    eventData: any,
   ): Promise<void> {
     // In a real implementation, this would store metrics in a time-series database
     // or analytics service like ClickHouse, BigQuery, etc.
